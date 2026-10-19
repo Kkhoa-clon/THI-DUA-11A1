@@ -9,6 +9,13 @@
 export const CLASS_NAME = "11A1";
 export const SCHOOL_YEAR = "2026–2027";
 
+/**
+ * Thứ Hai của Tuần 1 thi đua (YYYY-MM-DD).
+ * Tuần hiện tại sẽ là Tuần 1, 2, 3… tính từ mốc này — không theo tuần nhà trường.
+ * Đổi 1 lần khi bắt đầu thi đua; không đổi giữa chừng kẻo lệch số tuần.
+ */
+export const COMPETITION_START = "2026-10-19";
+
 /** Project URL dạng https://xxxx.supabase.co */
 export const SUPABASE_URL = "https://dgiqqwbdvtziulmkutkl.supabase.co";
 

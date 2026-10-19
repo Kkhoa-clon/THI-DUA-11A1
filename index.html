@@ -25,18 +25,35 @@
           <span class="status-pill" id="mode-pill" data-mode="offline">
             <span class="status-dot"></span> …
           </span>
-          <div class="week-picker">
-            <label for="week-select">Tuần</label>
-            <select id="week-select" aria-label="Chọn tuần"></select>
+          <div class="week-nav" role="group" aria-label="Chọn tuần thi đua">
+            <button type="button" class="week-nav-btn" id="week-prev" aria-label="Tuần trước">
+              ‹
+            </button>
+            <div class="week-nav-mid">
+              <select id="week-select" aria-label="Chọn tuần"></select>
+              <span class="week-range" id="week-range"></span>
+            </div>
+            <button type="button" class="week-nav-btn" id="week-next" aria-label="Tuần sau">
+              ›
+            </button>
           </div>
         </div>
       </header>
 
+      <p class="banner" id="week-banner">
+        Mỗi bạn bắt đầu <strong>100 điểm</strong> mỗi tuần · Bấm tổ để xem chi tiết
+      </p>
+
       <section id="view-home">
         <div class="panel">
           <div class="panel-head">
-            <h2>Bảng xếp hạng tổ</h2>
-            <p class="hint">Bấm vào tổ để xem thành viên &amp; lịch sử cộng/trừ</p>
+            <div>
+              <h2>Bảng xếp hạng tổ</h2>
+              <p class="hint" id="rank-hint">Đang xem tuần hiện tại</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm view-hidden" id="btn-this-week">
+              Về tuần này
+            </button>
           </div>
           <ul class="rank-list" id="rank-list"></ul>
         </div>
@@ -67,6 +84,7 @@
             </thead>
             <tbody id="member-body"></tbody>
           </table>
+          <p class="table-foot">Bấm vào tên để xem lịch sử cộng / trừ</p>
         </div>
       </section>
     </div>
@@ -75,7 +93,7 @@
       <div class="leader-panel view-hidden" id="leader-panel">
         <div id="leader-login">
           <h3>Tổ trưởng</h3>
-          <p class="sub">Nhập mã do lớp trưởng / GVCN cấp để ghi điểm tổ mình.</p>
+          <p class="sub">Nhập mã do lớp cấp để ghi điểm tổ mình.</p>
           <div class="field">
             <label for="leader-code">Mã tổ trưởng</label>
             <input
@@ -83,6 +101,7 @@
               type="password"
               autocomplete="off"
               placeholder="ví dụ: to4"
+              enterkeyhint="go"
             />
           </div>
           <div class="form-actions">
@@ -92,19 +111,27 @@
 
         <div id="leader-form" class="view-hidden">
           <h3>Ghi điểm · <span id="leader-team-label"></span></h3>
-          <p class="sub">Chọn tên + loại → hệ thống tự cộng/trừ. Không nhập tay điểm số.</p>
+          <p class="sub">Chọn tên + loại → xác nhận. Hệ thống tự cộng/trừ.</p>
           <div class="field">
             <label for="member-select">Thành viên</label>
             <select id="member-select"></select>
           </div>
           <div class="field">
-            <label for="rule-select">Loại cộng / vi phạm</label>
-            <select id="rule-select"></select>
+            <label>Loại</label>
+            <div class="seg" role="tablist" aria-label="Lọc loại điểm">
+              <button type="button" class="seg-btn is-active" data-filter="all">Tất cả</button>
+              <button type="button" class="seg-btn" data-filter="plus">Cộng</button>
+              <button type="button" class="seg-btn" data-filter="minus">Vi phạm</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="rule-select">Chi tiết</label>
+            <select id="rule-select" size="1"></select>
             <div class="preview" id="rule-preview"></div>
           </div>
           <div class="field">
             <label for="note-input">Ghi chú (tuỳ chọn)</label>
-            <textarea id="note-input" rows="2" placeholder="VD: tiết 3 Toán…"></textarea>
+            <input id="note-input" type="text" placeholder="VD: tiết 3 Toán…" enterkeyhint="done" />
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-primary" id="btn-submit">Xác nhận</button>

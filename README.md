@@ -30,6 +30,7 @@ Mở [`js/config.js`](js/config.js):
 
 1. Sửa `TEAMS` — tên tổ và thành viên (`id` phải duy nhất).
 2. Đổi `LEADER_CODES` — mã bạn cấp cho từng tổ trưởng.
+3. `COMPETITION_START` — thứ Hai của **Tuần 1** thi đua (vd `2026-10-19`). Hôm nay sẽ là Tuần 1, tuần sau Tuần 2… — không theo số tuần nhà trường.
 
 ## 2. Supabase (để nhiều máy cùng xem/ghi)
 

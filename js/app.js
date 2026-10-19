@@ -1,7 +1,6 @@
 import {
   CLASS_NAME,
   SCHOOL_YEAR,
-  TEAMS,
   TEAM_BY_ID,
   MEMBER_BY_ID,
   resolveLeaderCode,
@@ -10,14 +9,16 @@ import {
 import {
   gradeFor,
   formatPoints,
-  rulesGrouped,
   RULE_BY_ID,
+  RULES,
 } from "./rules.js";
 import {
   ScoreStore,
   weekIdFromDate,
   weekLabel,
-  recentWeekIds,
+  weekRangeLabel,
+  weekNumber,
+  competitionWeekIds,
 } from "./store.js";
 
 const store = new ScoreStore();
@@ -25,6 +26,8 @@ const store = new ScoreStore();
 let activeTeamId = null;
 /** @type {string | null} */
 let openMemberId = null;
+/** @type {"all" | "plus" | "minus"} */
+let ruleFilter = "all";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -48,31 +51,63 @@ function syncModePill() {
   }
 }
 
-function fillWeekSelect() {
+function syncWeekUI() {
   const sel = $("#week-select");
-  const ids = recentWeekIds(8);
+  const ids = competitionWeekIds();
+  const current = weekIdFromDate();
+
   sel.innerHTML = ids
     .map((id) => {
-      const cur = id === weekIdFromDate() ? " (tuần này)" : "";
-      return `<option value="${id}">${weekLabel(id)}${cur}</option>`;
+      const n = weekNumber(id);
+      const tag = id === current ? " · tuần này" : "";
+      return `<option value="${id}">Tuần ${n}${tag}</option>`;
     })
     .join("");
+
+  if (!ids.includes(store.weekId)) {
+    store.weekId = ids[0] || current;
+  }
   sel.value = store.weekId;
+
+  $("#week-range").textContent = weekRangeLabel(store.weekId);
+  $("#rank-hint").textContent = `Đang xem ${weekLabel(store.weekId)} · ${weekRangeLabel(store.weekId)}`;
+  $("#week-banner").innerHTML = `Mỗi bạn bắt đầu <strong>100 điểm</strong> · Đang xem <strong>${weekLabel(store.weekId)}</strong>`;
+
+  const idx = ids.indexOf(store.weekId);
+  $("#week-prev").disabled = idx < 0 || idx >= ids.length - 1;
+  $("#week-next").disabled = idx <= 0;
+
+  const btnThis = $("#btn-this-week");
+  if (store.weekId !== current) {
+    btnThis.classList.remove("view-hidden");
+  } else {
+    btnThis.classList.add("view-hidden");
+  }
+}
+
+async function goWeek(weekId) {
+  if (!weekId || weekId === store.weekId) return;
+  await store.setWeek(weekId);
+  syncWeekUI();
 }
 
 function renderRanking() {
   const list = $("#rank-list");
   const ranks = store.rankings();
+  const maxPts = Math.max(...ranks.map((r) => r.points), 1);
+
   list.innerHTML = ranks
     .map((r, i) => {
       const place = i + 1;
+      const pct = Math.round((r.points / maxPts) * 100);
       return `
       <li>
         <button type="button" class="rank-item" data-place="${place}" data-team="${r.team.id}">
           <span class="rank-badge">${place}</span>
-          <span>
+          <span class="rank-main">
             <div class="rank-name">${r.team.name}</div>
-            <div class="rank-sub">${r.team.members.length} thành viên · TB ${r.avg} điểm</div>
+            <div class="rank-sub">${r.team.members.length} thành viên · TB ${r.avg}</div>
+            <div class="rank-bar" aria-hidden="true"><span style="width:${pct}%"></span></div>
           </span>
           <span class="rank-score">
             <strong>${r.points}</strong>
@@ -91,16 +126,17 @@ function renderRanking() {
 function renderHistory(memberId) {
   const events = store.eventsForMember(memberId);
   if (!events.length) {
-    return `<p class="empty-hint">Chưa có ghi nhận nào tuần này.</p>`;
+    return `<p class="empty-hint">Chưa có ghi nhận nào trong ${weekLabel(store.weekId)}.</p>`;
   }
   return `
-    <h4>Lịch sử tuần này</h4>
+    <h4>Lịch sử · ${weekLabel(store.weekId)}</h4>
     <ul class="event-list">
       ${events
         .map((e) => {
           const cls =
             e.points > 0 ? "plus" : e.points < 0 ? "minus" : "zero";
           const when = new Date(e.createdAt).toLocaleString("vi-VN", {
+            weekday: "short",
             day: "2-digit",
             month: "2-digit",
             hour: "2-digit",
@@ -113,7 +149,7 @@ function renderHistory(memberId) {
             <span class="event-delta ${cls}">${formatPoints(e.points)}</span>
             <span>
               <div class="event-label">${escapeHtml(e.label)}</div>
-              <div class="event-meta">${when} · ghi bởi ${escapeHtml(by)}${note}</div>
+              <div class="event-meta">${when} · ${escapeHtml(by)}${note}</div>
             </span>
           </li>`;
         })
@@ -134,7 +170,7 @@ function renderTeamDetail() {
   if (!team) return;
 
   $("#team-title").textContent = team.name;
-  $("#team-meta").textContent = `${team.members.length} thành viên · Tuần ${weekLabel(store.weekId)}`;
+  $("#team-meta").textContent = `${team.members.length} thành viên · ${weekLabel(store.weekId, { withRange: true })}`;
   $("#team-total").textContent = String(store.teamPoints(team.id));
 
   const rows = team.members
@@ -142,9 +178,14 @@ function renderTeamDetail() {
       const pts = store.memberPoints(m.id);
       const g = gradeFor(pts);
       const open = openMemberId === m.id;
+      const count = store.eventsForMember(m.id).length;
+      const countHtml =
+        count > 0
+          ? `<span class="evt-count">${count}</span>`
+          : "";
       return `
       <tr class="${open ? "is-open" : ""}" data-member="${m.id}">
-        <td>${escapeHtml(m.name)}</td>
+        <td>${escapeHtml(m.name)} ${countHtml}</td>
         <td class="pts">${pts}</td>
         <td><span class="grade grade-${g.key}">${g.label}</span></td>
       </tr>
@@ -185,22 +226,38 @@ function showTeam(teamId) {
   renderTeamDetail();
 }
 
+function filteredRules() {
+  return RULES.filter((r) => {
+    if (ruleFilter === "plus") return r.points > 0;
+    if (ruleFilter === "minus") return r.points < 0 || r.noteOnly;
+    return true;
+  });
+}
+
 function fillRuleSelect() {
   const sel = $("#rule-select");
-  const groups = rulesGrouped();
+  const rules = filteredRules();
+  /** @type {Map<string, typeof RULES>} */
+  const map = new Map();
+  for (const r of rules) {
+    if (!map.has(r.group)) map.set(r.group, []);
+    map.get(r.group).push(r);
+  }
+
   let html = `<option value="">— Chọn loại —</option>`;
-  for (const [group, rules] of groups) {
+  for (const [group, list] of map) {
     html += `<optgroup label="${escapeHtml(group)}">`;
-    for (const r of rules) {
+    for (const r of list) {
       const pts =
         r.points === 0 && r.noteOnly
           ? "ghi nhận"
-          : formatPoints(r.points) + " điểm";
-      html += `<option value="${r.id}">${escapeHtml(r.label)} (${pts})</option>`;
+          : formatPoints(r.points);
+      html += `<option value="${r.id}">${escapeHtml(r.label)} · ${pts}</option>`;
     }
     html += `</optgroup>`;
   }
   sel.innerHTML = html;
+  updateRulePreview();
 }
 
 function fillMemberSelect() {
@@ -214,7 +271,10 @@ function fillMemberSelect() {
   sel.innerHTML =
     `<option value="">— Chọn thành viên —</option>` +
     team.members
-      .map((m) => `<option value="${m.id}">${escapeHtml(m.name)}</option>`)
+      .map((m) => {
+        const pts = store.memberPoints(m.id);
+        return `<option value="${m.id}">${escapeHtml(m.name)} (${pts}đ)</option>`;
+      })
       .join("");
 }
 
@@ -227,12 +287,16 @@ function updateRulePreview() {
     return;
   }
   if (rule.noteOnly && rule.points === 0) {
-    prev.textContent = "Chỉ ghi nhận (không trừ/cộng số điểm)";
+    prev.textContent = "Chỉ ghi nhận — không trừ/cộng số";
     prev.className = "preview";
     return;
   }
-  prev.textContent = `Hệ thống sẽ áp: ${formatPoints(rule.points)} điểm`;
+  prev.textContent = `Sẽ áp: ${formatPoints(rule.points)} điểm`;
   prev.className = `preview ${rule.points < 0 ? "minus" : ""}`;
+}
+
+function setLeaderPanelOpen(open) {
+  $("#leader-panel").classList.toggle("view-hidden", !open);
 }
 
 function syncLeaderUI() {
@@ -240,7 +304,6 @@ function syncLeaderUI() {
   const fab = $("#leader-fab");
   const login = $("#leader-login");
   const form = $("#leader-form");
-  const panel = $("#leader-panel");
 
   fab.dataset.active = teamId ? "true" : "false";
   fab.title = teamId
@@ -256,15 +319,11 @@ function syncLeaderUI() {
     login.classList.remove("view-hidden");
     form.classList.add("view-hidden");
   }
-
-  // Keep panel closed by default on load; don't force open
-  if (!panel.dataset.ready) {
-    panel.classList.add("view-hidden");
-    panel.dataset.ready = "1";
-  }
 }
 
 function onStoreUpdate() {
+  syncWeekUI();
+  if (store.getLeaderTeamId()) fillMemberSelect();
   if (activeTeamId) renderTeamDetail();
   else renderRanking();
 }
@@ -273,19 +332,46 @@ async function boot() {
   $("#brand-class").textContent = CLASS_NAME;
   $("#brand-year").textContent = `Thi đua năm học ${SCHOOL_YEAR}`;
 
-  fillWeekSelect();
   fillRuleSelect();
   syncModePill();
   syncLeaderUI();
+  syncWeekUI();
 
   $("#week-select").addEventListener("change", async (e) => {
-    await store.setWeek(e.target.value);
+    await goWeek(e.target.value);
+  });
+
+  $("#week-prev").addEventListener("click", async () => {
+    const ids = competitionWeekIds();
+    const idx = ids.indexOf(store.weekId);
+    if (idx >= 0 && idx < ids.length - 1) await goWeek(ids[idx + 1]);
+  });
+
+  $("#week-next").addEventListener("click", async () => {
+    const ids = competitionWeekIds();
+    const idx = ids.indexOf(store.weekId);
+    if (idx > 0) await goWeek(ids[idx - 1]);
+  });
+
+  $("#btn-this-week").addEventListener("click", async () => {
+    await goWeek(weekIdFromDate());
   });
 
   $("#btn-back").addEventListener("click", showHome);
 
-  $("#leader-fab").addEventListener("click", () => {
-    $("#leader-panel").classList.toggle("view-hidden");
+  $("#leader-fab").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const panel = $("#leader-panel");
+    setLeaderPanelOpen(panel.classList.contains("view-hidden"));
+  });
+
+  document.addEventListener("click", (e) => {
+    const dock = e.target.closest(".leader-dock");
+    if (!dock) setLeaderPanelOpen(false);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setLeaderPanelOpen(false);
   });
 
   $("#btn-login").addEventListener("click", () => {
@@ -311,6 +397,16 @@ async function boot() {
     toast("Đã thoát chế độ tổ trưởng.");
   });
 
+  document.querySelectorAll(".seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      ruleFilter = btn.dataset.filter;
+      document.querySelectorAll(".seg-btn").forEach((b) => {
+        b.classList.toggle("is-active", b === btn);
+      });
+      fillRuleSelect();
+    });
+  });
+
   $("#rule-select").addEventListener("change", updateRulePreview);
 
   $("#btn-submit").addEventListener("click", async () => {
@@ -330,7 +426,8 @@ async function boot() {
       $("#rule-select").value = "";
       $("#note-input").value = "";
       updateRulePreview();
-      // Stay on member for quick consecutive entries
+      fillMemberSelect();
+      $("#member-select").value = memberId;
     } catch (err) {
       console.error(err);
       toast(err.message || "Không ghi được điểm.", true);
@@ -344,6 +441,7 @@ async function boot() {
   try {
     await store.init();
     syncModePill();
+    syncWeekUI();
     if (!SUPABASE_ENABLED) {
       toast("Chưa cấu hình Supabase — đang dùng offline trên máy này.");
     }
@@ -353,7 +451,6 @@ async function boot() {
       "Không kết nối được Supabase. Kiểm tra URL/key và đã chạy supabase.sql chưa.",
       true
     );
-    // Fallback offline so UI still works
     store.mode = "offline";
     await store.refresh();
     syncModePill();

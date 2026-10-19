@@ -3,6 +3,7 @@ import {
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   TEAMS,
+  COMPETITION_START,
 } from "./config.js";
 import { BASE_POINTS, RULE_BY_ID } from "./rules.js";
 
@@ -19,7 +20,12 @@ export function weekIdFromDate(date = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
-export function weekLabel(weekId) {
+/** Thứ Hai của Tuần 1 (đã chuẩn hoá) */
+export function competitionStartWeekId() {
+  return weekIdFromDate(new Date(COMPETITION_START + "T12:00:00"));
+}
+
+export function weekRangeLabel(weekId) {
   const start = new Date(weekId + "T12:00:00");
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
@@ -28,16 +34,50 @@ export function weekLabel(weekId) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-/** Recent week ids (newest first), including current */
-export function recentWeekIds(count = 8) {
+/** Số tuần thi đua: Tuần 1 = COMPETITION_START */
+export function weekNumber(weekId) {
+  const start = new Date(competitionStartWeekId() + "T12:00:00");
+  const cur = new Date(weekId + "T12:00:00");
+  const diffDays = Math.round((cur - start) / 86400000);
+  return Math.floor(diffDays / 7) + 1;
+}
+
+/** Nhãn hiển thị: "Tuần 1 · tuần này" */
+export function weekLabel(weekId, { withRange = false } = {}) {
+  const n = weekNumber(weekId);
+  const isCurrent = weekId === weekIdFromDate();
+  let label = `Tuần ${n}`;
+  if (isCurrent) label += " · tuần này";
+  else if (n === weekNumber(weekIdFromDate()) - 1) label += " · tuần trước";
+  if (withRange) label += ` (${weekRangeLabel(weekId)})`;
+  return label;
+}
+
+/**
+ * Danh sách tuần từ Tuần 1 → tuần hiện tại (mới nhất trước).
+ * Không liệt kê tuần tương lai.
+ */
+export function competitionWeekIds() {
+  const startId = competitionStartWeekId();
+  const endId = weekIdFromDate();
+  const start = new Date(startId + "T12:00:00");
+  const end = new Date(endId + "T12:00:00");
   const ids = [];
-  const cur = weekIdFromDate();
-  let d = new Date(cur + "T12:00:00");
-  for (let i = 0; i < count; i++) {
+  if (end < start) {
+    // Mốc tương lai hơn hôm nay → chỉ hiện tuần hiện tại
+    return [endId];
+  }
+  const d = new Date(end);
+  while (d >= start) {
     ids.push(d.toISOString().slice(0, 10));
     d.setDate(d.getDate() - 7);
   }
   return ids;
+}
+
+/** @deprecated dùng competitionWeekIds */
+export function recentWeekIds() {
+  return competitionWeekIds();
 }
 
 function loadLocal() {
