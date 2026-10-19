@@ -1,5 +1,5 @@
 -- Chạy 1 lần trong Supabase → SQL Editor → New query → Run
--- Tạo bảng điểm + quyền đọc/ghi + realtime
+-- (Có thể chạy lại an toàn — sẽ drop/create lại policy)
 
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
@@ -19,16 +19,14 @@ create index if not exists events_week_created_idx
 
 alter table public.events enable row level security;
 
--- Xoá policy cũ nếu chạy lại script
 drop policy if exists "events_select_all" on public.events;
 drop policy if exists "events_insert_valid" on public.events;
+drop policy if exists "events_delete_all" on public.events;
 
--- Ai cũng xem được (minh bạch)
 create policy "events_select_all"
   on public.events for select
   using (true);
 
--- Ai cũng thêm được nếu payload hợp lệ; không cho sửa/xoá
 create policy "events_insert_valid"
   on public.events for insert
   with check (
@@ -38,5 +36,16 @@ create policy "events_insert_valid"
     and char_length(note) <= 200
   );
 
--- Bật realtime cho bảng events
-alter publication supabase_realtime add table public.events;
+-- Cho phép xoá (app chỉ hiện nút xoá cho tổ trưởng đúng tổ)
+create policy "events_delete_all"
+  on public.events for delete
+  using (true);
+
+-- Bật realtime (nếu đã add rồi có thể báo lỗi — bỏ qua)
+do $$
+begin
+  alter publication supabase_realtime add table public.events;
+exception
+  when duplicate_object then null;
+  when others then null;
+end $$;

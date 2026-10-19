@@ -6,7 +6,6 @@
     <meta name="description" content="Bảng điểm thi đua lớp 11A1 — xếp hạng tổ realtime" />
     <title>11A1 · Điểm thi đua</title>
     <script>
-      // GitHub project Pages: đảm bảo CSS/JS luôn lấy đúng thư mục repo
       (function () {
         var path = location.pathname;
         if (path.endsWith(".html")) path = path.slice(0, path.lastIndexOf("/") + 1);
@@ -38,29 +37,45 @@
             <span class="status-dot"></span> …
           </span>
           <div class="week-nav" role="group" aria-label="Chọn tuần thi đua">
-            <button type="button" class="week-nav-btn" id="week-prev" aria-label="Tuần trước">
-              ‹
-            </button>
+            <button type="button" class="week-nav-btn" id="week-prev" aria-label="Tuần trước">‹</button>
             <div class="week-nav-mid">
               <select id="week-select" aria-label="Chọn tuần"></select>
               <span class="week-range" id="week-range"></span>
             </div>
-            <button type="button" class="week-nav-btn" id="week-next" aria-label="Tuần sau">
-              ›
-            </button>
+            <button type="button" class="week-nav-btn" id="week-next" aria-label="Tuần sau">›</button>
           </div>
         </div>
       </header>
 
-      <p class="banner" id="week-banner">
-        Mỗi bạn bắt đầu <strong>100 điểm</strong> mỗi tuần · Bấm tổ để xem chi tiết
-      </p>
+      <p class="banner" id="week-banner">Đang tải…</p>
+
+      <div class="search-box" id="search-box">
+        <label class="search-label" for="search-input">Tra cứu thành viên</label>
+        <div class="search-row">
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Nhập tên để xem tiểu sử…"
+            autocomplete="off"
+            enterkeyhint="search"
+          />
+          <button type="button" class="btn btn-primary btn-sm" id="search-btn">Tìm</button>
+        </div>
+        <ul class="search-suggest view-hidden" id="search-suggest"></ul>
+      </div>
+
+      <nav class="board-tabs" id="board-tabs" aria-label="Chọn bảng xếp hạng">
+        <button type="button" class="board-tab is-active" data-board="teams">Tổ (tuần)</button>
+        <button type="button" class="board-tab" data-board="year">Cá nhân cả năm</button>
+        <button type="button" class="board-tab" data-board="minus">Vi phạm</button>
+        <button type="button" class="board-tab" data-board="plus">Điểm cộng</button>
+      </nav>
 
       <section id="view-home">
         <div class="panel">
           <div class="panel-head">
             <div>
-              <h2>Bảng xếp hạng tổ</h2>
+              <h2 id="board-title">Bảng xếp hạng tổ</h2>
               <p class="hint" id="rank-hint">Đang xem tuần hiện tại</p>
             </div>
             <button type="button" class="btn btn-ghost btn-sm view-hidden" id="btn-this-week">
@@ -68,6 +83,7 @@
             </button>
           </div>
           <ul class="rank-list" id="rank-list"></ul>
+          <p class="table-foot" id="board-foot">Bấm vào tổ để xem thành viên</p>
         </div>
       </section>
 
@@ -85,10 +101,18 @@
             <span>tổng điểm tổ</span>
           </div>
         </div>
+
+        <div class="team-summary panel" id="team-summary"></div>
+
         <div class="panel">
+          <div class="panel-head">
+            <h2>Thành viên</h2>
+            <p class="hint">Điểm cao → thấp · Bấm tên xem lịch sử tuần / tiểu sử</p>
+          </div>
           <table class="member-table">
             <thead>
               <tr>
+                <th>#</th>
                 <th>Thành viên</th>
                 <th>Điểm</th>
                 <th>Xếp loại</th>
@@ -96,23 +120,46 @@
             </thead>
             <tbody id="member-body"></tbody>
           </table>
-          <p class="table-foot">Bấm vào tên để xem lịch sử cộng / trừ</p>
         </div>
+      </section>
+
+      <!-- Trang tiểu sử -->
+      <section id="view-profile" class="view-hidden">
+        <div class="back-row">
+          <button type="button" class="btn btn-ghost" id="btn-back-profile">← Quay lại</button>
+        </div>
+        <article class="profile-card" id="profile-card">
+          <div class="profile-cover"></div>
+          <div class="profile-head">
+            <div class="profile-avatar" id="profile-avatar">?</div>
+            <div>
+              <h2 id="profile-name">—</h2>
+              <p class="meta" id="profile-sub"></p>
+            </div>
+          </div>
+          <div class="modal-stats" id="profile-stats"></div>
+          <div class="seg modal-seg" id="profile-filters">
+            <button type="button" class="seg-btn is-active" data-dkind="all">Tất cả</button>
+            <button type="button" class="seg-btn" data-dkind="minus">Vi phạm</button>
+            <button type="button" class="seg-btn" data-dkind="plus">Cộng</button>
+          </div>
+          <div id="profile-body"></div>
+        </article>
       </section>
     </div>
 
     <div class="leader-dock">
       <div class="leader-panel view-hidden" id="leader-panel">
         <div id="leader-login">
-          <h3>Tổ trưởng</h3>
-          <p class="sub">Nhập mã do lớp cấp để ghi điểm tổ mình.</p>
+          <h3>Đăng nhập ghi điểm</h3>
+          <p class="sub">Mã tổ trưởng (to1…) hoặc mật khẩu admin.</p>
           <div class="field">
-            <label for="leader-code">Mã tổ trưởng</label>
+            <label for="leader-code">Mã / mật khẩu</label>
             <input
               id="leader-code"
               type="password"
               autocomplete="off"
-              placeholder="ví dụ: to4"
+              placeholder="to4 hoặc admin"
               enterkeyhint="go"
             />
           </div>
@@ -123,7 +170,8 @@
 
         <div id="leader-form" class="view-hidden">
           <h3>Ghi điểm · <span id="leader-team-label"></span></h3>
-          <p class="sub">Chọn tên + loại → xác nhận. Hệ thống tự cộng/trừ.</p>
+          <p class="sub" id="leader-form-sub">Chọn tên + loại → xác nhận. Hệ thống tự cộng/trừ.</p>
+          <p class="lock-note view-hidden" id="leader-lock-note"></p>
           <div class="field">
             <label for="member-select">Thành viên</label>
             <select id="member-select"></select>

@@ -6,10 +6,11 @@ Triển khai trên **GitHub Pages** (file tĩnh) + **Supabase** (miễn phí, re
 
 ## Tính năng
 
-- Bảng xếp hạng tổ theo tuần (mỗi bạn bắt đầu **100 điểm**)
-- Chi tiết tổ → điểm & xếp loại (Tốt / Khá / Đạt / Chưa đạt) → lịch sử từng lần ghi
-- Nút nhỏ **TT** (góc phải dưới): nhập mã tổ trưởng (vd `to4`) → ghi điểm tổ mình
-- Catalog nội quy sẵn trong `js/rules.js` — không nhập tay số điểm
+- Tuần chạy theo lịch thật (Tuần 1…35); **BXH năm chỉ tính tuần đã học** (vd hôm nay = Tuần 6 → tính T1→T6)
+- **Tổ (tuần)** · **Cá nhân cả năm** · **Vi phạm** · **Điểm cộng**
+- Vào tổ: thành viên xếp điểm cao → thấp; bấm tên xem lịch sử tuần
+- Bấm tên trên BXH cá nhân/vi phạm/cộng → chi tiết: loại nào, tuần mấy, bao nhiêu lần
+- Nút **TT**: tổ trưởng nhập mã → chọn tên + loại → hệ thống tự ± điểm
 
 ## Cấu trúc
 
@@ -29,19 +30,21 @@ noi-quy.md
 Mở [`js/config.js`](js/config.js):
 
 1. Sửa `TEAMS` — tên tổ và thành viên (`id` phải duy nhất).
-2. Đổi `LEADER_CODES` — mã bạn cấp cho từng tổ trưởng.
-3. `COMPETITION_START` — thứ Hai của **Tuần 1** (vd `2026-10-19`). App luôn có sẵn **Tuần 1 → 35** (để trống, tự ghi điểm). `TOTAL_WEEKS` đổi được trong config.
+2. Đổi `LEADER_CODES` — mã tổ trưởng; `ADMIN_CODE` (mặc định `khoa`) — toàn quyền mọi tổ/mọi tuần.
+3. Tổ trưởng **chỉ ghi/xoá tuần hiện tại**; tuần đã qua bị khoá (chỉ admin sửa được).
+4. `COMPETITION_START` — thứ Hai của **Tuần 1**. App có sẵn **Tuần 1 → 35**.
 
 ## 2. Supabase (để nhiều máy cùng xem/ghi)
 
 1. Đăng ký / đăng nhập [supabase.com](https://supabase.com) → **New project** (chọn Free).
 2. Vào **SQL Editor** → New query → dán toàn bộ [`supabase.sql`](supabase.sql) → **Run**.
+   - **Bắt buộc để nút Xoá hoạt động:** chạy [`supabase-enable-delete.sql`](supabase-enable-delete.sql) (hoặc cả `supabase.sql`). Nếu chưa chạy, xoá sẽ báo lỗi và tổng kết vẫn còn bản ghi.
 3. **Project Settings → API**:
    - Copy **Project URL** → dán vào `SUPABASE_URL` trong `js/config.js`
    - Copy **anon public** key → dán vào `SUPABASE_ANON_KEY`
-4. Xong. Không cần tạo index thủ công, không cần file rules riêng.
+4. Xong.
 
-Nếu dòng `alter publication ...` báo lỗi “already member”, bỏ qua — realtime đã bật.
+Nếu dòng realtime báo lỗi “already member”, bỏ qua.
 
 ## 3. Chạy thử local
 
