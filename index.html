@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Bảng điểm thi đua lớp 11A1 — xếp hạng tổ realtime" />
+    <title>11A1 · Điểm thi đua</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="site-header">
+        <div class="brand">
+          <span class="brand-mark" id="brand-class">11A1</span>
+          <h1>Điểm thi đua</h1>
+          <p id="brand-year">Thi đua năm học 2026–2027</p>
+        </div>
+        <div class="header-actions">
+          <span class="status-pill" id="mode-pill" data-mode="offline">
+            <span class="status-dot"></span> …
+          </span>
+          <div class="week-picker">
+            <label for="week-select">Tuần</label>
+            <select id="week-select" aria-label="Chọn tuần"></select>
+          </div>
+        </div>
+      </header>
+
+      <section id="view-home">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Bảng xếp hạng tổ</h2>
+            <p class="hint">Bấm vào tổ để xem thành viên &amp; lịch sử cộng/trừ</p>
+          </div>
+          <ul class="rank-list" id="rank-list"></ul>
+        </div>
+      </section>
+
+      <section id="view-team" class="view-hidden">
+        <div class="back-row">
+          <button type="button" class="btn btn-ghost" id="btn-back">← Bảng xếp hạng</button>
+        </div>
+        <div class="team-hero">
+          <div>
+            <h2 id="team-title">Tổ</h2>
+            <p class="meta" id="team-meta"></p>
+          </div>
+          <div class="score-chip">
+            <strong id="team-total">0</strong>
+            <span>tổng điểm tổ</span>
+          </div>
+        </div>
+        <div class="panel">
+          <table class="member-table">
+            <thead>
+              <tr>
+                <th>Thành viên</th>
+                <th>Điểm</th>
+                <th>Xếp loại</th>
+              </tr>
+            </thead>
+            <tbody id="member-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="leader-dock">
+      <div class="leader-panel view-hidden" id="leader-panel">
+        <div id="leader-login">
+          <h3>Tổ trưởng</h3>
+          <p class="sub">Nhập mã do lớp trưởng / GVCN cấp để ghi điểm tổ mình.</p>
+          <div class="field">
+            <label for="leader-code">Mã tổ trưởng</label>
+            <input
+              id="leader-code"
+              type="password"
+              autocomplete="off"
+              placeholder="ví dụ: to4"
+            />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-primary" id="btn-login">Vào</button>
+          </div>
+        </div>
+
+        <div id="leader-form" class="view-hidden">
+          <h3>Ghi điểm · <span id="leader-team-label"></span></h3>
+          <p class="sub">Chọn tên + loại → hệ thống tự cộng/trừ. Không nhập tay điểm số.</p>
+          <div class="field">
+            <label for="member-select">Thành viên</label>
+            <select id="member-select"></select>
+          </div>
+          <div class="field">
+            <label for="rule-select">Loại cộng / vi phạm</label>
+            <select id="rule-select"></select>
+            <div class="preview" id="rule-preview"></div>
+          </div>
+          <div class="field">
+            <label for="note-input">Ghi chú (tuỳ chọn)</label>
+            <textarea id="note-input" rows="2" placeholder="VD: tiết 3 Toán…"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-primary" id="btn-submit">Xác nhận</button>
+            <button type="button" class="btn btn-danger" id="btn-logout">Thoát</button>
+          </div>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="leader-fab"
+        id="leader-fab"
+        title="Tổ trưởng — nhập mã"
+        aria-label="Mở panel tổ trưởng"
+      >
+        TT
+      </button>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
