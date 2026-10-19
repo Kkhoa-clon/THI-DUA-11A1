@@ -61,6 +61,19 @@ textarea {
   font: inherit;
 }
 
+.boot-error {
+  position: relative;
+  z-index: 60;
+  margin: 0.75rem auto;
+  width: min(1100px, calc(100% - 2rem));
+  padding: 0.85rem 1rem;
+  background: #f5d9d4;
+  color: #8a3028;
+  border-radius: 12px;
+  font-weight: 650;
+  font-size: 0.9rem;
+}
+
 .wrap {
   position: relative;
   z-index: 1;

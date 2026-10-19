@@ -4,23 +4,24 @@ import {
   SUPABASE_ANON_KEY,
   TEAMS,
   COMPETITION_START,
+  TOTAL_WEEKS,
 } from "./config.js";
 import { BASE_POINTS, RULE_BY_ID } from "./rules.js";
 
 const SESSION_KEY = "a1-leader-team";
 const LOCAL_KEY = "a1-events-v1";
+const POLL_MS = 2500;
 
 /** Monday (local) YYYY-MM-DD for the week containing `date` */
 export function weekIdFromDate(date = new Date()) {
   const d = new Date(date);
   d.setHours(12, 0, 0, 0);
-  const day = d.getDay(); // 0 Sun … 6 Sat
+  const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0, 10);
 }
 
-/** Thứ Hai của Tuần 1 (đã chuẩn hoá) */
 export function competitionStartWeekId() {
   return weekIdFromDate(new Date(COMPETITION_START + "T12:00:00"));
 }
@@ -34,7 +35,6 @@ export function weekRangeLabel(weekId) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-/** Số tuần thi đua: Tuần 1 = COMPETITION_START */
 export function weekNumber(weekId) {
   const start = new Date(competitionStartWeekId() + "T12:00:00");
   const cur = new Date(weekId + "T12:00:00");
@@ -42,40 +42,38 @@ export function weekNumber(weekId) {
   return Math.floor(diffDays / 7) + 1;
 }
 
-/** Nhãn hiển thị: "Tuần 1 · tuần này" */
+export function weekIdForNumber(n) {
+  const d = new Date(competitionStartWeekId() + "T12:00:00");
+  d.setDate(d.getDate() + (n - 1) * 7);
+  return d.toISOString().slice(0, 10);
+}
+
 export function weekLabel(weekId, { withRange = false } = {}) {
   const n = weekNumber(weekId);
   const isCurrent = weekId === weekIdFromDate();
   let label = `Tuần ${n}`;
-  if (isCurrent) label += " · tuần này";
-  else if (n === weekNumber(weekIdFromDate()) - 1) label += " · tuần trước";
+  if (n >= 1 && n <= TOTAL_WEEKS && isCurrent) label += " · hôm nay";
   if (withRange) label += ` (${weekRangeLabel(weekId)})`;
   return label;
 }
 
-/**
- * Danh sách tuần từ Tuần 1 → tuần hiện tại (mới nhất trước).
- * Không liệt kê tuần tương lai.
- */
+/** Tuần 1 → Tuần TOTAL_WEEKS (luôn đủ, để trống sẵn). */
 export function competitionWeekIds() {
-  const startId = competitionStartWeekId();
-  const endId = weekIdFromDate();
-  const start = new Date(startId + "T12:00:00");
-  const end = new Date(endId + "T12:00:00");
   const ids = [];
-  if (end < start) {
-    // Mốc tương lai hơn hôm nay → chỉ hiện tuần hiện tại
-    return [endId];
-  }
-  const d = new Date(end);
-  while (d >= start) {
-    ids.push(d.toISOString().slice(0, 10));
-    d.setDate(d.getDate() - 7);
+  for (let n = 1; n <= TOTAL_WEEKS; n++) {
+    ids.push(weekIdForNumber(n));
   }
   return ids;
 }
 
-/** @deprecated dùng competitionWeekIds */
+/** Tuần mặc định: hôm nay nếu trong 1–35, không thì Tuần 1 */
+export function defaultWeekId() {
+  const today = weekIdFromDate();
+  const n = weekNumber(today);
+  if (n >= 1 && n <= TOTAL_WEEKS) return today;
+  return weekIdForNumber(1);
+}
+
 export function recentWeekIds() {
   return competitionWeekIds();
 }
@@ -112,6 +110,24 @@ function rowToEvent(row) {
   };
 }
 
+function supabaseHeaders(extra = {}) {
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    ...extra,
+  };
+}
+
+async function fetchWithTimeout(url, options = {}, ms = 10000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /**
  * @typedef {{
  *   id: string,
@@ -131,14 +147,12 @@ export class ScoreStore {
   constructor() {
     /** @type {ScoreEvent[]} */
     this.events = [];
-    this.weekId = weekIdFromDate();
+    this.weekId = defaultWeekId();
     this.mode = SUPABASE_ENABLED ? "live" : "offline";
     /** @type {null | (() => void)} */
     this._unsub = null;
     /** @type {Set<(events: ScoreEvent[]) => void>} */
     this._listeners = new Set();
-    /** @type {import("@supabase/supabase-js").SupabaseClient | null} */
-    this._client = null;
   }
 
   getLeaderTeamId() {
@@ -166,23 +180,26 @@ export class ScoreStore {
   }
 
   async init() {
-    if (this.mode === "live") {
-      const { createClient } = await import(
-        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm"
-      );
-      this._client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    }
     await this.refresh();
   }
 
   async _fetchWeek() {
-    const { data, error } = await this._client
-      .from("events")
-      .select("*")
-      .eq("week_id", this.weekId)
-      .order("created_at", { ascending: false });
+    const url =
+      `${SUPABASE_URL}/rest/v1/events` +
+      `?week_id=eq.${encodeURIComponent(this.weekId)}` +
+      `&select=*` +
+      `&order=created_at.desc`;
 
-    if (error) throw error;
+    const res = await fetchWithTimeout(url, {
+      headers: supabaseHeaders({ Accept: "application/json" }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Supabase ${res.status}: ${text.slice(0, 120)}`);
+    }
+
+    const data = await res.json();
     this.events = (data || []).map(rowToEvent);
     this._emit();
   }
@@ -193,27 +210,18 @@ export class ScoreStore {
       this._unsub = null;
     }
 
-    if (this.mode === "live" && this._client) {
+    if (this.mode === "live") {
       await this._fetchWeek();
 
-      const channel = this._client
-        .channel(`events-${this.weekId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "events",
-            filter: `week_id=eq.${this.weekId}`,
-          },
-          () => {
-            this._fetchWeek().catch(console.error);
-          }
-        )
-        .subscribe();
-
+      const tick = () => {
+        this._fetchWeek().catch((err) => console.warn("poll", err));
+      };
+      const id = setInterval(tick, POLL_MS);
+      const onFocus = () => tick();
+      window.addEventListener("focus", onFocus);
       this._unsub = () => {
-        this._client.removeChannel(channel);
+        clearInterval(id);
+        window.removeEventListener("focus", onFocus);
       };
       return;
     }
@@ -260,10 +268,15 @@ export class ScoreStore {
       createdAt,
     };
 
-    if (this.mode === "live" && this._client) {
-      const { data, error } = await this._client
-        .from("events")
-        .insert({
+    if (this.mode === "live") {
+      const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/events`, {
+        method: "POST",
+        headers: supabaseHeaders({
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+          Accept: "application/json",
+        }),
+        body: JSON.stringify({
           week_id: event.weekId,
           team_id: event.teamId,
           member_id: event.memberId,
@@ -273,12 +286,18 @@ export class ScoreStore {
           note: event.note,
           by_team_id: event.byTeamId,
           created_at: event.createdAt,
-        })
-        .select()
-        .single();
+        }),
+      });
 
-      if (error) throw new Error(error.message || "Không ghi được điểm.");
-      return rowToEvent(data);
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text.slice(0, 160) || "Không ghi được điểm.");
+      }
+
+      const rows = await res.json();
+      const saved = Array.isArray(rows) ? rows[0] : rows;
+      await this._fetchWeek();
+      return saved ? rowToEvent(saved) : event;
     }
 
     const bag = loadLocal();

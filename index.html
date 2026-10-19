@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Bảng điểm thi đua lớp 11A1 — xếp hạng tổ realtime" />
     <title>11A1 · Điểm thi đua</title>
+    <script>
+      // GitHub project Pages: đảm bảo CSS/JS luôn lấy đúng thư mục repo
+      (function () {
+        var path = location.pathname;
+        if (path.endsWith(".html")) path = path.slice(0, path.lastIndexOf("/") + 1);
+        else if (!path.endsWith("/")) path += "/";
+        var b = document.createElement("base");
+        b.href = path;
+        document.head.insertBefore(b, document.head.firstChild);
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -14,6 +25,7 @@
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
+    <div id="boot-error" class="boot-error view-hidden" role="alert"></div>
     <div class="wrap">
       <header class="site-header">
         <div class="brand">

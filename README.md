@@ -30,7 +30,7 @@ Mở [`js/config.js`](js/config.js):
 
 1. Sửa `TEAMS` — tên tổ và thành viên (`id` phải duy nhất).
 2. Đổi `LEADER_CODES` — mã bạn cấp cho từng tổ trưởng.
-3. `COMPETITION_START` — thứ Hai của **Tuần 1** thi đua (vd `2026-10-19`). Hôm nay sẽ là Tuần 1, tuần sau Tuần 2… — không theo số tuần nhà trường.
+3. `COMPETITION_START` — thứ Hai của **Tuần 1** (vd `2026-10-19`). App luôn có sẵn **Tuần 1 → 35** (để trống, tự ghi điểm). `TOTAL_WEEKS` đổi được trong config.
 
 ## 2. Supabase (để nhiều máy cùng xem/ghi)
 
@@ -53,9 +53,10 @@ Mở URL hiện ra. Chưa điền Supabase → chế độ **offline** (localSto
 
 ## 4. Deploy GitHub Pages
 
-1. Đẩy repo lên GitHub.
+1. Đẩy **toàn bộ** file lên GitHub (`git add .` rồi commit + push).
 2. **Settings → Pages → Source**: branch `main`, folder `/ (root)`.
-3. Mở `https://<user>.github.io/<repo>/`.
+3. Mở đúng link có dấu `/` cuối: `https://<user>.github.io/<repo>/`
+4. Nếu giao diện “đơ”: **Ctrl+F5** (xoá cache). App không cần CDN — gọi Supabase REST trực tiếp.
 
 ## Cách dùng hàng ngày
 

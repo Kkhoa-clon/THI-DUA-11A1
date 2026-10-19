@@ -11,10 +11,11 @@ export const SCHOOL_YEAR = "2026–2027";
 
 /**
  * Thứ Hai của Tuần 1 thi đua (YYYY-MM-DD).
- * Tuần hiện tại sẽ là Tuần 1, 2, 3… tính từ mốc này — không theo tuần nhà trường.
- * Đổi 1 lần khi bắt đầu thi đua; không đổi giữa chừng kẻo lệch số tuần.
+ * App luôn có sẵn Tuần 1 → Tuần TOTAL_WEEKS (để trống, tự cập nhật điểm).
+ * Đổi COMPETITION_START 1 lần khi chốt lịch; không đổi giữa chừng kẻo lệch số tuần.
  */
 export const COMPETITION_START = "2026-10-19";
+export const TOTAL_WEEKS = 35;
 
 /** Project URL dạng https://xxxx.supabase.co */
 export const SUPABASE_URL = "https://dgiqqwbdvtziulmkutkl.supabase.co";

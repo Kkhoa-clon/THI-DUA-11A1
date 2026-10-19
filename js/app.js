@@ -5,6 +5,7 @@ import {
   MEMBER_BY_ID,
   resolveLeaderCode,
   SUPABASE_ENABLED,
+  TOTAL_WEEKS,
 } from "./config.js";
 import {
   gradeFor,
@@ -19,6 +20,8 @@ import {
   weekRangeLabel,
   weekNumber,
   competitionWeekIds,
+  defaultWeekId,
+  weekIdForNumber,
 } from "./store.js";
 
 const store = new ScoreStore();
@@ -55,34 +58,32 @@ function syncWeekUI() {
   const sel = $("#week-select");
   const ids = competitionWeekIds();
   const current = weekIdFromDate();
+  const todayN = weekNumber(current);
 
   sel.innerHTML = ids
     .map((id) => {
       const n = weekNumber(id);
-      const tag = id === current ? " · tuần này" : "";
+      const tag = n === todayN && n >= 1 && n <= TOTAL_WEEKS ? " · hôm nay" : "";
       return `<option value="${id}">Tuần ${n}${tag}</option>`;
     })
     .join("");
 
   if (!ids.includes(store.weekId)) {
-    store.weekId = ids[0] || current;
+    store.weekId = defaultWeekId();
   }
   sel.value = store.weekId;
 
+  const n = weekNumber(store.weekId);
   $("#week-range").textContent = weekRangeLabel(store.weekId);
-  $("#rank-hint").textContent = `Đang xem ${weekLabel(store.weekId)} · ${weekRangeLabel(store.weekId)}`;
-  $("#week-banner").innerHTML = `Mỗi bạn bắt đầu <strong>100 điểm</strong> · Đang xem <strong>${weekLabel(store.weekId)}</strong>`;
+  $("#rank-hint").textContent = `Đang xem Tuần ${n}/${TOTAL_WEEKS} · ${weekRangeLabel(store.weekId)}`;
+  $("#week-banner").innerHTML = `Mỗi bạn bắt đầu <strong>100 điểm</strong> · <strong>Tuần ${n}/${TOTAL_WEEKS}</strong> (chưa ghi thì để trống)`;
 
-  const idx = ids.indexOf(store.weekId);
-  $("#week-prev").disabled = idx < 0 || idx >= ids.length - 1;
-  $("#week-next").disabled = idx <= 0;
+  $("#week-prev").disabled = n <= 1;
+  $("#week-next").disabled = n >= TOTAL_WEEKS;
 
   const btnThis = $("#btn-this-week");
-  if (store.weekId !== current) {
-    btnThis.classList.remove("view-hidden");
-  } else {
-    btnThis.classList.add("view-hidden");
-  }
+  const canJumpToday = todayN >= 1 && todayN <= TOTAL_WEEKS && store.weekId !== current;
+  btnThis.classList.toggle("view-hidden", !canJumpToday);
 }
 
 async function goWeek(weekId) {
@@ -328,33 +329,30 @@ function onStoreUpdate() {
   else renderRanking();
 }
 
-async function boot() {
-  $("#brand-class").textContent = CLASS_NAME;
-  $("#brand-year").textContent = `Thi đua năm học ${SCHOOL_YEAR}`;
+function showBootError(msg) {
+  const el = $("#boot-error");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove("view-hidden");
+}
 
-  fillRuleSelect();
-  syncModePill();
-  syncLeaderUI();
-  syncWeekUI();
-
+function wireEvents() {
   $("#week-select").addEventListener("change", async (e) => {
     await goWeek(e.target.value);
   });
 
   $("#week-prev").addEventListener("click", async () => {
-    const ids = competitionWeekIds();
-    const idx = ids.indexOf(store.weekId);
-    if (idx >= 0 && idx < ids.length - 1) await goWeek(ids[idx + 1]);
+    const n = weekNumber(store.weekId);
+    if (n > 1) await goWeek(weekIdForNumber(n - 1));
   });
 
   $("#week-next").addEventListener("click", async () => {
-    const ids = competitionWeekIds();
-    const idx = ids.indexOf(store.weekId);
-    if (idx > 0) await goWeek(ids[idx - 1]);
+    const n = weekNumber(store.weekId);
+    if (n < TOTAL_WEEKS) await goWeek(weekIdForNumber(n + 1));
   });
 
   $("#btn-this-week").addEventListener("click", async () => {
-    await goWeek(weekIdFromDate());
+    await goWeek(defaultWeekId());
   });
 
   $("#btn-back").addEventListener("click", showHome);
@@ -435,28 +433,45 @@ async function boot() {
       btn.disabled = false;
     }
   });
+}
 
-  store.subscribe(onStoreUpdate);
-
+async function boot() {
   try {
-    await store.init();
+    $("#brand-class").textContent = CLASS_NAME;
+    $("#brand-year").textContent = `Thi đua năm học ${SCHOOL_YEAR}`;
+
+    fillRuleSelect();
     syncModePill();
+    syncLeaderUI();
     syncWeekUI();
-    if (!SUPABASE_ENABLED) {
-      toast("Chưa cấu hình Supabase — đang dùng offline trên máy này.");
+    wireEvents();
+    store.subscribe(onStoreUpdate);
+    showHome();
+
+    try {
+      await store.init();
+      syncModePill();
+      syncWeekUI();
+      if (!SUPABASE_ENABLED) {
+        toast("Chưa cấu hình Supabase — đang dùng offline trên máy này.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast(
+        "Không kết nối được Supabase — tạm dùng offline trên máy này.",
+        true
+      );
+      store.mode = "offline";
+      await store.refresh();
+      syncModePill();
     }
   } catch (err) {
     console.error(err);
-    toast(
-      "Không kết nối được Supabase. Kiểm tra URL/key và đã chạy supabase.sql chưa.",
-      true
+    showBootError(
+      "Không khởi động được app. Thử mở đúng link có dấu / ở cuối, hoặc Ctrl+F5. Chi tiết: " +
+        (err && err.message ? err.message : String(err))
     );
-    store.mode = "offline";
-    await store.refresh();
-    syncModePill();
   }
-
-  showHome();
 }
 
 boot();
