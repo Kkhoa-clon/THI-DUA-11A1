@@ -40,10 +40,16 @@ export const TEAMS = [
     name: "Tổ 1",
     members: [
       { id: "to1-01", name: "Nguyễn Lâm Gia" },
-      { id: "to1-02", name: "" },
+      { id: "to1-02", name: "Nguyễn Đỗ Phúc Nguyên" },
       { id: "to1-03", name: "" },
-      { id: "to1-04", name: "" },
-      { id: "to1-05", name: "" },
+      { id: "to1-04", name: "Lê Minh Toàn A" },
+      { id: "to1-05", name: "Đinh Quang Vinh" },
+      { id: "to1-06", name: "" },
+      { id: "to1-07", name: "" },
+      { id: "to1-08", name: "" },
+      { id: "to1-09", name: "" },
+      { id: "to1-10", name: "" },
+      { id: "to1-11", name: "" }
     ],
   },
   {
@@ -55,6 +61,12 @@ export const TEAMS = [
       { id: "to2-03", name: "" },
       { id: "to2-04", name: "" },
       { id: "to2-05", name: "" },
+      { id: "to2-06", name: "" },
+      { id: "to2-07", name: "" },
+      { id: "to2-08", name: "" },
+      { id: "to2-09", name: "" },
+      { id: "to2-10", name: "" },
+      { id: "to2-11", name: "" }
     ],
   },
   {
@@ -66,6 +78,12 @@ export const TEAMS = [
       { id: "to3-03", name: "" },
       { id: "to3-04", name: "" },
       { id: "to3-05", name: "" },
+      { id: "to3-06", name: "" },
+      { id: "to3-07", name: "" },
+      { id: "to3-08", name: "" },
+      { id: "to3-09", name: "" },
+      { id: "to3-10", name: "" },
+      { id: "to3-11", name: "" }
     ],
   },
   {
@@ -82,6 +100,7 @@ export const TEAMS = [
       { id: "to4-08", name: "Nguyễn Minh Mẩn" },
       { id: "to4-09", name: "Lê Hữu Khánh" },
       { id: "to4-10", name: "Đỗ Nguyễn Đăng Khoa" },
+      { id: "to4-11", name: "Văng Minh Thiện" }
     ],
   },
 ];
