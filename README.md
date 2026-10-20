@@ -11,18 +11,23 @@ Triển khai trên **GitHub Pages** (file tĩnh) + **Supabase** (miễn phí, re
 - Vào tổ: thành viên xếp điểm cao → thấp; bấm tên xem lịch sử tuần
 - Bấm tên trên BXH cá nhân/vi phạm/cộng → chi tiết: loại nào, tuần mấy, bao nhiêu lần
 - Nút **TT**: tổ trưởng nhập mã → chọn tên + loại → hệ thống tự ± điểm
+- **🚩 Bảng cờ luân lưu** (trong tab Thành tích cả năm): quản trị mở khóa bằng Supabase Auth, nhận cờ → kéo thả lên bảng, ghi ngày đặt · thống kê · lọc · sửa/xóa. Xem [`HUONG-DAN-BO-CO.md`](HUONG-DAN-BO-CO.md)
 
 ## Cấu trúc
 
 ```
 index.html
 css/styles.css
-js/config.js      ← roster, mã tổ trưởng, Supabase URL + key
+js/config.js      ← roster, mã tổ trưởng, Supabase URL + key, FLAG_TYPES (3 loại cờ)
 js/rules.js       ← catalog cộng/trừ
-js/store.js       ← Supabase / offline
+js/store.js       ← Supabase / offline (điểm thi đua)
+js/flags.js       ← Supabase Auth + bảng cờ luân lưu (class_flags)
 js/app.js
-supabase.sql      ← chạy 1 lần trên Supabase
+supabase.sql      ← chạy 1 lần trên Supabase (events)
+supabase-flags.sql← chạy 1 lần trên Supabase (bảng cờ)
+images/flags/     ← co-1.png · co-2.png · co-3.png
 noi-quy.md
+HUONG-DAN-BO-CO.md← hướng dẫn bảng cờ (SQL, admin, ảnh, kiểm tra)
 ```
 
 ## 1. Điền danh sách lớp & mã

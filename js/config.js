@@ -116,8 +116,24 @@ export const LEADER_CODES = {
   to4: "daingoc",
 };
 
-/** Mật khẩu admin — toàn quyền (mọi tổ, mọi tuần). Đổi được tại đây. */
+/** Mật khẩu admin — toàn quyền (mọi tổ, mọi tuần). Đổi được tại đây.
+ *  Cũng dùng để "mở khóa" Bảng cờ luân lưu (khóa mềm, xem note trong js/flags.js). */
 export const ADMIN_CODE = "khoa2112";
+
+/**
+ * —— BẢNG CỜ LUÂN LƯU ——
+ * 3 loại cờ khai báo tại ĐÂY (một chỗ duy nhất) để dễ đổi tên/ảnh.
+ * id cũng chính là giá trị lưu vào cột flag_type trên Supabase,
+ * và là ràng buộc CHECK trong supabase-flags.sql — đổi id thì đổi cả SQL.
+ * Ảnh đặt tại  images/flags/<file>.  Chưa có ảnh → app tự hiện placeholder.
+ */
+export const FLAG_TYPES = [
+  { id: "co-1", name: "Cờ Nhất", image: "images/flags/co-1.png" },
+  { id: "co-2", name: "Cờ Nhì", image: "images/flags/co-2.png" },
+  { id: "co-3", name: "Cờ Ba", image: "images/flags/co-3.png" },
+];
+
+export const FLAG_TYPE_BY_ID = Object.fromEntries(FLAG_TYPES.map((f) => [f.id, f]));
 
 export const TEAM_BY_ID = Object.fromEntries(TEAMS.map((t) => [t.id, t]));
 

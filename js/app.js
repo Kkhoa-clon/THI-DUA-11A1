@@ -20,8 +20,24 @@ import {
   studiedThroughWeek,
   isStudiedWeek,
 } from "./store.js";
+import {
+  FlagStore,
+  FLAG_TYPES,
+  FLAG_TYPE_BY_ID,
+  todayISO,
+} from "./flags.js";
 
 const store = new ScoreStore();
+const flagStore = new FlagStore();
+
+/** Lá cờ đang "cầm" chờ đặt (draft, chưa ghi Supabase): { flagType, placedDate, note } */
+let heldFlag = null;
+/** Lọc bảng cờ hiện hành: { type, month } */
+const flagFilter = { type: "", month: "" };
+/** id cờ đang sửa trong modal (null = nhận cờ mới) */
+let flagEditingId = null;
+/** loại cờ đang chọn trong modal nhận/sửa */
+let flagPickType = FLAG_TYPES[0]?.id || "";
 /** @type {string | null} */
 let activeTeamId = null;
 /** @type {string | null} */
@@ -122,15 +138,21 @@ function renderHome() {
     year: "Điểm cá nhân cả năm",
     minus: "Bảng vi phạm (tiền án)",
     plus: "Bảng điểm cộng",
+    achievements: "Thành tích nổi bật",
   };
   const foots = {
     teams: "Bấm tổ → tổng kết tuần + thành viên",
     year: `Tổng điểm Tuần 1→${studiedThroughWeek()} · Bấm tên xem tiểu sử`,
     minus: "Nhiều điểm trừ nhất trước · Bấm tên xem tiểu sử",
     plus: "Nhiều điểm cộng nhất trước · Bấm tên xem tiểu sử",
+    achievements: "Nhiều thành tích nhất trước · Bấm tên xem tiểu sử",
   };
   $("#board-title").textContent = titles[board];
   $("#board-foot").textContent = foots[board];
+
+  // Bảng cờ chỉ thuộc tab "Thành tích cả năm"
+  const flagBoard = $("#flag-board");
+  if (flagBoard) flagBoard.classList.toggle("view-hidden", board !== "achievements");
 
   if (board === "teams") {
     $("#rank-hint").textContent = `Tuần ${weekNumber(store.weekId)} · ${weekRangeLabel(store.weekId)}${isStudiedWeek(store.weekId) ? "" : " · tuần chưa học"}`;
@@ -141,9 +163,13 @@ function renderHome() {
   } else if (board === "minus") {
     $("#rank-hint").textContent = `Chỉ Tuần 1 → ${studiedThroughWeek()}`;
     renderPersonBoard(store.violationRankings(), "minus");
-  } else {
+  } else if (board === "plus") {
     $("#rank-hint").textContent = `Chỉ Tuần 1 → ${studiedThroughWeek()}`;
     renderPersonBoard(store.bonusRankings(), "plus");
+  } else if (board === "achievements") {
+    $("#rank-hint").textContent = `Chỉ Tuần 1 → ${studiedThroughWeek()}`;
+    renderPersonBoard(store.achievementRankings(), "achievements");
+    renderFlagBoard();
   }
 }
 
@@ -196,6 +222,9 @@ function renderPersonBoard(rows, kind) {
         sub += ` · cộng ${formatPoints(r.plusPoints)} · trừ ${formatPoints(r.minusPoints)}`;
       } else if (kind === "minus") {
         scoreHtml = `<strong class="neg">${formatPoints(r.minusPoints)}</strong><span>${r.minusCount} lần vi phạm</span>`;
+      } else if (kind === "achievements") {
+        scoreHtml = `<strong class="pos">${formatPoints(r.achievementPoints)}</strong><span>${r.achievementCount} thành tích</span>`;
+        sub += ` · phong trào tập thể`;
       } else {
         scoreHtml = `<strong class="pos">${formatPoints(r.plusPoints)}</strong><span>${r.plusCount} lần cộng</span>`;
       }
@@ -414,7 +443,7 @@ function openProfile(memberId, kind = "all") {
   if (activeTeamId) returnView = "team";
   else if (!profileMemberId) returnView = "home";
   profileMemberId = memberId;
-  profileKind = kind === "plus" || kind === "minus" ? kind : "all";
+  profileKind = ["plus", "minus", "achievements"].includes(kind) ? kind : "all";
   hideAllViews();
   $("#view-profile").classList.remove("view-hidden");
   $("#board-tabs").classList.add("view-hidden");
@@ -703,6 +732,541 @@ function showBootError(msg) {
   el.classList.remove("view-hidden");
 }
 
+// ————————————————————————————————————————————————
+//  BẢNG CỜ LUÂN LƯU (tab Thành tích cả năm)
+// ————————————————————————————————————————————————
+
+/** yyyy-mm-dd → dd/mm/yyyy (hiển thị cho người Việt) */
+function formatDmy(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || "");
+}
+
+/** thẻ <img> có fallback placeholder nếu thiếu ảnh (onerror đổi thành khối màu + chữ) */
+function flagImageHtml(type) {
+  const f = FLAG_TYPE_BY_ID[type];
+  if (!f) return `<span class="flag-ph" data-name="?" aria-hidden="true">?</span>`;
+  const esc = escapeHtml(f.name);
+  return `<img class="flag-img" src="${escapeHtml(f.image)}" alt="${esc}"
+    onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'flag-ph',dataset:{name:'${esc}'},textContent:'🚩'}))" />`;
+}
+
+/** Cờ đã mở khóa (offline coi như mở để dùng 1 máy; live cần phiên admin) */
+function flagUnlocked() {
+  return flagStore.isAuthenticated();
+}
+
+function syncFlagLockUI() {
+  const unlocked = flagUnlocked();
+  const lockBtn = $("#flag-lock-btn");
+  const grabBtn = $("#flag-grab-btn");
+  if (lockBtn) {
+    lockBtn.textContent = unlocked ? "🔓 Mở khóa" : "🔒 Khóa";
+    lockBtn.setAttribute("aria-pressed", unlocked ? "true" : "false");
+    lockBtn.title = unlocked ? "Khóa lại / đăng xuất" : "Mở khóa để quản lý cờ";
+  }
+  if (grabBtn) grabBtn.classList.toggle("view-hidden", !unlocked);
+  // thùng rác chỉ hiện khi mở khóa (kéo cờ trên bảng thả vào để xóa)
+  const trash = $("#flag-trash");
+  if (trash) trash.classList.toggle("view-hidden", !unlocked);
+  const filters = $("#flag-filters");
+  if (filters) filters.classList.toggle("view-hidden", false); // lọc luôn hiện khi có dữ liệu
+  // khay cầm chỉ hiện khi mở khóa & có cờ đang cầm
+  renderTray();
+}
+
+/** dropdown loại + dropdown tháng */
+function buildFlagFilterOptions() {
+  const typeSel = $("#flag-filter-type");
+  if (typeSel && typeSel.options.length <= 1) {
+    typeSel.innerHTML =
+      `<option value="">Tất cả loại cờ</option>` +
+      FLAG_TYPES.map((f) => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join("");
+  }
+  const monthSel = $("#flag-filter-month");
+  if (monthSel) {
+    const months = flagStore.months();
+    const cur = flagFilter.month;
+    monthSel.innerHTML =
+      `<option value="">Tất cả tháng</option>` +
+      months.map((mo) => {
+        const [y, m] = mo.split("-");
+        return `<option value="${mo}">Tháng ${m}/${y}</option>`;
+      }).join("");
+    monthSel.value = months.includes(cur) ? cur : "";
+    flagFilter.month = monthSel.value;
+  }
+}
+
+function renderFlagStats() {
+  const { total, byType } = flagStore.stats();
+  const chips = FLAG_TYPES.map(
+    (f) => `<span class="flag-stat-chip">${flagImageHtml(f.id)}<b>${byType[f.id] || 0}</b> ${escapeHtml(f.name)}</span>`
+  ).join("");
+  $("#flag-stats").innerHTML =
+    `<span class="flag-stat-chip flag-stat-total">Tổng <b>${total}</b> lá cờ</span>${chips}`;
+}
+
+function renderFlagGrid() {
+  const grid = $("#flag-grid");
+  const empty = $("#flag-empty");
+  const unlocked = flagUnlocked();
+  const rows = flagStore.filtered(flagFilter);
+
+  if (!rows.length) {
+    grid.innerHTML = "";
+    empty.classList.remove("view-hidden");
+    return;
+  }
+  empty.classList.add("view-hidden");
+  grid.innerHTML = rows
+    .map((f) => {
+      const type = FLAG_TYPE_BY_ID[f.flag_type];
+      const note = f.note ? escapeHtml(f.note) : "";
+      const actions = unlocked
+        ? `<div class="flag-item-actions">
+             <button type="button" class="icon-btn flag-edit" data-edit="${f.id}" title="Sửa ngày/ghi chú" aria-label="Sửa cờ">✏️</button>
+             <button type="button" class="icon-btn flag-del" data-del="${f.id}" title="Xóa cờ" aria-label="Xóa cờ">🗑️</button>
+           </div>`
+        : "";
+      return `<li class="flag-item${note ? " has-note" : ""}" data-id="${f.id}" data-flag-drop-target="1">
+        ${actions}
+        <div class="flag-face">${flagImageHtml(f.flag_type)}</div>
+        <div class="flag-cap"><span class="flag-cap-name">${escapeHtml(type?.name || f.flag_type)}</span>
+          <span class="flag-cap-date">${formatDmy(f.placed_date)}</span></div>
+        ${note ? `<div class="flag-note">${note}</div>` : ""}
+      </li>`;
+    })
+    .join("");
+
+  // gắn hành động sửa/xóa
+  grid.querySelectorAll("[data-edit]").forEach((b) =>
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openFlagFormModal(b.dataset.edit);
+    })
+  );
+  grid.querySelectorAll("[data-del]").forEach((b) =>
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const id = b.dataset.del;
+      const f = flagStore.flags.find((x) => x.id === id);
+      const label = FLAG_TYPE_BY_ID[f?.flag_type]?.name || "lá cờ này";
+      if (!confirm(`Xóa ${label} (đặt ${formatDmy(f?.placed_date)}) khỏi bảng?`)) return;
+      try {
+        await flagStore.deleteFlag(id);
+        toast("Đã xóa cờ.");
+      } catch (err) {
+        toast(err.message || "Không xóa được.", true);
+      }
+    })
+  );
+
+  // Kéo thả "recycle bin": mở khóa → kéo một lá cờ trên bảng thả vào thùng rác để xóa
+  if (unlocked) {
+    grid.querySelectorAll(".flag-item").forEach((li) => setupItemTrashDrag(li));
+  }
+}
+
+/** Cho phép kéo một lá cờ đã đặt trên bảng vào thùng rác để xóa. */
+function setupItemTrashDrag(li) {
+  const trash = $("#flag-trash");
+  if (!trash) return;
+  const id = li.dataset.id;
+  if (!id) return;
+
+  li.style.touchAction = "none"; // cho Pointer Events trên mobile
+  li.style.cursor = "grab";
+
+  let ghost = null;
+  let dragging = false;
+
+  const overTrash = (x, y) => {
+    const r = trash.getBoundingClientRect();
+    // nới thêm 12px cho dễ thả
+    return x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 12 && y <= r.bottom + 12;
+  };
+
+  const moveGhost = (x, y) => {
+    if (ghost) {
+      ghost.style.left = `${x - 40}px`;
+      ghost.style.top = `${y - 30}px`;
+    }
+    trash.classList.toggle("flag-trash-hot", overTrash(x, y));
+  };
+
+  li.addEventListener("pointerdown", (e) => {
+    // bấm vào nút sửa/xóa thì không kéo
+    if (e.target.closest(".flag-item-actions")) return;
+    e.preventDefault();
+    dragging = true;
+    li.classList.add("flag-dragging");
+    trash.classList.remove("view-hidden"); // đảm bảo thùng rác đang hiện khi kéo
+    ghost = li.cloneNode(true);
+    ghost.removeAttribute("id");
+    ghost.querySelectorAll("[data-edit],[data-del]").forEach((b) => b.remove());
+    ghost.className = "flag-item flag-ghost";
+    document.body.appendChild(ghost);
+    moveGhost(e.clientX, e.clientY);
+    li.setPointerCapture(e.pointerId);
+  });
+
+  li.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    moveGhost(e.clientX, e.clientY);
+  });
+
+  const end = async (e) => {
+    if (!dragging) return;
+    dragging = false;
+    li.classList.remove("flag-dragging");
+    trash.classList.remove("flag-trash-hot");
+    if (ghost) {
+      ghost.remove();
+      ghost = null;
+    }
+    if (!overTrash(e.clientX, e.clientY)) return;
+    const f = flagStore.flags.find((x) => x.id === id);
+    const label = FLAG_TYPE_BY_ID[f?.flag_type]?.name || "lá cờ này";
+    if (!confirm(`Xóa ${label} (đặt ${formatDmy(f?.placed_date)}) khỏi bảng?`)) return;
+    try {
+      await flagStore.deleteFlag(id);
+      toast("Đã xóa cờ.");
+    } catch (err) {
+      toast(err.message || "Không xóa được.", true);
+    }
+  };
+  li.addEventListener("pointerup", end);
+  li.addEventListener("pointercancel", end);
+}
+
+function renderTray() {
+  const tray = $("#flag-tray");
+  const slot = $("#flag-tray-slot");
+  if (!tray || !slot) return;
+  if (!flagUnlocked() || !heldFlag) {
+    tray.classList.add("view-hidden");
+    slot.innerHTML = "";
+    return;
+  }
+  tray.classList.remove("view-hidden");
+  const type = FLAG_TYPE_BY_ID[heldFlag.flagType];
+  slot.innerHTML = `<div class="flag-chip" id="flag-drag-chip" title="Kéo lên bảng để đặt">
+      <div class="flag-face">${flagImageHtml(heldFlag.flagType)}</div>
+      <div class="flag-cap"><span class="flag-cap-name">${escapeHtml(type?.name || heldFlag.flagType)}</span>
+        <span class="flag-cap-date">${formatDmy(heldFlag.placedDate)}</span></div>
+    </div>`;
+  setupChipDrag();
+}
+
+function renderFlagBoard() {
+  if (!$("#flag-board")) return;
+  const loading = $("#flag-loading");
+  if (loading) loading.classList.toggle("view-hidden", !flagStore.loading);
+  syncFlagLockUI();
+  buildFlagFilterOptions();
+  renderFlagStats();
+  renderFlagGrid();
+  // hiện khối lọc chỉ khi có dữ liệu
+  const hasData = flagStore.flags.length > 0;
+  $("#flag-filters")?.classList.toggle("view-hidden", !hasData);
+  $("#flag-clear-filters")?.classList.toggle(
+    "view-hidden",
+    !(flagFilter.type || flagFilter.month)
+  );
+}
+
+// —— Modal đăng nhập admin (Supabase Auth) ——
+function openFlagAuthModal() {
+  const modal = $("#flag-auth-modal");
+  modal.classList.remove("view-hidden");
+  $("#flag-auth-error").classList.add("view-hidden");
+  $("#flag-auth-pass").value = "";
+  $("#flag-auth-pass").focus();
+}
+function closeFlagAuthModal() {
+  $("#flag-auth-modal").classList.add("view-hidden");
+}
+
+// —— Modal nhận / sửa cờ ——
+function buildFlagTypePick() {
+  const pick = $("#flag-type-pick");
+  pick.innerHTML = FLAG_TYPES.map(
+    (f) => `<button type="button" class="flag-type-card${f.id === flagPickType ? " is-active" : ""}"
+        role="radio" aria-checked="${f.id === flagPickType}" data-flagtype="${f.id}">
+        <div class="flag-face">${flagImageHtml(f.id)}</div>
+        <span>${escapeHtml(f.name)}</span>
+      </button>`
+  ).join("");
+  pick.querySelectorAll("[data-flagtype]").forEach((b) =>
+    b.addEventListener("click", () => {
+      flagPickType = b.dataset.flagtype;
+      pick.querySelectorAll(".flag-type-card").forEach((c) => {
+        const on = c === b;
+        c.classList.toggle("is-active", on);
+        c.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    })
+  );
+}
+
+function syncDateLabel() {
+  $("#flag-date-label").textContent = formatDmy($("#flag-date").value);
+}
+
+/**
+ * @param {string|null} editId  null = nhận cờ mới; id = sửa cờ đã đặt
+ */
+function openFlagFormModal(editId = null) {
+  flagEditingId = editId;
+  const modal = $("#flag-form-modal");
+  $("#flag-form-title").textContent = editId ? "Sửa cờ" : "Nhận cờ";
+  $("#flag-form-submit").textContent = editId ? "Lưu" : "Xác nhận";
+  $("#flag-form-error").classList.add("view-hidden");
+
+  const existing = editId ? flagStore.flags.find((f) => f.id === editId) : null;
+  flagPickType = existing?.flag_type || FLAG_TYPES[0]?.id || "";
+  buildFlagTypePick();
+
+  const dateEl = $("#flag-date");
+  dateEl.value = existing?.placed_date || todayISO();
+  syncDateLabel();
+  $("#flag-note").value = existing?.note || "";
+
+  modal.classList.remove("view-hidden");
+  dateEl.focus();
+}
+function closeFlagFormModal() {
+  $("#flag-form-modal").classList.add("view-hidden");
+  flagEditingId = null;
+}
+
+/** Xác nhận modal cờ */
+async function submitFlagForm() {
+  const errEl = $("#flag-form-error");
+  errEl.classList.add("view-hidden");
+  const placedDate = $("#flag-date").value || todayISO();
+  const note = $("#flag-note").value.trim();
+
+  if (!flagPickType) {
+    errEl.textContent = "Chọn loại cờ trước.";
+    errEl.classList.remove("view-hidden");
+    return;
+  }
+
+  const btn = $("#flag-form-submit");
+  btn.disabled = true;
+  try {
+    if (flagEditingId) {
+      // sửa bản ghi đã tồn tại → PATCH Supabase
+      await flagStore.updateFlag(flagEditingId, { placedDate, note });
+      toast("Đã cập nhật cờ.");
+    } else {
+      // nhận cờ mới → đặt vào khay "Cờ đang cầm" (chưa ghi, chờ kéo/đặt)
+      heldFlag = { flagType: flagPickType, placedDate, note };
+      toast("Đã nhận cờ — kéo lên bảng hoặc bấm Đặt lên bảng.");
+    }
+    closeFlagFormModal();
+    renderFlagBoard();
+  } catch (e) {
+    errEl.textContent = e.message || "Không lưu được.";
+    errEl.classList.remove("view-hidden");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/** Ghi lá cờ đang cầm lên bảng (INSERT Supabase). Kéo-thả và nút "Đặt lên bảng" dùng chung. */
+async function placeHeldFlag() {
+  if (!heldFlag) return;
+  const draft = heldFlag;
+  try {
+    await flagStore.addFlag({
+      flagType: draft.flagType,
+      placedDate: draft.placedDate,
+      note: draft.note,
+    });
+    heldFlag = null; // tiêu thụ con cờ sau khi lưu
+    const name = FLAG_TYPE_BY_ID[draft.flagType]?.name || "Cờ";
+    toast(`Đã cắm ${name} (${formatDmy(draft.placedDate)}).`, false);
+    renderFlagBoard();
+    animateNewestFlag();
+  } catch (e) {
+    toast(e.message || "Không đặt được cờ.", true);
+  }
+}
+
+function cancelHeldFlag() {
+  heldFlag = null;
+  renderTray();
+}
+
+/** animation "cắm cờ" cho lá mới nhất */
+function animateNewestFlag() {
+  const first = $("#flag-grid .flag-item");
+  if (first) {
+    first.classList.add("flag-plant");
+    setTimeout(() => first.classList.remove("flag-plant"), 600);
+  }
+}
+
+// ————— Kéo thả bằng Pointer Events (chuột + cảm ứng) —————
+function setupChipDrag() {
+  const chip = $("#flag-drag-chip");
+  const zone = $("#flag-dropzone");
+  if (!chip || !zone) return;
+
+  let ghost = null;
+  let dragging = false;
+
+  const overZone = (x, y) => {
+    const r = zone.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  };
+
+  chip.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    dragging = true;
+    chip.classList.add("flag-dragging");
+    // ghost theo con trỏ
+    ghost = chip.cloneNode(true);
+    ghost.id = "flag-drag-ghost";
+    ghost.className = "flag-chip flag-ghost";
+    document.body.appendChild(ghost);
+    moveGhost(e.clientX, e.clientY);
+    chip.setPointerCapture(e.pointerId);
+  });
+
+  const moveGhost = (x, y) => {
+    if (ghost) {
+      ghost.style.left = `${x - 40}px`;
+      ghost.style.top = `${y - 30}px`;
+    }
+    zone.classList.toggle("flag-drop-hot", overZone(x, y));
+  };
+
+  chip.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    moveGhost(e.clientX, e.clientY);
+  });
+
+  const end = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    chip.classList.remove("flag-dragging");
+    zone.classList.remove("flag-drop-hot");
+    if (ghost) {
+      ghost.remove();
+      ghost = null;
+    }
+    // thả vào vùng bảng → đặt cờ
+    if (overZone(e.clientX, e.clientY)) placeHeldFlag();
+  };
+  chip.addEventListener("pointerup", end);
+  chip.addEventListener("pointercancel", end);
+}
+
+function wireFlagEvents() {
+  // Nút khóa/mở khóa — "khóa mềm" bằng ADMIN_CODE (giống mã tổ trưởng của app).
+  // Đây chỉ là chốt giao diện; ai xem được JS đều thấy mật khẩu → coi như lớp che cơ bản.
+  $("#flag-lock-btn").addEventListener("click", () => {
+    if (!flagUnlocked()) {
+      openFlagAuthModal();
+    } else {
+      flagStore.signOut();
+      cancelHeldFlag();
+      syncFlagLockUI();
+      renderFlagBoard();
+      toast("Đã khóa.");
+    }
+  });
+
+  $("#flag-grab-btn").addEventListener("click", () => openFlagFormModal(null));
+
+  // Modal đăng nhập
+  $("#flag-auth-cancel").addEventListener("click", closeFlagAuthModal);
+  $("#flag-auth-submit").addEventListener("click", async () => {
+    const pass = $("#flag-auth-pass").value;
+    const errEl = $("#flag-auth-error");
+    const btn = $("#flag-auth-submit");
+    if (!pass) {
+      errEl.textContent = "Nhập mật khẩu.";
+      errEl.classList.remove("view-hidden");
+      return;
+    }
+    btn.disabled = true;
+    errEl.classList.add("view-hidden");
+    try {
+      await flagStore.signIn(pass);
+      closeFlagAuthModal();
+      toast("Đã mở khóa — xin chào quản trị!");
+      renderFlagBoard();
+    } catch (e) {
+      errEl.textContent = e.message || "Đăng nhập thất bại.";
+      errEl.classList.remove("view-hidden");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  document.getElementById("flag-auth-pass").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      $("#flag-auth-submit").click();
+    }
+  });
+
+  // Modal nhận/sửa cờ
+  $("#flag-form-cancel").addEventListener("click", closeFlagFormModal);
+  $("#flag-form-submit").addEventListener("click", submitFlagForm);
+  $("#flag-date").addEventListener("change", syncDateLabel);
+  $("#flag-note").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submitFlagForm();
+    }
+  });
+
+  // Khay cầm: nút đặt/hủy + kéo đã gắn trong renderTray
+  $("#flag-place-btn").addEventListener("click", placeHeldFlag);
+  $("#flag-cancel-btn").addEventListener("click", cancelHeldFlag);
+
+  // Bộ lọc
+  $("#flag-filter-type").addEventListener("change", (e) => {
+    flagFilter.type = e.target.value;
+    renderFlagGrid();
+    $("#flag-clear-filters")?.classList.toggle("view-hidden", !(flagFilter.type || flagFilter.month));
+  });
+  $("#flag-filter-month").addEventListener("change", (e) => {
+    flagFilter.month = e.target.value;
+    renderFlagGrid();
+    $("#flag-clear-filters")?.classList.toggle("view-hidden", !(flagFilter.type || flagFilter.month));
+  });
+  $("#flag-clear-filters").addEventListener("click", () => {
+    flagFilter.type = "";
+    flagFilter.month = "";
+    $("#flag-filter-type").value = "";
+    $("#flag-filter-month").value = "";
+    renderFlagGrid();
+    $("#flag-clear-filters").classList.add("view-hidden");
+  });
+
+  // Đóng modal bằng Esc / click nền
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (!$("#flag-auth-modal").classList.contains("view-hidden")) closeFlagAuthModal();
+      if (!$("#flag-form-modal").classList.contains("view-hidden")) closeFlagFormModal();
+    }
+  });
+  document.querySelectorAll(".modal-overlay").forEach((ov) =>
+    ov.addEventListener("click", (e) => {
+      if (e.target === ov) {
+        if (ov.id === "flag-auth-modal") closeFlagAuthModal();
+        if (ov.id === "flag-form-modal") closeFlagFormModal();
+      }
+    })
+  );
+}
+
 function wireEvents() {
   $("#week-select").addEventListener("change", async (e) => {
     await goWeek(e.target.value);
@@ -855,7 +1419,12 @@ async function boot() {
     syncModePill();
     syncLeaderUI();
     wireEvents();
+    wireFlagEvents();
     store.subscribe(onStoreUpdate);
+    // bảng cờ: tự render mỗi khi có dữ liệu mới (polling/sign in/out) — chỉ khi đang ở tab achievements
+    flagStore.subscribe(() => {
+      if (board === "achievements") renderFlagBoard();
+    });
     showHome();
 
     try {
@@ -868,8 +1437,17 @@ async function boot() {
       console.error(err);
       toast("Không kết nối được Supabase — tạm dùng offline.", true);
       store.mode = "offline";
+      flagStore.mode = "offline";
       await store.refresh();
       syncModePill();
+    }
+
+    // bảng cờ tải riêng, không chặn phần còn lại của app
+    try {
+      await flagStore.init();
+    } catch (err) {
+      console.warn("flags init", err);
+      if (flagStore.mode === "live") toast("Chưa tải được bảng cờ — kiểm tra SQL class_flags.", true);
     }
   } catch (err) {
     console.error(err);

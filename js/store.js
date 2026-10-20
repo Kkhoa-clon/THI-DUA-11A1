@@ -7,7 +7,7 @@ import {
   TOTAL_WEEKS,
   TEAM_BY_ID,
 } from "./config.js";
-import { BASE_POINTS, RULE_BY_ID } from "./rules.js";
+import { BASE_POINTS, RULE_BY_ID, isAchievementRule } from "./rules.js";
 
 const SESSION_ROLE = "a1-role"; // admin | leader
 const SESSION_KEY = "a1-leader-team";
@@ -392,12 +392,13 @@ export class ScoreStore {
   }
 
   /**
-   * Chi tiết theo loại: all | plus | minus
+   * Chi tiết theo loại: all | plus | minus | achievements
    */
   memberDetail(memberId, kind = "all") {
     let events = this.eventsForMember(memberId, { studiedOnly: true });
     if (kind === "plus") events = events.filter((e) => e.points > 0);
     if (kind === "minus") events = events.filter((e) => e.points < 0 || e.points === 0);
+    if (kind === "achievements") events = events.filter((e) => isAchievementRule(e.ruleId));
 
     /** @type {Map<string, { ruleId: string, label: string, count: number, points: number, weeks: Set<number> }>} */
     const byRule = new Map();
@@ -664,6 +665,36 @@ export class ScoreStore {
         (a, b) =>
           b.plusPoints - a.plusPoints ||
           b.plusCount - a.plusCount ||
+          a.name.localeCompare(b.name, "vi")
+      );
+  }
+
+  /** BXH thành tích — phong trào tập thể, nhiều điểm nhất trước */
+  achievementRankings() {
+    return allMembers()
+      .map((m) => {
+        const s = this.memberYearStats(m.id);
+        let achievementPoints = 0;
+        let achievementCount = 0;
+        for (const e of this.eventsForMember(m.id, { studiedOnly: true })) {
+          if (isAchievementRule(e.ruleId)) {
+            achievementPoints += e.points;
+            achievementCount += 1;
+          }
+        }
+        return {
+          ...m,
+          teamName: TEAM_BY_ID[m.teamId]?.name || m.teamId,
+          ...s,
+          achievementPoints,
+          achievementCount,
+        };
+      })
+      .filter((m) => m.achievementCount > 0)
+      .sort(
+        (a, b) =>
+          b.achievementPoints - a.achievementPoints ||
+          b.achievementCount - a.achievementCount ||
           a.name.localeCompare(b.name, "vi")
       );
   }

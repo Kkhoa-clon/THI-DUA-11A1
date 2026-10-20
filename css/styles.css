@@ -1337,3 +1337,409 @@ textarea {
     bottom: 0.75rem;
   }
 }
+
+/* ===== BẢNG CỜ LUÂN LƯU ===== */
+
+.flag-board {
+  margin-top: 1rem;
+}
+
+/* Thân bảng cờ: padding đồng bộ với panel-head / table-foot của card xếp hạng */
+.flag-body {
+  padding: 1rem 1.15rem;
+}
+
+.flag-board-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  align-self: center;
+}
+
+/* — thống kê — */
+.flag-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.flag-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  background: #eef5f1;
+  border: 1px solid var(--line);
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+}
+
+.flag-stat-chip b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.flag-stat-total {
+  background: color-mix(in srgb, var(--accent) 12%, white);
+  color: var(--accent);
+}
+
+/* — bộ lọc — */
+.flag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.flag-filter-label {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  font-weight: 700;
+}
+
+.flag-filter-select {
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.86rem;
+}
+
+.flag-loading {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  margin: 0.3rem 0 0.6rem;
+}
+
+/* — bố cục: bảng + khay — */
+.flag-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+@media (min-width: 720px) {
+  .flag-layout {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .flag-tray {
+    width: 200px;
+    flex: 0 0 200px;
+  }
+}
+
+/* — drop zone — */
+.flag-dropzone {
+  flex: 1 1 auto;
+  min-height: 140px;
+  padding: 0.9rem;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 4%, white);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* viền sáng khi đang kéo cờ phía trên */
+.flag-dropzone.flag-drop-hot {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, white);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.flag-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 0.7rem;
+}
+
+.flag-empty {
+  margin: 0;
+  color: var(--ink-muted);
+  text-align: center;
+  font-style: italic;
+}
+
+/* — 1 lá cờ trên bảng — */
+.flag-item {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.55rem 0.5rem 0.5rem;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(15, 42, 36, 0.06);
+}
+
+.flag-item .flag-face {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.4rem;
+}
+
+.flag-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.flag-ph {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  border-radius: 10px;
+  background: repeating-linear-gradient(45deg, var(--rank-1), var(--rank-1) 8px, #d8b64e 8px, #d8b64e 16px);
+  color: #fff;
+}
+
+.flag-cap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.flag-cap-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.flag-cap-date {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ghi chú hiện khi hover/focus */
+.flag-note {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%) scale(0.96);
+  transform-origin: bottom center;
+  width: max-content;
+  max-width: 180px;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-deep);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 5;
+}
+
+.flag-item.has-note:hover .flag-note,
+.flag-item.has-note:focus-within .flag-note,
+.flag-item.has-note:active .flag-note {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* nút sửa/xóa (chỉ hiện khi mở khóa) */
+.flag-item-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 0.2rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.flag-item:hover .flag-item-actions,
+.flag-item:focus-within .flag-item-actions {
+  opacity: 1;
+}
+
+.icon-btn {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.icon-btn:hover {
+  background: #eef5f1;
+}
+
+/* animation "cắm cờ" */
+@keyframes flagPlant {
+  0% { transform: translateY(-14px) scale(0.8); opacity: 0.4; }
+  60% { transform: translateY(2px) scale(1.05); opacity: 1; }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.flag-plant {
+  animation: flagPlant 0.5s cubic-bezier(0.2, 0.8, 0.3, 1.1) both;
+}
+
+/* — khay cờ đang cầm — */
+.flag-tray {
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.flag-tray-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+#flag-tray-slot {
+  display: flex;
+  justify-content: center;
+}
+
+.flag-chip {
+  width: 110px;
+  padding: 0.6rem 0.5rem;
+  background: color-mix(in srgb, var(--accent) 8%, white);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, white);
+  border-radius: 12px;
+  text-align: center;
+  cursor: grab;
+  touch-action: none; /* cho Pointer Events trên mobile */
+  user-select: none;
+}
+
+.flag-chip.flag-dragging {
+  opacity: 0.35;
+}
+
+.flag-ghost {
+  position: fixed;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0.9;
+  transform: rotate(-4deg);
+  box-shadow: var(--shadow);
+}
+
+.flag-tray-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+/* — thùng rác (kéo cờ trên bảng thả vào để xóa) — */
+.flag-trash {
+  margin-top: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 56px;
+  padding: 0.7rem;
+  border: 2px dashed color-mix(in srgb, var(--minus) 40%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--minus) 4%, white);
+  color: var(--ink-muted);
+  font-weight: 600;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.flag-trash-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.flag-trash.flag-trash-hot {
+  border-color: var(--minus);
+  background: color-mix(in srgb, var(--minus) 16%, white);
+  color: var(--minus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--minus) 25%, transparent);
+  transform: scale(1.01);
+}
+
+/* lá cờ trên bảng đang bị kéo đi */
+.flag-item.flag-dragging {
+  opacity: 0.35;
+}
+
+/* — modal (dùng .modal-card đã có, thêm overlay + field nhỏ) — */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 42, 36, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+@media (min-width: 720px) {
+  .modal-overlay {
+    align-items: center;
+  }
+}
+
+.modal-overlay .modal-card {
+  width: min(440px, 100%);
+}
+
+.modal-error {
+  color: var(--minus);
+  font-size: 0.82rem;
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.flag-date-dmmyyyy {
+  display: inline-block;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+/* — chọn loại cờ (ảnh + tên) — */
+.flag-type-pick {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.flag-type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.6rem 0.4rem;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: var(--ink-muted);
+}
+
+.flag-type-card span {
+  font-weight: 700;
+}
+
+.flag-type-card.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, white);
+  color: var(--accent);
+}

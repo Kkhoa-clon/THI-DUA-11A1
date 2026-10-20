@@ -69,6 +69,7 @@
         <button type="button" class="board-tab" data-board="year">Cá nhân cả năm</button>
         <button type="button" class="board-tab" data-board="minus">Vi phạm</button>
         <button type="button" class="board-tab" data-board="plus">Điểm cộng</button>
+        <button type="button" class="board-tab" data-board="achievements">Thành tích cả năm</button>
       </nav>
 
       <section id="view-home">
@@ -85,6 +86,66 @@
           <ul class="rank-list" id="rank-list"></ul>
           <p class="table-foot" id="board-foot">Bấm vào tổ để xem thành viên</p>
         </div>
+
+        <!-- ===== BẢNG CỜ LUÂN LƯU (chỉ hiện ở tab Thành tích cả năm) ===== -->
+        <section class="flag-board panel view-hidden" id="flag-board" aria-label="Bảng cờ luân lưu của lớp">
+          <!-- Dùng chung cấu trúc card với panel xếp hạng: panel-head → body → table-foot -->
+          <div class="panel-head">
+            <div>
+              <h2>🚩 Bảng cờ luân lưu</h2>
+              <p class="hint">Thành tích của CẢ lớp · kéo cờ từ khay lên bảng, hoặc bấm "Đặt lên bảng".</p>
+            </div>
+            <div class="flag-board-actions">
+              <!-- Trạng thái KHÓA/MỞ KHÓA: chỉ đổi giao diện, quyền thật do Supabase Auth + RLS -->
+              <button type="button" class="btn btn-ghost btn-sm" id="flag-lock-btn" aria-pressed="false" title="Mở khóa để quản lý cờ">🔒 Khóa</button>
+              <button type="button" class="btn btn-primary btn-sm view-hidden" id="flag-grab-btn">+ Nhận cờ</button>
+            </div>
+          </div>
+
+          <div class="flag-body">
+          <!-- Thống kê: tổng + từng loại -->
+          <div class="flag-stats" id="flag-stats"></div>
+
+          <!-- Bộ lọc loại cờ + tháng -->
+          <div class="flag-filters view-hidden" id="flag-filters">
+            <label class="flag-filter-label" for="flag-filter-type">Lọc</label>
+            <select id="flag-filter-type" class="flag-filter-select" aria-label="Lọc theo loại cờ">
+              <option value="">Tất cả loại cờ</option>
+            </select>
+            <select id="flag-filter-month" class="flag-filter-select" aria-label="Lọc theo tháng">
+              <option value="">Tất cả tháng</option>
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm view-hidden" id="flag-clear-filters">Xóa lọc</button>
+          </div>
+
+          <p class="flag-loading view-hidden" id="flag-loading">Đang tải bảng cờ…</p>
+
+          <div class="flag-layout">
+            <!-- Drop zone: các lá cờ đã đặt -->
+            <div class="flag-dropzone" id="flag-dropzone" aria-label="Bảng cờ">
+              <ul class="flag-grid" id="flag-grid"></ul>
+              <p class="flag-empty view-hidden" id="flag-empty">Chưa có lá cờ nào trên bảng.</p>
+            </div>
+
+            <!-- Khay cờ đang cầm -->
+            <aside class="flag-tray view-hidden" id="flag-tray" aria-label="Cờ đang cầm">
+              <p class="flag-tray-hint">Cờ đang cầm — kéo lên bảng hoặc bấm đặt:</p>
+              <div id="flag-tray-slot"></div>
+              <div class="flag-tray-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="flag-place-btn">Đặt lên bảng</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="flag-cancel-btn">Hủy</button>
+              </div>
+            </aside>
+          </div>
+
+          <!-- Thùng rác: kéo lá cờ trên bảng thả vào đây để xóa (chỉ hiện khi mở khóa) -->
+          <div class="flag-trash view-hidden" id="flag-trash" aria-label="Thùng rác — kéo cờ vào đây để xóa" role="button">
+            <span class="flag-trash-label">Kéo lá cờ vào đây để xóa</span>
+          </div>
+          </div>
+
+          <p class="table-foot">Mỗi lần lớp đạt thành tích, quản trị viên mở khóa → nhận cờ → đặt lên bảng. Bấm tên trên bảng xếp hạng để xem tiểu sử.</p>
+        </section>
       </section>
 
       <section id="view-team" class="view-hidden">
@@ -142,6 +203,7 @@
             <button type="button" class="seg-btn is-active" data-dkind="all">Tất cả</button>
             <button type="button" class="seg-btn" data-dkind="minus">Vi phạm</button>
             <button type="button" class="seg-btn" data-dkind="plus">Cộng</button>
+            <button type="button" class="seg-btn" data-dkind="achievements">Thành tích</button>
           </div>
           <div id="profile-body"></div>
         </article>
@@ -208,6 +270,48 @@
       >
         TT
       </button>
+    </div>
+
+    <!-- Modal mở khóa Bảng cờ (mật khẩu = ADMIN_CODE trong config.js) -->
+    <div class="modal-overlay view-hidden" id="flag-auth-modal" role="dialog" aria-modal="true" aria-labelledby="flag-auth-title">
+      <div class="modal-card">
+        <h3 id="flag-auth-title">Mở khóa Bảng cờ</h3>
+        <p class="sub">Nhập mật khẩu quản trị để nhận/đặt/sửa/xóa cờ.</p>
+        <div class="field">
+          <label for="flag-auth-pass">Mật khẩu</label>
+          <input id="flag-auth-pass" type="password" autocomplete="current-password" placeholder="••••••••" enterkeyhint="go" />
+        </div>
+        <p class="modal-error view-hidden" id="flag-auth-error" role="alert"></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="flag-auth-submit">Đăng nhập</button>
+          <button type="button" class="btn btn-ghost" id="flag-auth-cancel">Hủy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal nhận / sửa cờ -->
+    <div class="modal-overlay view-hidden" id="flag-form-modal" role="dialog" aria-modal="true" aria-labelledby="flag-form-title">
+      <div class="modal-card">
+        <h3 id="flag-form-title">Nhận cờ</h3>
+        <div class="field">
+          <label>Chọn loại cờ</label>
+          <div class="flag-type-pick" id="flag-type-pick" role="radiogroup" aria-label="Loại cờ"></div>
+        </div>
+        <div class="field">
+          <label for="flag-date">Ngày đặt cờ</label>
+          <input id="flag-date" type="date" />
+          <span class="flag-date-dmmyyyy" id="flag-date-label"></span>
+        </div>
+        <div class="field">
+          <label for="flag-note">Ghi chú / lý do (tuỳ chọn)</label>
+          <input id="flag-note" type="text" maxlength="200" placeholder="VD: Nhì hội khỏe Phù Đổng…" enterkeyhint="done" />
+        </div>
+        <p class="modal-error view-hidden" id="flag-form-error" role="alert"></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="flag-form-submit">Xác nhận</button>
+          <button type="button" class="btn btn-ghost" id="flag-form-cancel">Hủy</button>
+        </div>
+      </div>
     </div>
 
     <div class="toast" id="toast" role="status"></div>

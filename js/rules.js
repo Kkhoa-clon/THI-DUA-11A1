@@ -236,6 +236,14 @@ export const RULES = [
 
 export const RULE_BY_ID = Object.fromEntries(RULES.map((r) => [r.id, r]));
 
+/** Nhóm "Phong trào tập thể" = thành tích nổi bật (hạng 1–4), khác điểm cộng thường. */
+export const ACHIEVEMENT_GROUPS = new Set(["Phong trào tập thể"]);
+
+export function isAchievementRule(ruleId) {
+  const r = RULE_BY_ID[ruleId];
+  return !!r && ACHIEVEMENT_GROUPS.has(r.group);
+}
+
 export function formatPoints(n) {
   if (n > 0) return `+${n}`;
   return String(n);
