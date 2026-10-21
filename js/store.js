@@ -446,6 +446,74 @@ export class ScoreStore {
     })).sort((a, b) => b.points - a.points || a.team.name.localeCompare(b.team.name, "vi"));
   }
 
+  // === STREAK START ===
+  /**
+   * Chuỗi hạng 1 (đơn vị TUẦN) của mỗi tổ, chỉ tính trên các tuần ĐÃ KẾT THÚC
+   * (1 → tuần hiện tại − 1). Trả về { [teamId]: number }.
+   */
+  teamStreaks() {
+    const through = studiedThroughWeek();
+    if (
+      this._streakCache &&
+      this._streakCache.src === this.allEvents &&
+      this._streakCache.through === through
+    ) {
+      return this._streakCache.value;
+    }
+
+    const teamOf = new Map(allMembers().map((m) => [m.id, m.teamId]));
+    const byWeek = new Map();
+    for (const e of this.allEvents) {
+      if (!e.points) continue; // ghi chú 0 điểm không phải dữ liệu điểm
+      const teamId = teamOf.get(e.memberId);
+      if (!teamId) continue;
+      let w = byWeek.get(e.weekId);
+      if (!w) {
+        w = new Map();
+        byWeek.set(e.weekId, w);
+      }
+      const row = w.get(teamId) || { plus: 0, minus: 0 };
+      if (e.points > 0) row.plus += e.points;
+      else row.minus -= e.points;
+      w.set(teamId, row);
+    }
+
+    const cmp = (a, b) =>
+      b.total - a.total || a.minus - b.minus || b.plus - a.plus;
+
+    const winnersByWeek = []; // từ tuần mới → cũ
+    for (let n = through - 1; n >= 1; n--) {
+      const w = byWeek.get(weekIdForNumber(n));
+      if (!w) continue; // tuần chưa có điểm → bỏ qua
+      const rows = TEAMS.map((t) => {
+        const r = w.get(t.id) || { plus: 0, minus: 0 };
+        return {
+          id: t.id,
+          plus: r.plus,
+          minus: r.minus,
+          total: BASE_POINTS * t.members.length + r.plus - r.minus,
+        };
+      }).sort(cmp);
+      winnersByWeek.push(
+        new Set(rows.filter((r) => cmp(r, rows[0]) === 0).map((r) => r.id))
+      );
+    }
+
+    const value = {};
+    for (const t of TEAMS) {
+      let s = 0;
+      for (const set of winnersByWeek) {
+        if (!set.has(t.id)) break;
+        s++;
+      }
+      value[t.id] = s;
+    }
+
+    this._streakCache = { src: this.allEvents, through, value };
+    return value;
+  }
+  // === STREAK END ===
+
   /** Thành viên tổ — điểm cao → thấp */
   teamMembersSorted(teamId) {
     const team = TEAMS.find((t) => t.id === teamId);

@@ -206,6 +206,7 @@ textarea {
 .search-box {
   position: relative;
   margin-bottom: 0.85rem;
+  z-index:999;
   animation: rise 0.5s 0.05s ease both;
 }
 
@@ -865,6 +866,23 @@ textarea {
   font-weight: 700;
   font-size: 1.05rem;
 }
+
+/* === STREAK START === */
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff1d6;
+  color: #9a5b00;
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* === STREAK END === */
 
 .rank-sub {
   font-size: 0.8rem;

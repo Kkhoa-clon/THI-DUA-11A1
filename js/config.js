@@ -18,6 +18,11 @@ export const SCHOOL_YEAR = "2026–2027";
 export const COMPETITION_START = "2026-09-14";
 export const TOTAL_WEEKS = 35;
 
+// === STREAK START ===
+/** Chuỗi hạng 1 ≥ ngưỡng này mới hiện huy hiệu "🔥 N tuần" (đơn vị: tuần đã kết thúc). */
+export const STREAK_MIN = 2;
+// === STREAK END ===
+
 /** Project URL dạng https://xxxx.supabase.co */
 export const SUPABASE_URL = "https://dgiqqwbdvtziulmkutkl.supabase.co";
 
@@ -49,8 +54,7 @@ export const TEAMS = [
       { id: "to1-08", name: "Đỗ Ngọc Yến Nhi" },
       { id: "to1-09", name: "Nguyễn Thị Yến Ngọc" },
       { id: "to1-10", name: "Huỳnh Gia Hào" },
-      { id: "to1-11", name: "Thái Huỳnh Hương" },
-      { id: "to1-12", name: "Nguyễn Phúc Thịnh" }
+      { id: "to1-11", name: "Nguyễn Phúc Thịnh" }
 
     ],
   },
@@ -68,6 +72,8 @@ export const TEAMS = [
       { id: "to2-08", name: "Nguyễn Thị Ngọc Kim" },
       { id: "to2-09", name: "Lê Minh Toàn B" },
       { id: "to2-10", name: "Nguyễn Phú Trọng" },
+      { id: "to1-11", name: "Thái Huỳnh Hương" },
+
     ],
   },
   {

@@ -7,6 +7,7 @@ import {
   TEAMS,
   SUPABASE_ENABLED,
   TOTAL_WEEKS,
+  STREAK_MIN,
 } from "./config.js";
 import { gradeFor, formatPoints, RULE_BY_ID, RULES } from "./rules.js";
 import {
@@ -177,17 +178,32 @@ function renderTeamBoard() {
   const list = $("#rank-list");
   const ranks = store.rankings();
   const maxPts = Math.max(...ranks.map((r) => r.points), 1);
+  // === STREAK START ===
+  let streaks = {};
+  try {
+    streaks = store.teamStreaks();
+  } catch {
+    streaks = {};
+  }
+  // === STREAK END ===
 
   list.innerHTML = ranks
     .map((r, i) => {
       const place = i + 1;
       const pct = Math.round((r.points / maxPts) * 100);
+      // === STREAK START ===
+      const streak = streaks[r.team.id] || 0;
+      const streakBadge =
+        streak >= STREAK_MIN
+          ? `<span class="streak-badge">🔥 ${streak} tuần</span>`
+          : "";
+      // === STREAK END ===
       return `
       <li>
         <button type="button" class="rank-item" data-place="${place}" data-team="${r.team.id}">
           <span class="rank-badge">${place}</span>
           <span class="rank-main">
-            <div class="rank-name">${escapeHtml(r.team.name)}</div>
+            <div class="rank-name">${escapeHtml(r.team.name)}${streakBadge}</div>
             <div class="rank-sub">${r.team.members.length} thành viên · TB ${r.avg}</div>
             <div class="rank-bar" aria-hidden="true"><span style="width:${pct}%"></span></div>
           </span>
@@ -878,66 +894,46 @@ function setupItemTrashDrag(li) {
   li.style.touchAction = "none"; // cho Pointer Events trên mobile
   li.style.cursor = "grab";
 
-  let ghost = null;
-  let dragging = false;
-
   const overTrash = (x, y) => {
     const r = trash.getBoundingClientRect();
     // nới thêm 12px cho dễ thả
     return x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 12 && y <= r.bottom + 12;
   };
 
-  const moveGhost = (x, y) => {
-    if (ghost) {
-      ghost.style.left = `${x - 40}px`;
-      ghost.style.top = `${y - 30}px`;
-    }
-    trash.classList.toggle("flag-trash-hot", overTrash(x, y));
-  };
-
-  li.addEventListener("pointerdown", (e) => {
-    // bấm vào nút sửa/xóa thì không kéo
-    if (e.target.closest(".flag-item-actions")) return;
-    e.preventDefault();
-    dragging = true;
-    li.classList.add("flag-dragging");
-    trash.classList.remove("view-hidden"); // đảm bảo thùng rác đang hiện khi kéo
-    ghost = li.cloneNode(true);
-    ghost.removeAttribute("id");
-    ghost.querySelectorAll("[data-edit],[data-del]").forEach((b) => b.remove());
-    ghost.className = "flag-item flag-ghost";
-    document.body.appendChild(ghost);
-    moveGhost(e.clientX, e.clientY);
-    li.setPointerCapture(e.pointerId);
-  });
-
-  li.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    moveGhost(e.clientX, e.clientY);
-  });
-
-  const end = async (e) => {
-    if (!dragging) return;
-    dragging = false;
-    li.classList.remove("flag-dragging");
-    trash.classList.remove("flag-trash-hot");
-    if (ghost) {
-      ghost.remove();
-      ghost = null;
-    }
-    if (!overTrash(e.clientX, e.clientY)) return;
+  const doDelete = async () => {
     const f = flagStore.flags.find((x) => x.id === id);
     const label = FLAG_TYPE_BY_ID[f?.flag_type]?.name || "lá cờ này";
-    if (!confirm(`Xóa ${label} (đặt ${formatDmy(f?.placed_date)}) khỏi bảng?`)) return;
+    if (!confirm(`Xóa ${label} (đặt ${formatDmy(f?.placed_date)}) khỏi bảng?`)) {
+      renderFlagBoard(); // vẽ lại vì đã bỏ qua render lúc kéo
+      return;
+    }
     try {
       await flagStore.deleteFlag(id);
       toast("Đã xóa cờ.");
     } catch (err) {
       toast(err.message || "Không xóa được.", true);
+      renderFlagBoard();
     }
   };
-  li.addEventListener("pointerup", end);
-  li.addEventListener("pointercancel", end);
+
+  li.addEventListener("pointerdown", (e) => {
+    if (flagDragBusy) return;
+    if (e.target.closest(".flag-item-actions")) return; // bấm nút sửa/xóa thì không kéo
+    e.preventDefault();
+    trash.classList.remove("view-hidden"); // đảm bảo thùng rác hiện khi kéo
+    const ghost = li.cloneNode(true);
+    ghost.removeAttribute("id");
+    ghost.querySelectorAll("[data-edit],[data-del]").forEach((b) => b.remove());
+    ghost.className = "flag-item flag-ghost";
+    document.body.appendChild(ghost);
+    beginDrag({
+      source: li,
+      ghost,
+      overTarget: overTrash,
+      setHot: (b) => trash.classList.toggle("flag-trash-hot", b),
+      onHit: doDelete,
+    });
+  });
 }
 
 function renderTray() {
@@ -961,6 +957,7 @@ function renderTray() {
 
 function renderFlagBoard() {
   if (!$("#flag-board")) return;
+  if (flagDragBusy) return; // đang kéo cờ → giữ nguyên DOM để không phá ghost
   const loading = $("#flag-loading");
   if (loading) loading.classList.toggle("view-hidden", !flagStore.loading);
   syncFlagLockUI();
@@ -1111,13 +1108,68 @@ function animateNewestFlag() {
 }
 
 // ————— Kéo thả bằng Pointer Events (chuột + cảm ứng) —————
+// ————— Kéo thả dùng chung (Pointer Events, chuột + cảm ứng) —————
+// Nghe pointermove/up trên WINDOW (không phụ thuộc phần tử nguồn) và tạm dừng
+// render lúc kéo, nên bảng tự cập nhật (polling) cũng không làm "kẹt" ghost giữa màn hình.
+let flagDragBusy = false;
+
+function beginDrag({ source, ghost, overTarget, setHot, onHit }) {
+  const origin = source.getBoundingClientRect();
+  const place = (x, y) => {
+    ghost.style.left = `${x - 40}px`;
+    ghost.style.top = `${y - 30}px`;
+  };
+  place(origin.left + origin.width / 2, origin.top + origin.height / 2);
+
+  flagDragBusy = true;
+  source.classList.add("flag-dragging");
+
+  const flyBack = () => {
+    const r = source.getBoundingClientRect(); // nguồn còn nguyên vì render bị chặn lúc kéo
+    ghost.style.transition = "left .22s ease, top .22s ease, transform .22s ease, opacity .22s ease";
+    ghost.style.left = `${r.left}px`;
+    ghost.style.top = `${r.top}px`;
+    ghost.style.transform = "rotate(0deg) scale(1)";
+    ghost.style.opacity = "0";
+    setTimeout(() => ghost.remove(), 240);
+  };
+
+  const move = (e) => {
+    place(e.clientX, e.clientY);
+    setHot(overTarget(e.clientX, e.clientY));
+  };
+  const finish = (e) => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", finish);
+    window.removeEventListener("pointercancel", cancel);
+    setHot(false);
+    source.classList.remove("flag-dragging");
+    flagDragBusy = false;
+    if (e.type === "pointercancel") {
+      flyBack();
+      return;
+    }
+    if (overTarget(e.clientX, e.clientY)) {
+      ghost.remove();
+      onHit();
+    } else {
+      flyBack(); // chưa gặp đối tượng → bay về chỗ cũ
+    }
+  };
+  const cancel = (e) => finish(e);
+
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", finish);
+  window.addEventListener("pointercancel", cancel);
+}
+
 function setupChipDrag() {
   const chip = $("#flag-drag-chip");
   const zone = $("#flag-dropzone");
   if (!chip || !zone) return;
 
-  let ghost = null;
-  let dragging = false;
+  chip.style.touchAction = "none";
+  chip.style.cursor = "grab";
 
   const overZone = (x, y) => {
     const r = zone.getBoundingClientRect();
@@ -1125,45 +1177,20 @@ function setupChipDrag() {
   };
 
   chip.addEventListener("pointerdown", (e) => {
+    if (flagDragBusy) return;
     e.preventDefault();
-    dragging = true;
-    chip.classList.add("flag-dragging");
-    // ghost theo con trỏ
-    ghost = chip.cloneNode(true);
+    const ghost = chip.cloneNode(true);
     ghost.id = "flag-drag-ghost";
     ghost.className = "flag-chip flag-ghost";
     document.body.appendChild(ghost);
-    moveGhost(e.clientX, e.clientY);
-    chip.setPointerCapture(e.pointerId);
+    beginDrag({
+      source: chip,
+      ghost,
+      overTarget: overZone,
+      setHot: (b) => zone.classList.toggle("flag-drop-hot", b),
+      onHit: () => placeHeldFlag(),
+    });
   });
-
-  const moveGhost = (x, y) => {
-    if (ghost) {
-      ghost.style.left = `${x - 40}px`;
-      ghost.style.top = `${y - 30}px`;
-    }
-    zone.classList.toggle("flag-drop-hot", overZone(x, y));
-  };
-
-  chip.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    moveGhost(e.clientX, e.clientY);
-  });
-
-  const end = (e) => {
-    if (!dragging) return;
-    dragging = false;
-    chip.classList.remove("flag-dragging");
-    zone.classList.remove("flag-drop-hot");
-    if (ghost) {
-      ghost.remove();
-      ghost = null;
-    }
-    // thả vào vùng bảng → đặt cờ
-    if (overZone(e.clientX, e.clientY)) placeHeldFlag();
-  };
-  chip.addEventListener("pointerup", end);
-  chip.addEventListener("pointercancel", end);
 }
 
 function wireFlagEvents() {
