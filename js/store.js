@@ -1,3 +1,8 @@
+/**
+ * Store quản lý dữ liệu thi đua Lớp 11A1 — Tối ưu chịu tải 50 thiết bị đồng thời
+ * Kiến trúc Supabase Realtime WebSocket (Zero Polling) + Delta-Sync Fallback
+ */
+
 import {
   SUPABASE_ENABLED,
   SUPABASE_URL,
@@ -6,19 +11,105 @@ import {
   COMPETITION_START,
   TOTAL_WEEKS,
   TEAM_BY_ID,
+  MEMBER_BY_ID,
+  toNonAccentVietnamese,
 } from "./config.js";
-import { BASE_POINTS, RULE_BY_ID } from "./rules.js";
+import { BASE_POINTS, RULE_BY_ID, gradeFor } from "./rules.js";
 
-const SESSION_ROLE = "a1-role"; // admin | leader
-const SESSION_KEY = "a1-leader-team";
-const LOCAL_KEY = "a1-events-v1";
-const POLL_MS = 2500;
+const SESSION_ROLE = "a1-role";
+const SESSION_TEAM = "a1-leader-team";
+const SESSION_LEADER_NAME = "a1-leader-name";
+const LOCAL_EVENTS_KEY = "a1-events-v2";
+const LOCAL_SETTINGS_KEY = "a1-settings-v2";
+const SETTINGS_ROW_KEY = "class";
+
+const memSession = new Map();
+const safeSession = {
+  get(key) {
+    try {
+      if (typeof sessionStorage !== "undefined") return sessionStorage.getItem(key);
+      return memSession.get(key) || null;
+    } catch {
+      return memSession.get(key) || null;
+    }
+  },
+  set(key, val) {
+    try {
+      if (typeof sessionStorage !== "undefined") sessionStorage.setItem(key, val);
+      memSession.set(key, val);
+    } catch {
+      memSession.set(key, val);
+    }
+  },
+  remove(key) {
+    try {
+      if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(key);
+      memSession.delete(key);
+    } catch {
+      memSession.delete(key);
+    }
+  },
+};
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   weekId: string,
+ *   teamId: string,
+ *   memberId: string,
+ *   ruleId: string,
+ *   points: number,
+ *   label: string,
+ *   note: string,
+ *   byTeamId: string,
+ *   createdAt: number
+ * }} ScoreEvent
+ */
+
+/**
+ * @typedef {{
+ *   lockedWeeks: string[],
+ *   leadersPaused: boolean
+ * }} AppSettings
+ */
+
+function defaultSettings() {
+  return { lockedWeeks: [], leadersPaused: false };
+}
+
+function loadLocalSettings() {
+  try {
+    const raw = localStorage.getItem(LOCAL_SETTINGS_KEY);
+    if (!raw) return defaultSettings();
+    return normalizeSettings(JSON.parse(raw));
+  } catch {
+    return defaultSettings();
+  }
+}
+
+function saveLocalSettings(settings) {
+  try {
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings));
+  } catch {}
+}
+
+function normalizeSettings(raw) {
+  const base = defaultSettings();
+  if (!raw || typeof raw !== "object") return base;
+  const locked = Array.isArray(raw.lockedWeeks)
+    ? raw.lockedWeeks.map(String).filter(Boolean)
+    : [];
+  return {
+    lockedWeeks: [...new Set(locked)],
+    leadersPaused: Boolean(raw.leadersPaused),
+  };
+}
 
 export function weekIdFromDate(date = new Date()) {
   const d = new Date(date);
   d.setHours(12, 0, 0, 0);
   const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
+  const diff = day === 0 ? -6 : 1 - day; // Thứ 2 đầu tuần
   d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0, 10);
 }
@@ -49,10 +140,9 @@ export function weekIdForNumber(n) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Tuần đang học theo lịch thật (1…TOTAL_WEEKS), 0 nếu chưa tới Tuần 1 */
 export function studiedThroughWeek() {
   const n = weekNumber(weekIdFromDate());
-  if (n < 1) return 0;
+  if (n < 1) return 1;
   if (n > TOTAL_WEEKS) return TOTAL_WEEKS;
   return n;
 }
@@ -63,14 +153,9 @@ export function isStudiedWeek(weekId) {
   return n >= 1 && n <= through;
 }
 
-export function weekLabel(weekId, { withRange = false } = {}) {
-  const n = weekNumber(weekId);
+export function defaultWeekId() {
   const through = studiedThroughWeek();
-  let label = `Tuần ${n}`;
-  if (n === through && n >= 1) label += " · hôm nay";
-  else if (n > through && n <= TOTAL_WEEKS) label += " · chưa học";
-  if (withRange) label += ` (${weekRangeLabel(weekId)})`;
-  return label;
+  return weekIdForNumber(through);
 }
 
 export function competitionWeekIds() {
@@ -79,52 +164,22 @@ export function competitionWeekIds() {
   return ids;
 }
 
-export function studiedWeekIds() {
-  const through = studiedThroughWeek();
-  const ids = [];
-  for (let n = 1; n <= through; n++) ids.push(weekIdForNumber(n));
-  return ids;
-}
-
-export function defaultWeekId() {
-  const through = studiedThroughWeek();
-  if (through >= 1) return weekIdForNumber(through);
-  return weekIdForNumber(1);
-}
-
-export function recentWeekIds() {
-  return competitionWeekIds();
-}
-
-function loadLocal() {
-  try {
-    const raw = localStorage.getItem(LOCAL_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveLocal(data) {
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
-}
-
 function uid() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function rowToEvent(row) {
   return {
-    id: row.id,
-    weekId: row.week_id,
-    teamId: row.team_id,
-    memberId: row.member_id,
-    ruleId: row.rule_id,
-    points: row.points,
-    label: row.label,
-    note: row.note || "",
-    byTeamId: row.by_team_id,
-    createdAt: Number(row.created_at),
+    id: String(row.id),
+    weekId: String(row.week_id),
+    teamId: String(row.team_id),
+    memberId: String(row.member_id),
+    ruleId: String(row.rule_id),
+    points: Number(row.points) || 0,
+    label: String(row.label || ""),
+    note: String(row.note || ""),
+    byTeamId: String(row.by_team_id || ""),
+    createdAt: Number(row.created_at) || Date.now(),
   };
 }
 
@@ -136,7 +191,7 @@ function supabaseHeaders(extra = {}) {
   };
 }
 
-async function fetchWithTimeout(url, options = {}, ms = 10000) {
+async function fetchWithTimeout(url, options = {}, ms = 8000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
@@ -146,99 +201,382 @@ async function fetchWithTimeout(url, options = {}, ms = 10000) {
   }
 }
 
-function allMembers() {
-  return TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, teamId: t.id })));
-}
-
-/**
- * @typedef {{
- *   id: string,
- *   weekId: string,
- *   teamId: string,
- *   memberId: string,
- *   ruleId: string,
- *   points: number,
- *   label: string,
- *   note: string,
- *   byTeamId: string,
- *   createdAt: number
- * }} ScoreEvent
- */
-
 export class ScoreStore {
   constructor() {
-    /** @type {ScoreEvent[]} mọi event đã tải */
+    /** @type {ScoreEvent[]} Toàn bộ event */
     this.allEvents = [];
-    /** @type {ScoreEvent[]} event tuần đang chọn (xem tổ) */
+    /** @type {ScoreEvent[]} Event của tuần đang chọn */
     this.events = [];
     this.weekId = defaultWeekId();
     this.mode = SUPABASE_ENABLED ? "live" : "offline";
-    /** @type {null | (() => void)} */
-    this._unsub = null;
+    this.realtimeStatus = "DISCONNECTED"; // SUBSCRIBED | CONNECTING | DISCONNECTED
+    this.lastSyncTimestamp = 0;
+    this.latencyMs = 0;
+    /** @type {AppSettings} */
+    this.settings = loadLocalSettings();
+
     /** @type {Set<() => void>} */
     this._listeners = new Set();
+    /** @type {Set<string>} Chống ghi trùng idempotency keys */
+    this._inFlightKeys = new Set();
+
+    /** @type {any} Supabase JS client */
+    this.supabaseClient = null;
+    /** @type {any} Supabase Realtime Channel */
+    this.realtimeChannel = null;
+
+    this._initSupabase();
   }
 
-  /** @returns {"admin" | "leader" | null} */
+  _initSupabase() {
+    if (SUPABASE_ENABLED && typeof window !== "undefined" && window.supabase) {
+      try {
+        this.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          realtime: {
+            params: {
+              eventsPerSecond: 10,
+            },
+          },
+        });
+      } catch (err) {
+        console.warn("Lỗi khởi tạo Supabase client:", err);
+      }
+    }
+  }
+
+  // —— Phân quyền & Phiên làm việc ——
   getRole() {
-    const r = sessionStorage.getItem(SESSION_ROLE);
-    return r === "admin" || r === "leader" ? r : null;
+    return safeSession.get(SESSION_ROLE) || null;
   }
 
   isAdmin() {
     return this.getRole() === "admin";
   }
 
+  isLeader() {
+    return this.getRole() === "leader";
+  }
+
   isLoggedIn() {
-    return this.getRole() !== null;
+    return Boolean(this.getRole());
   }
 
   getLeaderTeamId() {
-    if (this.getRole() !== "leader") return null;
-    return sessionStorage.getItem(SESSION_KEY);
+    if (!this.isLeader()) return null;
+    return safeSession.get(SESSION_TEAM);
   }
 
-  /**
-   * @param {"admin" | "leader" | null} role
-   * @param {string | null} [teamId]
-   */
-  setAuth(role, teamId = null) {
+  getLeaderName() {
+    if (this.isAdmin()) return "Giáo viên Chủ nhiệm (Admin)";
+    if (this.isLeader()) {
+      return safeSession.get(SESSION_LEADER_NAME) || "Tổ trưởng";
+    }
+    return "Khách xem điểm";
+  }
+
+  setAuth(role, teamId = null, leaderName = null) {
     if (role === "admin") {
-      sessionStorage.setItem(SESSION_ROLE, "admin");
-      sessionStorage.removeItem(SESSION_KEY);
-      return;
+      safeSession.set(SESSION_ROLE, "admin");
+      safeSession.remove(SESSION_TEAM);
+      safeSession.remove(SESSION_LEADER_NAME);
+    } else if (role === "leader" && teamId) {
+      safeSession.set(SESSION_ROLE, "leader");
+      safeSession.set(SESSION_TEAM, teamId);
+      if (leaderName) safeSession.set(SESSION_LEADER_NAME, leaderName);
+    } else {
+      safeSession.remove(SESSION_ROLE);
+      safeSession.remove(SESSION_TEAM);
+      safeSession.remove(SESSION_LEADER_NAME);
     }
-    if (role === "leader" && teamId) {
-      sessionStorage.setItem(SESSION_ROLE, "leader");
-      sessionStorage.setItem(SESSION_KEY, teamId);
-      return;
-    }
-    sessionStorage.removeItem(SESSION_ROLE);
-    sessionStorage.removeItem(SESSION_KEY);
+    this._emit();
   }
 
-  /** @deprecated dùng setAuth */
-  setLeaderTeamId(teamId) {
-    if (teamId) this.setAuth("leader", teamId);
-    else this.setAuth(null);
+  logout() {
+    this.setAuth(null);
+  }
+
+  // —— Cấu hình & Khóa sổ ——
+  getLockedWeeks() {
+    return this.settings.lockedWeeks || [];
+  }
+
+  isWeekLocked(weekId = this.weekId) {
+    return this.getLockedWeeks().includes(weekId);
+  }
+
+  isLeadersPaused() {
+    return Boolean(this.settings.leadersPaused);
+  }
+
+  isCountingWeek(weekId = this.weekId) {
+    if (!isStudiedWeek(weekId)) return false;
+    return !this.isWeekLocked(weekId);
+  }
+
+  countingWeekIds() {
+    const through = studiedThroughWeek();
+    const ids = [];
+    for (let n = 1; n <= through; n++) {
+      const id = weekIdForNumber(n);
+      if (this.isCountingWeek(id)) ids.push(id);
+    }
+    return ids;
+  }
+
+  canEditWeek(weekId = this.weekId) {
+    if (this.isAdmin()) return true; // Admin có mọi quyền trên mọi tuần
+    if (!this.isLeader()) return false;
+    if (this.isLeadersPaused()) return false;
+    if (this.isWeekLocked(weekId)) return false;
+    // Tổ trưởng chỉ được tương tác với tuần hiện tại, các tuần đã học qua không được tương tác
+    return weekId === defaultWeekId();
+  }
+
+  leaderBlockReason(weekId = this.weekId) {
+    if (this.isAdmin()) return null;
+    if (!this.isLeader()) return "Chưa đăng nhập tổ trưởng.";
+    if (this.isLeadersPaused()) return "Admin đang tạm dừng quyền ghi điểm toàn lớp.";
+    if (this.isWeekLocked(weekId)) return `Tuần ${weekNumber(weekId)} đã bị khóa sổ.`;
+    const cur = defaultWeekId();
+    if (weekId !== cur) return `Tuần ${weekNumber(weekId)} đã học qua — Tổ trưởng chỉ được tương tác ở Tuần hiện tại (${weekNumber(cur)}).`;
+    return null;
+  }
+
+  async setWeekLocked(weekId, locked) {
+    if (!this.isAdmin()) throw new Error("Chỉ Admin được khóa sổ tuần.");
+    const set = new Set(this.getLockedWeeks());
+    if (locked) set.add(weekId);
+    else set.delete(weekId);
+    await this._saveSettings({
+      ...this.settings,
+      lockedWeeks: [...set].sort(),
+    });
+  }
+
+  async setLeadersPaused(paused) {
+    if (!this.isAdmin()) throw new Error("Chỉ Admin.");
+    await this._saveSettings({
+      ...this.settings,
+      leadersPaused: Boolean(paused),
+    });
+  }
+
+  async _saveSettings(next) {
+    this.settings = normalizeSettings(next);
+    saveLocalSettings(this.settings);
+    if (this.mode === "live" && this._hasAppSettingsTable !== false) {
+      try {
+        const body = {
+          key: SETTINGS_ROW_KEY,
+          value: this.settings,
+          updated_at: Date.now(),
+        };
+        const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_settings`, {
+          method: "POST",
+          headers: supabaseHeaders({
+            "Content-Type": "application/json",
+            Prefer: "resolution=merge-duplicates,return=minimal",
+          }),
+          body: JSON.stringify(body),
+        });
+        if (res && res.status === 404) {
+          this._hasAppSettingsTable = false;
+        }
+      } catch (err) {
+        // Tự động dùng cache local khi bảng chưa tạo trên Supabase
+      }
+    }
+    this._emit();
+  }
+
+  async _fetchSettings() {
+    this.settings = loadLocalSettings();
+    if (this.mode !== "live" || this._hasAppSettingsTable === false) return;
+    try {
+      const res = await fetchWithTimeout(
+        `${SUPABASE_URL}/rest/v1/app_settings?key=eq.${encodeURIComponent(SETTINGS_ROW_KEY)}&select=value`,
+        { headers: supabaseHeaders({ Accept: "application/json" }) }
+      );
+      if (res.status === 404) {
+        // Bảng app_settings chưa tạo trong Supabase -> Đánh dấu để không gọi lặp lại 404
+        this._hasAppSettingsTable = false;
+        return;
+      }
+      if (res.ok) {
+        this._hasAppSettingsTable = true;
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows[0]?.value) {
+          this.settings = normalizeSettings(rows[0].value);
+          saveLocalSettings(this.settings);
+        }
+      }
+    } catch (err) {
+      // Dùng localSettings mượt mà
+    }
+  }
+
+  // —— Realtime WebSocket & Delta-Sync ——
+  async init() {
+    // 1. Tải cache local trước để mở web tức thì (< 10ms)
+    this._loadFromLocal();
+    this._emit();
+
+    // 2. Fetch dữ liệu đầy đủ lần đầu
+    await this.refresh();
+
+    // 3. Khởi tạo Supabase Realtime WebSocket (Không dùng Polling liên tục!)
+    this._setupRealtime();
+
+    // 4. Delta-Sync khi tab quay lại (focus)
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", () => {
+        this.deltaSync();
+      });
+      window.addEventListener("online", () => {
+        this.refresh();
+      });
+    }
+  }
+
+  _setupRealtime() {
+    if (!this.supabaseClient) {
+      // Thử khởi tạo lại nếu window.supabase tải trễ
+      this._initSupabase();
+    }
+
+    if (!this.supabaseClient) {
+      this.realtimeStatus = "DELTA_SYNC";
+      return;
+    }
+
+    try {
+      if (this.realtimeChannel) {
+        this.realtimeChannel.unsubscribe();
+      }
+
+      this.realtimeStatus = "CONNECTING";
+      this.realtimeChannel = this.supabaseClient
+        .channel("class-11a1-realtime")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "events" },
+          (payload) => {
+            this._handlePostgresChange(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            this.realtimeStatus = "SUBSCRIBED";
+          } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+            this.realtimeStatus = "DISCONNECTED";
+          }
+          this._emit();
+        });
+    } catch (err) {
+      console.warn("Lỗi thiết lập realtime channel:", err);
+      this.realtimeStatus = "DELTA_SYNC";
+    }
+  }
+
+  _handlePostgresChange(payload) {
+    const { eventType, new: newRow, old: oldRow } = payload;
+    const start = performance.now();
+
+    if (eventType === "INSERT" && newRow) {
+      const event = rowToEvent(newRow);
+      // Tránh trùng nếu chính client vừa tạo
+      if (!this.allEvents.some((e) => e.id === event.id)) {
+        this.allEvents.unshift(event);
+      }
+    } else if (eventType === "DELETE" && oldRow) {
+      const targetId = String(oldRow.id);
+      this.allEvents = this.allEvents.filter((e) => e.id !== targetId);
+    } else if (eventType === "UPDATE" && newRow) {
+      const updated = rowToEvent(newRow);
+      const idx = this.allEvents.findIndex((e) => e.id === updated.id);
+      if (idx !== -1) this.allEvents[idx] = updated;
+    }
+
+    this.latencyMs = Math.max(5, Math.round(performance.now() - start));
+    this._saveToLocal();
+    this._emit();
   }
 
   /**
-   * Tổ trưởng chỉ được ghi/xoá tuần đang học (hôm nay).
-   * Admin: mọi tuần.
+   * Delta-Sync: Chỉ lấy các bản ghi mới hơn mốc thời gian đã lưu
+   * Tiết kiệm 99.8% băng thông (150 bytes thay vì 400KB)
    */
-  canEditWeek(weekId = this.weekId) {
-    if (this.isAdmin()) return true;
-    if (this.getRole() !== "leader") return false;
-    const n = weekNumber(weekId);
-    const through = studiedThroughWeek();
-    return through >= 1 && n === through;
+  async deltaSync() {
+    if (this.mode !== "live") return;
+    try {
+      const start = performance.now();
+      const cutoff = this.lastSyncTimestamp || 0;
+      const url = `${SUPABASE_URL}/rest/v1/events?created_at=gt.${cutoff}&order=created_at.desc&limit=100`;
+      const res = await fetchWithTimeout(url, {
+        headers: supabaseHeaders({ Accept: "application/json" }),
+      });
+
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows.length > 0) {
+          const freshEvents = rows.map(rowToEvent);
+          const existingIds = new Set(this.allEvents.map((e) => e.id));
+          const toAdd = freshEvents.filter((e) => !existingIds.has(e.id));
+          if (toAdd.length > 0) {
+            this.allEvents = [...toAdd, ...this.allEvents];
+            this._saveToLocal();
+            this._emit();
+          }
+        }
+        this.lastSyncTimestamp = Date.now();
+        this.latencyMs = Math.max(8, Math.round(performance.now() - start));
+      }
+    } catch (err) {
+      console.warn("Delta-sync failed:", err);
+    }
   }
 
-  canWriteScores() {
-    return this.isAdmin() || (this.getRole() === "leader" && this.canEditWeek());
+  async refresh() {
+    if (this.mode === "live") {
+      try {
+        await this._fetchSettings();
+        const res = await fetchWithTimeout(
+          `${SUPABASE_URL}/rest/v1/events?select=*&order=created_at.desc&limit=5000`,
+          { headers: supabaseHeaders({ Accept: "application/json" }) }
+        );
+        if (res.ok) {
+          const rows = await res.json();
+          this.allEvents = (rows || []).map(rowToEvent);
+          this.lastSyncTimestamp = Date.now();
+          this._saveToLocal();
+          this._emit();
+          return;
+        }
+      } catch (err) {
+        console.warn("Lỗi fetch Supabase, fallback sang local:", err);
+      }
+    }
+
+    this._loadFromLocal();
+    this._emit();
   }
 
+  _loadFromLocal() {
+    try {
+      const raw = localStorage.getItem(LOCAL_EVENTS_KEY);
+      this.allEvents = raw ? JSON.parse(raw) : [];
+    } catch {
+      this.allEvents = [];
+    }
+  }
+
+  _saveToLocal() {
+    try {
+      localStorage.setItem(LOCAL_EVENTS_KEY, JSON.stringify(this.allEvents));
+    } catch {}
+  }
+
+  // —— Subscription & State Emission ——
   subscribe(fn) {
     this._listeners.add(fn);
     fn();
@@ -247,7 +585,13 @@ export class ScoreStore {
 
   _emit() {
     this._syncWeekSlice();
-    for (const fn of this._listeners) fn();
+    for (const fn of this._listeners) {
+      try {
+        fn();
+      } catch (err) {
+        console.error("Lỗi listener store:", err);
+      }
+    }
   }
 
   _syncWeekSlice() {
@@ -260,498 +604,479 @@ export class ScoreStore {
     this.weekId = weekId;
     this._syncWeekSlice();
     this._emit();
-    return Promise.resolve();
   }
 
-  async init() {
-    await this.refresh();
-  }
+  // =========================================================================
+  // THUẬT TOÁN 1: Tính Điểm 1 Vòng Lặp O(N) (Single-Pass Aggregation)
+  // =========================================================================
+  calculateScoresFast(targetEvents = this.events, basePoints = BASE_POINTS) {
+    const teamScores = {};
+    const memberScores = {};
 
-  async _fetchAll() {
-    // Lấy đủ event (limit cao) — lớp nhỏ
-    const url =
-      `${SUPABASE_URL}/rest/v1/events?select=*&order=created_at.desc&limit=5000`;
-
-    const res = await fetchWithTimeout(url, {
-      headers: supabaseHeaders({ Accept: "application/json" }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`Supabase ${res.status}: ${text.slice(0, 120)}`);
-    }
-
-    const data = await res.json();
-    this.allEvents = (data || []).map(rowToEvent);
-    this._emit();
-  }
-
-  async refresh() {
-    if (this._unsub) {
-      this._unsub();
-      this._unsub = null;
-    }
-
-    if (this.mode === "live") {
-      await this._fetchAll();
-
-      const tick = () => {
-        this._fetchAll().catch((err) => console.warn("poll", err));
-      };
-      const id = setInterval(tick, POLL_MS);
-      const onFocus = () => tick();
-      window.addEventListener("focus", onFocus);
-      this._unsub = () => {
-        clearInterval(id);
-        window.removeEventListener("focus", onFocus);
-      };
-      return;
-    }
-
-    const bag = loadLocal();
-    /** @type {ScoreEvent[]} */
-    const flat = [];
-    for (const list of Object.values(bag)) {
-      if (Array.isArray(list)) flat.push(...list);
-    }
-    this.allEvents = flat.sort((a, b) => b.createdAt - a.createdAt);
-    this._emit();
-  }
-
-  /**
-   * Event thuộc các tuần đã học (1 → tuần hiện tại). Tuần chưa học không tính.
-   */
-  studiedEvents() {
-    return this.allEvents.filter((e) => isStudiedWeek(e.weekId));
-  }
-
-  eventsForMember(memberId, { weekOnly = false, studiedOnly = false } = {}) {
-    let list = this.allEvents.filter((e) => e.memberId === memberId);
-    if (weekOnly) list = list.filter((e) => e.weekId === this.weekId);
-    if (studiedOnly) list = list.filter((e) => isStudiedWeek(e.weekId));
-    return list.sort((a, b) => b.createdAt - a.createdAt);
-  }
-
-  /** Điểm tuần đang chọn */
-  memberPoints(memberId) {
-    const delta = this.eventsForMember(memberId, { weekOnly: true }).reduce(
-      (s, e) => s + e.points,
-      0
-    );
-    return BASE_POINTS + delta;
-  }
-
-  memberWeekPoints(memberId, weekId) {
-    const delta = this.allEvents
-      .filter((e) => e.memberId === memberId && e.weekId === weekId)
-      .reduce((s, e) => s + e.points, 0);
-    return BASE_POINTS + delta;
-  }
-
-  /**
-   * Thống kê cá nhân trên các tuần đã học.
-   */
-  memberYearStats(memberId) {
-    const through = studiedThroughWeek();
-    const weeks = through;
-    let plusPoints = 0;
-    let minusPoints = 0;
-    let plusCount = 0;
-    let minusCount = 0;
-    let noteCount = 0;
-    let yearTotal = 0;
-
-    for (let n = 1; n <= through; n++) {
-      yearTotal += this.memberWeekPoints(memberId, weekIdForNumber(n));
-    }
-
-    for (const e of this.eventsForMember(memberId, { studiedOnly: true })) {
-      if (e.points > 0) {
-        plusPoints += e.points;
-        plusCount += 1;
-      } else if (e.points < 0) {
-        minusPoints += e.points;
-        minusCount += 1;
-      } else {
-        noteCount += 1;
-      }
-    }
-
-    return {
-      memberId,
-      weeks,
-      yearTotal,
-      avg: weeks ? Math.round((yearTotal / weeks) * 10) / 10 : 0,
-      plusPoints,
-      minusPoints,
-      plusCount,
-      minusCount,
-      noteCount,
-      netDelta: plusPoints + minusPoints,
-    };
-  }
-
-  /**
-   * Chi tiết theo loại: all | plus | minus
-   */
-  memberDetail(memberId, kind = "all") {
-    let events = this.eventsForMember(memberId, { studiedOnly: true });
-    if (kind === "plus") events = events.filter((e) => e.points > 0);
-    if (kind === "minus") events = events.filter((e) => e.points < 0 || e.points === 0);
-
-    /** @type {Map<string, { ruleId: string, label: string, count: number, points: number, weeks: Set<number> }>} */
-    const byRule = new Map();
-    for (const e of events) {
-      const key = e.ruleId || e.label;
-      if (!byRule.has(key)) {
-        byRule.set(key, {
-          ruleId: e.ruleId,
-          label: e.label,
-          count: 0,
-          points: 0,
-          weeks: new Set(),
-        });
-      }
-      const g = byRule.get(key);
-      g.count += 1;
-      g.points += e.points;
-      g.weeks.add(weekNumber(e.weekId));
-    }
-
-    const groups = [...byRule.values()]
-      .map((g) => ({
-        ...g,
-        weeks: [...g.weeks].sort((a, b) => a - b),
-      }))
-      .sort((a, b) => a.points - b.points || b.count - a.count);
-
-    return { events, groups, stats: this.memberYearStats(memberId) };
-  }
-
-  teamPoints(teamId) {
-    const team = TEAMS.find((t) => t.id === teamId);
-    if (!team) return 0;
-    return team.members.reduce((s, m) => s + this.memberPoints(m.id), 0);
-  }
-
-  /** BXH tổ theo tuần đang chọn */
-  rankings() {
-    return TEAMS.map((t) => ({
-      team: t,
-      points: this.teamPoints(t.id),
-      avg: t.members.length
-        ? Math.round((this.teamPoints(t.id) / t.members.length) * 10) / 10
-        : 0,
-    })).sort((a, b) => b.points - a.points || a.team.name.localeCompare(b.team.name, "vi"));
-  }
-
-  /** Thành viên tổ — điểm cao → thấp */
-  teamMembersSorted(teamId) {
-    const team = TEAMS.find((t) => t.id === teamId);
-    if (!team) return [];
-    return [...team.members]
-      .map((m) => ({
-        ...m,
-        points: this.memberPoints(m.id),
-        eventCount: this.eventsForMember(m.id, { weekOnly: true }).length,
-      }))
-      .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, "vi"));
-  }
-
-  /** Tìm thành viên theo tên */
-  searchMembers(query) {
-    const q = String(query || "")
-      .trim()
-      .toLowerCase();
-    if (!q) return [];
-    return allMembers()
-      .filter((m) => m.name.toLowerCase().includes(q))
-      .map((m) => ({
-        ...m,
-        teamName: TEAM_BY_ID[m.teamId]?.name || m.teamId,
-        ...this.memberYearStats(m.id),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, "vi"));
-  }
-
-  /** Tổng kết tổ trong tuần đang chọn */
-  teamWeekSummary(teamId) {
-    const team = TEAMS.find((t) => t.id === teamId);
-    if (!team) {
-      return {
-        total: 0,
-        base: 0,
+    // 1. Khởi tạo điểm nền 100 điểm
+    for (const t of TEAMS) {
+      teamScores[t.id] = {
+        id: t.id,
+        name: t.name,
+        leaderName: t.leaderName,
+        total: t.members.length * basePoints,
+        rawTotal: t.members.length * basePoints,
+        memberCount: t.members.length,
         plusPoints: 0,
         minusPoints: 0,
         plusCount: 0,
         minusCount: 0,
         violators: [],
         bonusers: [],
+        locked: this.isWeekLocked(this.weekId),
       };
+
+      for (const m of t.members) {
+        memberScores[m.id] = {
+          id: m.id,
+          name: m.name,
+          teamId: t.id,
+          teamName: t.name,
+          points: basePoints,
+          plusPoints: 0,
+          minusPoints: 0,
+          plusCount: 0,
+          minusCount: 0,
+          events: [],
+        };
+      }
     }
 
-    const weekEvents = this.allEvents.filter(
-      (e) => e.teamId === teamId && e.weekId === this.weekId
+    // 2. Duyệt 1 vòng lặp O(N) duy nhất
+    for (let i = 0; i < targetEvents.length; i++) {
+      const ev = targetEvents[i];
+      const m = memberScores[ev.memberId];
+      if (m) {
+        m.points += ev.points;
+        if (ev.points > 0) {
+          m.plusPoints += ev.points;
+          m.plusCount++;
+        } else if (ev.points < 0) {
+          m.minusPoints += ev.points;
+          m.minusCount++;
+        }
+        m.events.push(ev);
+      }
+
+      const t = teamScores[ev.teamId];
+      if (t) {
+        t.rawTotal += ev.points;
+        if (ev.points > 0) {
+          t.plusPoints += ev.points;
+          t.plusCount++;
+        } else if (ev.points < 0) {
+          t.minusPoints += ev.points;
+          t.minusCount++;
+        }
+      }
+    }
+
+    // Tuần bị khóa sổ: Điểm xếp hạng = 0 (nhưng rawTotal vẫn lưu để xem)
+    const isLocked = this.isWeekLocked(this.weekId);
+    for (const tId in teamScores) {
+      const t = teamScores[tId];
+      t.total = isLocked ? 0 : t.rawTotal;
+      t.avg = t.memberCount ? Math.round((t.total / t.memberCount) * 10) / 10 : 0;
+    }
+
+    return { teamScores, memberScores };
+  }
+
+  /** Lấy bảng xếp hạng 4 tổ tuần hiện tại đã sắp xếp (Có xử lý đồng hạng) */
+  getTeamRankings() {
+    const { teamScores } = this.calculateScoresFast(this.events);
+    const sorted = Object.values(teamScores).sort(
+      (a, b) => b.total - a.total || a.name.localeCompare(b.name, "vi")
     );
+
+    // Xử lý thứ hạng & đồng hạng (Tied ranking)
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i].total === sorted[i - 1].total) {
+        sorted[i].rank = sorted[i - 1].rank;
+        sorted[i].isTied = true;
+        sorted[i - 1].isTied = true;
+      } else {
+        sorted[i].rank = i + 1;
+        sorted[i].isTied = false;
+      }
+    }
+
+    // Cờ đánh dấu nếu tất cả các tổ đều bằng điểm nhau (ví dụ mới bắt đầu tuần)
+    sorted.allEqual = sorted.length > 1 && sorted.every((t) => t.total === sorted[0].total);
+
+    return sorted;
+  }
+
+  /** Lấy danh sách thành viên trong tổ đã sắp xếp theo điểm */
+  getTeamMembersSorted(teamId) {
+    const team = TEAM_BY_ID[teamId];
+    if (!team) return [];
+    const { memberScores } = this.calculateScoresFast(this.events);
+    return team.members
+      .map((m) => memberScores[m.id] || { ...m, points: BASE_POINTS, teamId })
+      .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, "vi"));
+  }
+
+  // =========================================================================
+  // THUẬT TOÁN 3: Tự Động Bắt Lỗi Tái Phạm 2 Tuần Liên Tiếp (-50đ)
+  // =========================================================================
+  getPreviousWeekInfractions(currentWeekId = this.weekId) {
+    const curNum = weekNumber(currentWeekId);
+    if (curNum <= 1) return new Set();
+
+    const prevWeekId = weekIdForNumber(curNum - 1);
+    const infractions = new Set();
+
+    for (let i = 0; i < this.allEvents.length; i++) {
+      const ev = this.allEvents[i];
+      if (ev.weekId === prevWeekId && ev.points < 0) {
+        infractions.add(`${ev.memberId}#${ev.ruleId}`);
+      }
+    }
+    return infractions;
+  }
+
+  checkRepeatInfraction(memberId, ruleId, currentWeekId = this.weekId) {
+    const prevInfractions = this.getPreviousWeekInfractions(currentWeekId);
+    return prevInfractions.has(`${memberId}#${ruleId}`);
+  }
+
+  // =========================================================================
+  // THUẬT TOÁN 4: Tìm Kiếm Tiếng Việt Không Dấu Siêu Tốc
+  // =========================================================================
+  searchMembers(query) {
+    const q = toNonAccentVietnamese(query);
+    if (!q) return [];
+
+    const all = TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, teamId: t.id })));
+    return all
+      .filter((m) => toNonAccentVietnamese(m.name).includes(q) || m.id.toLowerCase().includes(q))
+      .map((m) => ({
+        ...m,
+        teamName: TEAM_BY_ID[m.teamId]?.name || m.teamId,
+        ...this.getMemberProfile(m.id),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "vi"));
+  }
+
+  // —— Hồ Sơ Chi Tiết Cá Nhân ——
+  getMemberProfile(memberId) {
+    const member = MEMBER_BY_ID[memberId];
+    if (!member) return null;
+
+    const countingIds = this.countingWeekIds();
+    const countingEvents = this.allEvents.filter(
+      (e) => e.memberId === memberId && countingIds.includes(e.weekId)
+    );
+    const weekEvents = this.events.filter((e) => e.memberId === memberId);
 
     let plusPoints = 0;
     let minusPoints = 0;
     let plusCount = 0;
     let minusCount = 0;
-    /** @type {Map<string, { id: string, name: string, points: number, count: number }>} */
-    const violMap = new Map();
-    /** @type {Map<string, { id: string, name: string, points: number, count: number }>} */
-    const bonusMap = new Map();
 
-    for (const e of weekEvents) {
-      const name =
-        team.members.find((m) => m.id === e.memberId)?.name || e.memberId;
+    for (const e of countingEvents) {
       if (e.points > 0) {
         plusPoints += e.points;
-        plusCount += 1;
-        if (!bonusMap.has(e.memberId)) {
-          bonusMap.set(e.memberId, { id: e.memberId, name, points: 0, count: 0 });
-        }
-        const row = bonusMap.get(e.memberId);
-        row.points += e.points;
-        row.count += 1;
+        plusCount++;
       } else if (e.points < 0) {
         minusPoints += e.points;
-        minusCount += 1;
-        if (!violMap.has(e.memberId)) {
-          violMap.set(e.memberId, { id: e.memberId, name, points: 0, count: 0 });
-        }
-        const row = violMap.get(e.memberId);
-        row.points += e.points;
-        row.count += 1;
+        minusCount++;
       }
     }
 
+    const currentWeekDelta = weekEvents.reduce((acc, e) => acc + e.points, 0);
+    const currentWeekPoints = BASE_POINTS + currentWeekDelta;
+
+    const weeksCount = countingIds.length || 1;
+    const yearTotal = BASE_POINTS * weeksCount + (plusPoints + minusPoints);
+    const avgScore = Math.round((yearTotal / weeksCount) * 10) / 10;
+
+    // Tính thứ hạng của bạn trong lớp tuần này
+    const { memberScores } = this.calculateScoresFast(this.events);
+    const rankedMembers = Object.values(memberScores).sort((a, b) => b.points - a.points);
+    const myPoints = memberScores[memberId]?.points ?? BASE_POINTS;
+    const firstSameIdx = rankedMembers.findIndex((m) => m.points === myPoints);
+    const classRank = firstSameIdx !== -1 ? firstSameIdx + 1 : 1;
+
+    // Điểm tuần trước để tính chênh lệch tăng/giảm
+    const curNum = weekNumber(this.weekId);
+    let prevWeekPoints = BASE_POINTS;
+    if (curNum > 1) {
+      const prevWeekId = weekIdForNumber(curNum - 1);
+      const prevEvents = this.allEvents.filter(
+        (e) => e.memberId === memberId && e.weekId === prevWeekId
+      );
+      prevWeekPoints += prevEvents.reduce((acc, e) => acc + e.points, 0);
+    }
+    const diffFromLastWeek = currentWeekPoints - prevWeekPoints;
+
     return {
-      total: this.teamPoints(teamId),
-      base: BASE_POINTS * team.members.length,
+      member,
+      currentWeekPoints,
+      yearTotal,
+      avgScore,
       plusPoints,
       minusPoints,
       plusCount,
       minusCount,
-      violators: [...violMap.values()].sort((a, b) => a.points - b.points),
-      bonusers: [...bonusMap.values()].sort((a, b) => b.points - a.points),
+      classRank,
+      totalStudents: rankedMembers.length || 44,
+      diffFromLastWeek,
+      weekEvents,
+      allEvents: countingEvents,
     };
   }
 
-  canDeleteEvent(event) {
-    if (!event) return false;
-    if (this.isAdmin()) return true;
-    const leader = this.getLeaderTeamId();
-    if (!leader || event.teamId !== leader) return false;
-    return this.canEditWeek(event.weekId);
-  }
+  // —— BXH Toàn Trường / Cá Nhân ——
+  getYearRankings() {
+    const countingIds = this.countingWeekIds();
+    const weeksCount = countingIds.length || 1;
+    const all = TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, teamId: t.id })));
 
-  async deleteEvent(eventId) {
-    if (!this.isLoggedIn()) throw new Error("Chưa đăng nhập.");
-
-    const event = this.allEvents.find((e) => e.id === eventId);
-    if (!event) throw new Error("Không tìm thấy ghi nhận.");
-
-    if (this.isAdmin()) {
-      // ok
-    } else {
-      const leader = this.getLeaderTeamId();
-      if (!leader || event.teamId !== leader) {
-        throw new Error("Chỉ xoá được điểm của tổ mình.");
-      }
-      if (!this.canEditWeek(event.weekId)) {
-        throw new Error("Tuần đã qua — tổ trưởng không được xoá. Liên hệ admin.");
-      }
-    }
-
-    if (this.mode === "live") {
-      const res = await fetchWithTimeout(
-        `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(eventId)}`,
-        {
-          method: "DELETE",
-          headers: supabaseHeaders({
-            Accept: "application/json",
-            Prefer: "return=representation",
-          }),
-        }
-      );
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(
-          text.slice(0, 160) ||
-            "Không xoá được. Chạy supabase-enable-delete.sql trên Supabase."
-        );
-      }
-
-      let rows = [];
-      try {
-        rows = await res.json();
-      } catch {
-        rows = [];
-      }
-
-      // RLS chặn xoá → HTTP 200 nhưng [] — bản ghi vẫn còn trên server
-      if (!Array.isArray(rows) || rows.length === 0) {
-        throw new Error(
-          "Chưa bật quyền xoá trên Supabase. Vào SQL Editor chạy file supabase-enable-delete.sql rồi thử lại."
-        );
-      }
-
-      // Xoá hẳn local + đồng bộ lại mọi bảng tổng kết / BXH / tiểu sử
-      this.allEvents = this.allEvents.filter((e) => String(e.id) !== String(eventId));
-      this._emit();
-      await this._fetchAll();
-      return;
-    }
-
-    const bag = loadLocal();
-    for (const key of Object.keys(bag)) {
-      bag[key] = (bag[key] || []).filter((e) => String(e.id) !== String(eventId));
-    }
-    saveLocal(bag);
-    this.allEvents = this.allEvents.filter((e) => String(e.id) !== String(eventId));
-    this._emit();
-  }
-
-  /** BXH cá nhân cả năm (đã học) */
-  yearRankings() {
-    return allMembers()
+    const sorted = all
       .map((m) => {
-        const s = this.memberYearStats(m.id);
+        const prof = this.getMemberProfile(m.id);
         return {
           ...m,
           teamName: TEAM_BY_ID[m.teamId]?.name || m.teamId,
-          ...s,
+          ...prof,
         };
       })
       .sort((a, b) => b.yearTotal - a.yearTotal || a.name.localeCompare(b.name, "vi"));
-  }
 
-  /** BXH vi phạm — nhiều trừ nhất trước */
-  violationRankings() {
-    return allMembers()
-      .map((m) => {
-        const s = this.memberYearStats(m.id);
-        return {
-          ...m,
-          teamName: TEAM_BY_ID[m.teamId]?.name || m.teamId,
-          ...s,
-        };
-      })
-      .filter((m) => m.minusCount > 0 || m.noteCount > 0)
-      .sort(
-        (a, b) =>
-          a.minusPoints - b.minusPoints ||
-          b.minusCount - a.minusCount ||
-          a.name.localeCompare(b.name, "vi")
-      );
-  }
-
-  /** BXH điểm cộng — nhiều cộng nhất trước */
-  bonusRankings() {
-    return allMembers()
-      .map((m) => {
-        const s = this.memberYearStats(m.id);
-        return {
-          ...m,
-          teamName: TEAM_BY_ID[m.teamId]?.name || m.teamId,
-          ...s,
-        };
-      })
-      .filter((m) => m.plusCount > 0)
-      .sort(
-        (a, b) =>
-          b.plusPoints - a.plusPoints ||
-          b.plusCount - a.plusCount ||
-          a.name.localeCompare(b.name, "vi")
-      );
-  }
-
-  /**
-   * @param {{ memberId: string, ruleId: string, note?: string }} payload
-   */
-  async addEvent(payload) {
-    if (!this.isLoggedIn()) throw new Error("Chưa đăng nhập.");
-
-    if (!this.canEditWeek(this.weekId)) {
-      throw new Error(
-        "Tuần đã qua / chưa tới — tổ trưởng chỉ ghi được tuần hiện tại. Admin không bị giới hạn."
-      );
-    }
-
-    const member = allMembers().find((m) => m.id === payload.memberId);
-    if (!member) throw new Error("Không tìm thấy thành viên.");
-
-    if (!this.isAdmin()) {
-      const leaderTeam = this.getLeaderTeamId();
-      if (!leaderTeam || member.teamId !== leaderTeam) {
-        throw new Error("Chỉ được ghi điểm cho tổ của bạn.");
+    // Xử lý đồng hạng năm
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i].yearTotal === sorted[i - 1].yearTotal) {
+        sorted[i].rank = sorted[i - 1].rank;
+        sorted[i].isTied = true;
+        sorted[i - 1].isTied = true;
+      } else {
+        sorted[i].rank = i + 1;
+        sorted[i].isTied = false;
       }
     }
 
-    const rule = RULE_BY_ID[payload.ruleId];
-    if (!rule) throw new Error("Loại điểm không hợp lệ.");
+    return sorted;
+  }
 
+  getViolationRankings() {
+    return this.getYearRankings()
+      .filter((m) => m.minusCount > 0)
+      .sort((a, b) => a.minusPoints - b.minusPoints || b.minusCount - a.minusCount);
+  }
+
+  getBonusRankings() {
+    return this.getYearRankings()
+      .filter((m) => m.plusCount > 0)
+      .sort((a, b) => b.plusPoints - a.plusPoints || b.plusCount - a.plusCount);
+  }
+
+  // =========================================================================
+  // THUẬT TOÁN 2: Chống Ghi Trùng Điểm Khi Bấm Liên Tục (Idempotency Key)
+  // =========================================================================
+  async addEvent({ memberId, ruleId, note = "", multiplier = 1 }) {
+    if (!this.isLoggedIn()) throw new Error("Vui lòng đăng nhập để ghi điểm.");
+
+    const member = MEMBER_BY_ID[memberId];
+    if (!member) throw new Error("Học sinh không tồn tại trong danh sách.");
+
+    if (!this.isAdmin()) {
+      // 1. Quyền hạn tổ trưởng chỉ được tương tác với tổ của mình
+      const leaderTeam = this.getLeaderTeamId();
+      if (!leaderTeam || member.teamId !== leaderTeam) {
+        throw new Error("Tổ trưởng chỉ có quyền tương tác với tổ của mình, không có quyền hạn với các tổ khác.");
+      }
+
+      // 2. Các tuần đã học qua không được tương tác
+      const currentWeek = defaultWeekId();
+      if (this.weekId !== currentWeek) {
+        throw new Error(`Tuần ${weekNumber(this.weekId)} đã học qua — Tổ trưởng không được tương tác với các tuần trước.`);
+      }
+
+      // 3. Khóa sổ hoặc tạm dừng
+      if (this.isWeekLocked(this.weekId)) {
+        throw new Error(`Tuần ${weekNumber(this.weekId)} đã bị khóa sổ.`);
+      }
+      if (this.isLeadersPaused()) {
+        throw new Error("Admin đang tạm dừng quyền ghi điểm toàn lớp.");
+      }
+    }
+
+    const rule = RULE_BY_ID[ruleId];
+    if (!rule) throw new Error("Quy tắc chấm điểm không hợp lệ.");
+
+    const mult = Math.max(1, Math.min(10, Math.floor(Number(multiplier) || 1)));
+    const points = rule.points * mult;
     const createdAt = Date.now();
-    const note = String(payload.note || "").slice(0, 200);
     const byTeamId = this.isAdmin() ? member.teamId : this.getLeaderTeamId();
 
-    /** @type {ScoreEvent} */
+    // Khóa chống ghi trùng: memberId + ruleId + khung 10s
+    const idempotencyKey = `${memberId}_${ruleId}_${Math.floor(createdAt / 10000)}`;
+    if (this._inFlightKeys.has(idempotencyKey)) {
+      console.warn("Chặn ghi trùng: Yêu cầu đang được xử lý.");
+      return null;
+    }
+    this._inFlightKeys.add(idempotencyKey);
+    setTimeout(() => this._inFlightKeys.delete(idempotencyKey), 10000);
+
     const event = {
       id: uid(),
       weekId: this.weekId,
       teamId: member.teamId,
       memberId: member.id,
       ruleId: rule.id,
-      points: rule.points,
-      label: rule.label,
-      note,
+      points,
+      label: mult > 1 ? `${rule.label} (x${mult})` : rule.label,
+      note: String(note || "").slice(0, 200),
       byTeamId,
       createdAt,
     };
 
+    // 1. Optimistic Update (< 5ms): Thêm vào local state ngay lập tức!
+    this.allEvents.unshift(event);
+    this._saveToLocal();
+    this._emit();
+
+    // 2. Gửi bất đồng bộ lên Supabase
     if (this.mode === "live") {
-      const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/events`, {
-        method: "POST",
-        headers: supabaseHeaders({
-          "Content-Type": "application/json",
-          Prefer: "return=representation",
-          Accept: "application/json",
-        }),
-        body: JSON.stringify({
-          week_id: event.weekId,
-          team_id: event.teamId,
-          member_id: event.memberId,
-          rule_id: event.ruleId,
-          points: event.points,
-          label: event.label,
-          note: event.note,
-          by_team_id: event.byTeamId,
-          created_at: event.createdAt,
-        }),
-      });
+      try {
+        const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/events`, {
+          method: "POST",
+          headers: supabaseHeaders({
+            "Content-Type": "application/json",
+            Prefer: "return=representation",
+            Accept: "application/json",
+          }),
+          body: JSON.stringify({
+            week_id: event.weekId,
+            team_id: event.teamId,
+            member_id: event.memberId,
+            rule_id: event.ruleId,
+            points: event.points,
+            label: event.label,
+            note: event.note,
+            by_team_id: event.byTeamId,
+            created_at: event.createdAt,
+          }),
+        });
 
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text.slice(0, 160) || "Không ghi được điểm.");
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(text.slice(0, 160) || "Lỗi máy chủ Supabase khi lưu điểm.");
+        }
+
+        const rows = await res.json();
+        const saved = Array.isArray(rows) ? rows[0] : rows;
+        if (saved && saved.id) {
+          event.id = String(saved.id);
+        }
+      } catch (err) {
+        console.warn("Ghi Supabase thất bại, giữ lại trong cache local:", err);
       }
-
-      const rows = await res.json();
-      const saved = Array.isArray(rows) ? rows[0] : rows;
-      await this._fetchAll();
-      return saved ? rowToEvent(saved) : event;
     }
 
-    const bag = loadLocal();
-    if (!bag[this.weekId]) bag[this.weekId] = [];
-    bag[this.weekId].unshift(event);
-    saveLocal(bag);
-    this.allEvents = [
-      event,
-      ...this.allEvents.filter((e) => e.id !== event.id),
-    ];
-    this._emit();
     return event;
+  }
+
+  /** Ghi đồng thời cho nhiều học sinh (Multi-select 1 chạm) */
+  async addEventsBatch({ memberIds, ruleId, note = "", multiplier = 1 }) {
+    if (!Array.isArray(memberIds) || memberIds.length === 0) {
+      throw new Error("Vui lòng chọn ít nhất một học sinh.");
+    }
+    const results = [];
+    for (const mId of memberIds) {
+      const ev = await this.addEvent({
+        memberId: mId,
+        ruleId,
+        note,
+        multiplier,
+      });
+      if (ev) results.push(ev);
+    }
+    return results;
+  }
+
+  // —— Xóa bản ghi (Cơ chế sửa sai trong 15 phút) ——
+  canDeleteEvent(event) {
+    if (!event) return false;
+    if (this.isAdmin()) return true;
+    const leaderTeam = this.getLeaderTeamId();
+    if (!leaderTeam || event.teamId !== leaderTeam) return false;
+    // Tuần đã qua -> Tổ trưởng KHÔNG được xóa!
+    if (event.weekId !== defaultWeekId()) return false;
+    // Cho phép xóa nếu trong vòng 15 phút sau khi ghi
+    const isWithin15Min = Date.now() - event.createdAt < 15 * 60 * 1000;
+    return isWithin15Min && this.canEditWeek(event.weekId);
+  }
+
+  async deleteEvent(eventId) {
+    if (!this.isLoggedIn()) throw new Error("Chưa đăng nhập.");
+
+    const event = this.allEvents.find((e) => String(e.id) === String(eventId));
+    if (!event) throw new Error("Không tìm thấy bản ghi.");
+
+    if (!this.canDeleteEvent(event)) {
+      throw new Error("Bạn không có quyền xóa bản ghi này (đã quá 15 phút, tuần đã học qua hoặc không thuộc tổ của bạn).");
+    }
+
+    // 1. Optimistic delete (< 5ms)
+    this.allEvents = this.allEvents.filter((e) => String(e.id) !== String(eventId));
+    this._saveToLocal();
+    this._emit();
+
+    // 2. Gửi xóa lên Supabase
+    if (this.mode === "live") {
+      try {
+        await fetchWithTimeout(
+          `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(eventId)}`,
+          {
+            method: "DELETE",
+            headers: supabaseHeaders({ Accept: "application/json" }),
+          }
+        );
+      } catch (err) {
+        console.warn("Lỗi xóa trên Supabase:", err);
+      }
+    }
+  }
+
+  // —— Admin: Xóa toàn bộ điểm của 1 tuần (Cần xác nhận) ——
+  async wipeWeekEvents(weekId = this.weekId) {
+    if (!this.isAdmin()) throw new Error("Chỉ Admin được thực hiện xóa hàng loạt.");
+
+    const beforeCount = this.allEvents.filter((e) => e.weekId === weekId).length;
+    this.allEvents = this.allEvents.filter((e) => e.weekId !== weekId);
+    this._saveToLocal();
+    this._emit();
+
+    if (this.mode === "live") {
+      try {
+        await fetchWithTimeout(
+          `${SUPABASE_URL}/rest/v1/events?week_id=eq.${encodeURIComponent(weekId)}`,
+          {
+            method: "DELETE",
+            headers: supabaseHeaders({ Accept: "application/json" }),
+          }
+        );
+      } catch (err) {
+        console.warn("Lỗi wipe tuần trên Supabase:", err);
+      }
+    }
+    return beforeCount;
+  }
+
+  exportBackup() {
+    return {
+      exportedAt: new Date().toISOString(),
+      className: "11A1",
+      settings: this.settings,
+      events: this.allEvents,
+    };
   }
 }

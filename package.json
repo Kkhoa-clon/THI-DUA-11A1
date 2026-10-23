@@ -1,0 +1,19 @@
+{
+  "name": "thi-dua-11a1",
+  "version": "2.4.0",
+  "type": "module",
+  "description": "Hệ thống quản lý thi đua Lớp 11A1 — Niên khóa 2026–2027",
+  "scripts": {
+    "build": "node build-bundle.cjs",
+    "start": "npx serve .",
+    "dev": "npx serve ."
+  },
+  "keywords": [
+    "11a1",
+    "thi-dua",
+    "realtime",
+    "supabase"
+  ],
+  "author": "Lớp 11A1",
+  "license": "MIT"
+}
