@@ -1,0 +1,10 @@
+{
+  "name": "Thi đua Lớp 11A1",
+  "short_name": "Thi đua 11A1",
+  "description": "Bảng điểm và thi đua Lớp 11A1",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f9ff",
+  "theme_color": "#004ac6"
+}

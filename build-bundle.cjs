@@ -6,12 +6,13 @@ const dir = __dirname;
 const configSrc = fs.readFileSync(path.join(dir, 'js', 'config.js'), 'utf8');
 const rulesSrc = fs.readFileSync(path.join(dir, 'js', 'rules.js'), 'utf8');
 const storeSrc = fs.readFileSync(path.join(dir, 'js', 'store.js'), 'utf8');
+const notificationsSrc = fs.readFileSync(path.join(dir, 'js', 'notifications.js'), 'utf8');
 const appSrc = fs.readFileSync(path.join(dir, 'js', 'app.js'), 'utf8');
 
 function stripModules(code) {
   return code
     .replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '')
-    .replace(/^export\s+(const|let|var|function|class)\s+/gm, '$1 ')
+    .replace(/^export\s+(async\s+)?(const|let|var|function|class)\s+/gm, (_, asyncPrefix = '', declaration) => `${asyncPrefix}${declaration} `)
     .replace(/^export\s+default\s+/gm, '')
     .replace(/^export\s*\{[\s\S]*?\};?\s*$/gm, '');
 }
@@ -40,7 +41,12 @@ const bundled = [
   stripModules(storeSrc),
   '',
   '  // ========================================== ',
-  '  // 4. BỘ ĐIỀU PHỐI GIAO DIỆN & SỰ KIỆN (APP)',
+  '  // 4. WEB PUSH NOTIFICATIONS',
+  '  // ========================================== ',
+  stripModules(notificationsSrc),
+  '',
+  '  // ========================================== ',
+  '  // 5. BỘ ĐIỀU PHỐI GIAO DIỆN & SỰ KIỆN (APP)',
   '  // ========================================== ',
   stripModules(appSrc),
   '',

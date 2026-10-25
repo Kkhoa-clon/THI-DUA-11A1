@@ -31,6 +31,14 @@ import {
   competitionWeekIds,
   studiedThroughWeek,
 } from "./store.js";
+import {
+  authenticateNotificationSender,
+  clearNotificationToken,
+  disablePushNotifications,
+  enablePushNotifications,
+  getNotificationSubscription,
+  sendPushNotification,
+} from "./notifications.js";
 
 // Khởi tạo Store trung tâm
 const store = new ScoreStore();
@@ -98,6 +106,61 @@ function renderMemberName(member, nameClass = "") {
     : "";
 
   return `<span class="member-name-display">${adminBadge}<span class="${nameClass}">${member.name}</span></span>`;
+}
+
+async function refreshNotificationButton() {
+  const button = $("#btn-notifications");
+  const icon = $("#notifications-icon");
+  if (!button || !icon) return;
+  const supported = "Notification" in window && "serviceWorker" in navigator;
+  let subscription = null;
+  if (supported) {
+    try {
+      subscription = await getNotificationSubscription();
+    } catch (error) {
+      console.warn("Không đọc được subscription thông báo:", error);
+    }
+  }
+  const permission = supported ? Notification.permission : "unsupported";
+  const enabled = permission === "granted" && Boolean(subscription);
+  icon.textContent = !supported
+    ? "notifications_off"
+    : enabled
+      ? "notifications_active"
+      : permission === "denied"
+        ? "notifications_off"
+        : "notifications";
+  button.title = enabled ? "Tắt thông báo" : "Bật thông báo cập nhật";
+  button.setAttribute("aria-label", button.title);
+}
+
+async function reportPushResult(action, details, successMessage) {
+  try {
+    const result = await sendPushNotification(action, details);
+    const message = result.sent
+      ? `${successMessage} (${result.sent} lượt gửi thành công)`
+      : result.failed
+        ? `Không gửi được đến ${result.failed} thiết bị.`
+        : "Chưa có thiết bị nào đăng ký nhận thông báo.";
+    showToast(message, result.sent ? "notifications_active" : "notifications_off");
+    return result;
+  } catch (error) {
+    console.error("Không gửi được thông báo đẩy:", error);
+    showToast(`Đã lưu thay đổi nhưng không gửi được push: ${error.message}`, "notifications_off");
+    return null;
+  }
+}
+
+function getTopRankPayload(rankings) {
+  return rankings
+    .filter((entry) => entry.rank <= 3)
+    .slice(0, 6)
+    .map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      rank: entry.rank,
+      score: entry.minusPoints ?? entry.plusPoints ?? entry.yearTotal ?? 0,
+    }));
 }
 
 function getRankLabel(item) {
@@ -956,6 +1019,24 @@ async function handleScoreSubmit() {
       // Thêm vào session log để cho phép xóa trong 15p
       state.sessionLog = [...saved, ...state.sessionLog];
       const failedSyncs = saved.filter((event) => event.syncError);
+      const syncedEvents = saved.filter((event) => !event.syncError);
+      if (store.mode === "live" && syncedEvents.length) {
+        void reportPushResult(
+          "score",
+          {
+            events: syncedEvents.map((event) => ({
+              name: MEMBER_BY_ID[event.memberId]?.name || event.memberId,
+              label: event.label,
+              points: event.points,
+            })),
+            rankings: {
+              plus: getTopRankPayload(store.getBonusRankings()),
+              minus: getTopRankPayload(store.getViolationRankings()),
+            },
+          },
+          "Đã gửi thông báo cập nhật"
+        );
+      }
       if (failedSyncs.length) {
         showToast(`${failedSyncs.length} lượt chưa đồng bộ`, "cloud_off");
         alert(
@@ -1477,18 +1558,49 @@ function setupEventListeners() {
     } else {
       if (confirm(`Bạn đang đăng nhập với tư cách: ${store.getLeaderName()}.\nBạn có muốn đăng xuất không?`)) {
         store.logout();
+        clearNotificationToken();
         switchView("leaderboard");
         showToast("Đã đăng xuất!", "logout");
       }
     }
   };
 
+  $("#btn-notifications").onclick = async () => {
+    try {
+      const subscription = await getNotificationSubscription();
+      if (subscription) {
+        if (!confirm("Tắt thông báo đẩy trên thiết bị này?")) return;
+        await disablePushNotifications();
+        showToast("Đã tắt thông báo trên thiết bị này.", "notifications_off");
+      } else {
+        await enablePushNotifications();
+        showToast("Đã bật thông báo cập nhật cho thiết bị này.", "notifications_active");
+      }
+      await refreshNotificationButton();
+    } catch (error) {
+      alert(error.message || "Không thể thay đổi cài đặt thông báo.");
+    }
+  };
+
   // 4. Scoring: Login
-  const doLogin = (code) => {
+  const doLogin = async (code, pushCode) => {
     const auth = resolveAuthCode(code);
     if (!auth) {
       alert("Mã hoặc PIN không chính xác! Vui lòng thử lại.");
       return;
+    }
+    if (pushCode) {
+      try {
+        await authenticateNotificationSender(pushCode, auth.role, auth.teamId);
+      } catch (error) {
+        clearNotificationToken();
+        console.error("Không xác thực được quyền gửi push:", error);
+        showToast("Đăng nhập ghi điểm được; mã push chưa hợp lệ.", "notifications_off");
+      } finally {
+        $("#push-login-code").value = "";
+      }
+    } else {
+      clearNotificationToken();
     }
     store.setAuth(auth.role, auth.teamId, auth.leaderName);
     showToast(`Xin chào ${store.getLeaderName()}!`, "verified");
@@ -1497,15 +1609,20 @@ function setupEventListeners() {
 
   $("#btn-do-login").onclick = () => {
     const val = $("#login-code-input").value;
-    doLogin(val);
+    doLogin(val, $("#push-login-code").value.trim());
   };
 
   $("#login-code-input").onkeydown = (e) => {
-    if (e.key === "Enter") doLogin(e.target.value);
+    if (e.key === "Enter") doLogin(e.target.value, $("#push-login-code").value.trim());
+  };
+
+  $("#push-login-code").onkeydown = (e) => {
+    if (e.key === "Enter") doLogin($("#login-code-input").value, e.target.value.trim());
   };
 
   $("#btn-workspace-logout").onclick = () => {
     store.logout();
+    clearNotificationToken();
     renderScoringWorkspace();
     showToast("Đã thoát tài khoản tổ trưởng.", "logout");
   };
@@ -1616,10 +1733,24 @@ function setupEventListeners() {
   });
 
   // 14. Admin: Login
-  $("#btn-admin-login").onclick = () => {
+  $("#btn-admin-login").onclick = async () => {
     const pass = $("#admin-pass-input").value;
     const auth = resolveAuthCode(pass);
     if (auth && auth.role === "admin") {
+      const pushCode = $("#admin-push-code").value.trim();
+      if (pushCode) {
+        try {
+          await authenticateNotificationSender(pushCode, "admin");
+        } catch (error) {
+          clearNotificationToken();
+          console.error("Không xác thực được quyền gửi push:", error);
+          showToast("Đăng nhập Admin được; mã push chưa hợp lệ.", "notifications_off");
+        } finally {
+          $("#admin-push-code").value = "";
+        }
+      } else {
+        clearNotificationToken();
+      }
       store.setAuth("admin");
       renderAdminPanel();
       showToast("Xác thực quyền Admin GVCN thành công!", "shield");
@@ -1630,6 +1761,7 @@ function setupEventListeners() {
 
   $("#btn-admin-logout").onclick = () => {
     store.logout();
+    clearNotificationToken();
     renderAdminPanel();
     showToast("Đã thoát tài khoản Admin.", "logout");
   };
@@ -1660,6 +1792,13 @@ function setupEventListeners() {
       renderAdminPanel();
       renderLeaderboard();
       showToast(!isLocked ? "Đã khóa sổ tuần thành công!" : "Đã mở khóa tuần!", "lock");
+      if (!isLocked) {
+        void reportPushResult(
+          "week-closed",
+          { week: store.weekId },
+          `Đã gửi thông báo chốt tuần ${weekNumber(store.weekId)}`
+        );
+      }
     } catch (err) {
       alert(err.message || "Lỗi khi khóa tuần.");
     }
@@ -1682,6 +1821,55 @@ function setupEventListeners() {
 
   // 18. Admin: Rules Catalog
   $("#btn-admin-rules").onclick = openRulesCatalogModal;
+
+  $("#btn-send-custom-notification").onclick = async () => {
+    const title = $("#custom-notification-title").value.trim();
+    const message = $("#custom-notification-message").value.trim();
+    if (!title || !message) {
+      alert("Vui lòng nhập tiêu đề và nội dung thông báo.");
+      return;
+    }
+    const result = await reportPushResult("custom", { title, message }, "Đã gửi thông báo tùy chỉnh");
+    if (result) {
+      $("#custom-notification-title").value = "";
+      $("#custom-notification-message").value = "";
+    }
+  };
+
+  $("#btn-send-current-infractions").onclick = async () => {
+    const week = defaultWeekId();
+    const teamOrder = new Map(TEAMS.map((team, index) => [team.id, index]));
+    const weekEvents = store.allEvents
+      .filter((event) => event.weekId === week && event.points < 0)
+      .sort((a, b) =>
+        (teamOrder.get(a.teamId) ?? Number.MAX_SAFE_INTEGER) -
+          (teamOrder.get(b.teamId) ?? Number.MAX_SAFE_INTEGER) ||
+        (MEMBER_BY_ID[a.memberId]?.name || "").localeCompare(
+          MEMBER_BY_ID[b.memberId]?.name || "",
+          "vi",
+          { sensitivity: "base" }
+        ) ||
+        a.createdAt - b.createdAt
+      );
+    const entries = weekEvents
+      .map((event) => ({
+        team: TEAM_BY_ID[event.teamId]?.name || event.teamId,
+        name: MEMBER_BY_ID[event.memberId]?.name || event.memberId,
+        label: event.label,
+        points: event.points,
+      }));
+    const confirmed = confirm(
+      entries.length
+        ? `Gửi danh sách ${entries.length} lượt vi phạm của Tuần ${weekNumber(week)} đến tất cả thiết bị đã đăng ký? Nội dung có thể hiện trên màn hình khóa.`
+        : `Tuần ${weekNumber(week)} chưa có vi phạm. Gửi thông báo trạng thái này đến tất cả thiết bị?`
+    );
+    if (!confirmed) return;
+    await reportPushResult(
+      "infractions",
+      { week, entries },
+      `Đã gửi bảng vi phạm tuần ${weekNumber(week)}`
+    );
+  };
 
   // 19. Admin: Download Backup
   $("#btn-download-backup").onclick = () => {
@@ -1751,6 +1939,7 @@ function setupEventListeners() {
 // ===========================================================================
 async function initApp() {
   setupEventListeners();
+  void refreshNotificationButton();
 
   // Đăng ký listener store
   store.subscribe(() => {

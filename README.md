@@ -67,4 +67,26 @@ Sau khi cập nhật ứng dụng, hãy chạy lại `supabase.sql` hoặc `supa
 
 Sau mỗi lần sửa JavaScript, chạy `npm run build` trước khi triển khai để tạo bundle đã làm rối mới nhất.
 
+### Thông báo Web Push trên Vercel
+
+Web Push hoạt động khi trang được triển khai qua HTTPS trên Vercel. GitHub Pages hoặc mở trực tiếp `file://` không có API `/api/notifications` để gửi thông báo. Sau khi chuyển người dùng sang URL Vercel:
+
+1. Import repository vào Vercel; chọn Framework `Other`, Build Command `npm run build`, Output Directory `.` và giữ Root Directory ở thư mục gốc.
+2. Trong Supabase SQL Editor, chạy thêm file `supabase-push.sql`. Hai bảng subscription và trạng thái BXH chỉ được API server truy cập.
+3. Trong Vercel → Project → Settings → Environment Variables, thêm:
+   - `SUPABASE_URL`: URL project Supabase.
+   - `SUPABASE_SERVICE_ROLE_KEY`: service-role key của Supabase; **chỉ lưu ở Vercel server, tuyệt đối không đưa vào JavaScript hoặc Git**.
+   - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`: tạo cặp khóa riêng bằng `npx web-push generate-vapid-keys`; public key được trả cho trình duyệt, private key chỉ lưu server.
+   - `VAPID_SUBJECT`: thông tin liên hệ VAPID, ví dụ `mailto:email-quan-tri@example.com`.
+   - `PUSH_TOKEN_SECRET`: bí mật ngẫu nhiên dài dùng ký phiên; có thể tạo bằng `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+   - `PUSH_ADMIN_CODES`: mảng JSON gồm mã gửi push riêng của Admin, ví dụ định dạng `["<ma-admin-rieng>"]`.
+   - `PUSH_LEADER_CODES`: object JSON ánh xạ tổ với mã riêng, ví dụ định dạng `{"to1":"<ma-to-1>","to2":"<ma-to-2>","to3":"<ma-to-3>","to4":"<ma-to-4>"}`.
+4. Tạo mã push riêng, tối thiểu 16 ký tự ngẫu nhiên và khác mã đăng nhập ghi điểm (có thể sinh 5 mã bằng `node -e "for(let i=0;i<5;i++) console.log(require('crypto').randomBytes(24).toString('hex'))"`); không commit hay gửi các mã này vào nhóm chat công khai. Khi đăng nhập ở màn hình Ghi điểm/Admin, nhập mã push vào ô phụ “Mã thông báo riêng”. Mã này được đổi thành phiên gửi push 12 giờ và không lưu lâu dài. Nếu bỏ trống, đăng nhập/ghi điểm vẫn hoạt động nhưng thiết bị đó không phát thông báo tự động.
+5. Redeploy project Vercel. Mỗi người dùng mở bản Vercel, bấm biểu tượng chuông và chọn cho phép thông báo. Nếu đã từng chặn quyền, cần bật lại trong cài đặt trình duyệt.
+6. Trên iPhone/iPad, người dùng cần thêm trang Vercel vào Màn hình chính rồi mở ứng dụng đó trước khi bật thông báo; khả năng hỗ trợ còn tùy phiên bản iOS.
+
+Tổ trưởng gửi thông báo sau khi lượt điểm đã đồng bộ thành công. Server gửi thêm thông báo nếu vị trí top 1/2/3 của bảng điểm cộng hoặc vi phạm thay đổi; lần đầu chỉ lưu mốc so sánh để tránh gửi bảng xếp hạng giả định ban đầu. Admin có thể gửi thông báo tùy chỉnh, gửi danh sách vi phạm tuần hiện tại, và thông báo chốt sổ. Nội dung bảng vi phạm được đưa trực tiếp vào push và có thể hiển thị trên màn hình khóa; người dùng nên cân nhắc quyền riêng tư của lớp.
+
+Mã push riêng bảo vệ các API gửi thông báo; chúng không thay thế xác thực máy chủ cho các quyền ghi điểm hiện có, vốn vẫn đang được kiểm tra ở phía trình duyệt.
+
 ---

@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="description" content="Hệ thống chấm điểm thi đua Lớp 11A1 — Niên khóa 2026–2027" />
+  <meta name="theme-color" content="#004ac6" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <title>11A1 · Thi Đua Lớp (2026–2027)</title>
   
   <!-- Google Fonts: Space Grotesk & Manrope -->
@@ -101,6 +104,9 @@
       </div>
 
       <div class="flex items-center gap-2">
+        <button id="btn-notifications" type="button" class="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-primary transition-colors" title="Bật thông báo cập nhật" aria-label="Bật thông báo cập nhật">
+          <span id="notifications-icon" class="material-symbols-outlined text-[20px]">notifications</span>
+        </button>
         <button id="btn-user-profile" type="button" class="flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-xs font-semibold">
           <span id="header-user-role" class="truncate max-w-[110px]">Khách</span>
           <span class="material-symbols-outlined text-[18px] text-primary">account_circle</span>
@@ -249,6 +255,7 @@
           <div class="relative">
             <input id="login-code-input" type="password" placeholder="Nhập mã PIN hoặc mật khẩu..." autocomplete="off" class="w-full h-12 bg-surface-container-low px-4 rounded-xl text-center font-heading text-base font-bold text-on-surface placeholder:font-normal placeholder:text-sm placeholder:text-outline outline-none focus:ring-2 focus:ring-primary/20" />
           </div>
+          <input id="push-login-code" type="password" placeholder="Mã push riêng (để trống thì không gửi push)" autocomplete="off" class="w-full h-10 bg-surface-container-low px-3 rounded-xl text-center text-xs text-on-surface placeholder:text-outline outline-none focus:ring-2 focus:ring-primary/20" />
           <button id="btn-do-login" type="button" class="w-full h-11 bg-primary hover:bg-primary-container text-on-primary font-semibold rounded-xl active:scale-[0.98] transition-all text-sm shadow-xs">
             Đăng Nhập Ghi Điểm
           </button>
@@ -590,6 +597,7 @@
 
         <div class="w-full flex flex-col gap-2.5 max-w-xs">
           <input id="admin-pass-input" type="password" placeholder="Nhập mật khẩu Admin..." class="w-full h-12 bg-surface-container-low px-4 rounded-xl text-center font-heading text-base font-bold text-on-surface outline-none focus:ring-2 focus:ring-primary/20" />
+          <input id="admin-push-code" type="password" placeholder="Mã push riêng của Admin (để trống thì không gửi push)" autocomplete="off" class="w-full h-10 bg-surface-container-low px-3 rounded-xl text-center text-xs text-on-surface placeholder:text-outline outline-none focus:ring-2 focus:ring-primary/20" />
           <button id="btn-admin-login" type="button" class="w-full h-11 bg-primary hover:bg-primary-container text-on-primary font-semibold rounded-xl active:scale-[0.98] transition-all text-sm shadow-xs">
             Xác Thực Quyền Admin
           </button>
@@ -673,6 +681,24 @@
               <span class="font-heading font-bold text-xs">Biểu Điểm Lớp</span>
               <span class="text-[10px] text-on-surface-variant">Quy chế 2026-27</span>
             </div>
+          </button>
+        </div>
+
+        <div class="rounded-2xl bg-surface-container-lowest p-4 shadow-xs flex flex-col gap-2.5">
+          <div class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary text-[18px]">campaign</span>
+            <span class="font-heading font-bold text-xs text-on-surface">Thông báo đến thiết bị</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant">Chỉ các thiết bị đã bật thông báo mới nhận được. Nội dung có thể hiện trên màn hình khóa.</p>
+          <input id="custom-notification-title" type="text" maxlength="80" placeholder="Tiêu đề thông báo" class="w-full h-10 bg-surface-container-low px-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/20" />
+          <textarea id="custom-notification-message" maxlength="250" rows="3" placeholder="Nội dung gửi đến cả lớp..." class="w-full resize-y bg-surface-container-low p-3 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/20"></textarea>
+          <button id="btn-send-custom-notification" type="button" class="w-full py-2.5 rounded-xl bg-primary text-on-primary text-xs font-bold flex items-center justify-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px]">send</span>
+            Gửi thông báo tùy chỉnh
+          </button>
+          <button id="btn-send-current-infractions" type="button" class="w-full py-2.5 rounded-xl bg-error-container/60 hover:bg-error-container text-error text-xs font-bold flex items-center justify-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px]">warning</span>
+            Gửi bảng vi phạm tuần hiện tại
           </button>
         </div>
 
