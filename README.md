@@ -73,21 +73,3 @@ Sau khi cập nhật ứng dụng, hãy chạy lại `supabase.sql` hoặc `supa
 
 ---
 
-## 🚀 HƯỚNG DẪN CHẠY DỰ ÁN
-
-### 1. Mở trực tiếp hoặc Chạy Local Server
-Bạn có thể mở file `index.html` trực tiếp trên trình duyệt, hoặc chạy local server:
-```powershell
-npx --yes serve .
-# Hoặc dùng Live Server trong VS Code / IDE
-```
-
-### 2. Triển khai GitHub Pages
-1. Đẩy mã nguồn lên GitHub:
-   ```bash
-   git add .
-   git commit -m "Refactor 11A1 Web App to Modern Swiss Realtime Architecture"
-   git push origin main
-   ```
-2. Vào **Settings → Pages** trên GitHub repository, chọn branch `main` và thư mục `/ (root)`.
-3. Web app sẽ hoạt động trực tuyến 24/7 với đầy đủ tính năng Realtime!

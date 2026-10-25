@@ -21,14 +21,12 @@ KP: -10 điểm.
 5. Ra khỏi lớp 15 phút đầu giờ khi không có nhiệm vụ
 Trừ 5 điểm.
 6. Sử dụng điện thoại trong giờ học khi GV chưa cho phép
-Nhắc nhở: -20 điểm.
-Không nhắc nhở: -10 điểm.
+Trừ 20 điểm/lần.
 7. Làm việc riêng trong giờ học
 
 Ví dụ: nói chuyện, học giờ này mà học bài môn khác, làm những việc không liên quan đến giờ học.
 
-Nhắc nhở: -10 điểm.
-Không nhắc nhở: -5 điểm.
+Trừ 10 điểm/lần.
 8. Nói tục, chửi thề
 Trừ 10 điểm.
 9. Không thực hiện nhiệm vụ GVCN giao
@@ -62,15 +60,17 @@ Hạ hạnh kiểm trực tiếp.
 II. ĐIỂM CỘNG
 1. Điểm phát biểu
 Cộng 1 điểm mỗi lượt.
-2. Điểm tốt (8, 9, 10)
+2. Giúp đỡ giáo viên
+Cộng 1 điểm mỗi lượt.
+3. Điểm tốt (8, 9, 10)
 Điểm 8: +2 điểm.
 Điểm 9: +3 điểm.
 Điểm 10: +5 điểm.
-3. Điểm tham gia phong trào
+4. Điểm tham gia phong trào
 
 Lưu ý: Điểm tham gia phong trào của tổ có thể tính vào điểm cá nhân cho tổ viên trong trường hợp tổ viên không đủ 100 điểm. Nếu tính vào điểm cá nhân bao nhiêu thì phải trừ lại ở phần điểm phong trào tương ứng, tùy vào tổ trưởng sắp xếp.
 
-3.1. Tập thể
+4.1. Tập thể
 
 Các phong trào do Đoàn trường giới thiệu về cho lớp:
 
@@ -81,7 +81,7 @@ Nếu không giới hạn số lượng thì xếp hạng căn cứ vào số l�
 
 Phong trào có thành tích: 50/40/30/20 điểm.
 Phong trào để thực hiện: 30/20/10/5 điểm.
-3.2. Cá nhân
+4.2. Cá nhân
 Đóng góp vào điểm cho lớp.
 
 Điểm:
