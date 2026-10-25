@@ -13,6 +13,8 @@ function json(res, status, value) {
 
 function describeOperationalError(error, requestId) {
   const message = String(error?.message || "");
+  const causeMessage = String(error?.cause?.message || "");
+  const diagnostic = `${message} ${causeMessage}`.toLowerCase();
   if (message.startsWith("Thiếu biến môi trường ")) {
     return `${message} Hãy thêm biến này trong Vercel → Settings → Environment Variables, rồi redeploy.`;
   }
@@ -22,8 +24,14 @@ function describeOperationalError(error, requestId) {
   if (message.includes("PUSH_TOKEN_SECRET")) {
     return `${message} Dùng chuỗi ngẫu nhiên ít nhất 32 ký tự rồi redeploy.`;
   }
+  if (diagnostic.includes("subject")) {
+    return "VAPID_SUBJECT chưa hợp lệ. Đặt giá trị theo dạng mailto:email-cua-ban@example.com hoặc https://ten-mien-cua-ban, rồi redeploy.";
+  }
+  if (diagnostic.includes("public key") || diagnostic.includes("private key")) {
+    return "Định dạng khóa VAPID chưa hợp lệ. Sao chép riêng giá trị public/private key từ cùng một lần tạo; không thêm nhãn, dấu ngoặc kép, dấu = hoặc khoảng trắng.";
+  }
   if (message.includes("VAPID")) {
-    return "Cặp khóa VAPID không hợp lệ. Tạo lại public/private key cùng một lần và cập nhật cả hai biến trên Vercel.";
+    return "Cấu hình VAPID chưa hợp lệ. Kiểm tra VAPID_SUBJECT là URL bắt đầu bằng https:// hoặc mailto:, rồi xác nhận hai khóa thuộc cùng một cặp.";
   }
   if (error?.upstreamStatus === 404) {
     return "Supabase không tìm thấy bảng push_subscriptions hoặc push_ranking_state. Chạy lại supabase-push.sql trong đúng project Supabase.";
