@@ -12,6 +12,7 @@ import {
   TOTAL_WEEKS,
   TEAM_BY_ID,
   MEMBER_BY_ID,
+  teamsForWeek,
   toNonAccentVietnamese,
 } from "./config.js";
 import { BASE_POINTS, RULE_BY_ID, gradeFor } from "./rules.js";
@@ -62,7 +63,9 @@ const safeSession = {
  *   label: string,
  *   note: string,
  *   byTeamId: string,
- *   createdAt: number
+ *   createdByRole: "admin" | "leader",
+ *   createdAt: number,
+ *   syncError?: string
  * }} ScoreEvent
  */
 
@@ -179,8 +182,37 @@ function rowToEvent(row) {
     label: String(row.label || ""),
     note: String(row.note || ""),
     byTeamId: String(row.by_team_id || ""),
+    createdByRole: row.by_role === "admin" ? "admin" : "leader",
     createdAt: Number(row.created_at) || Date.now(),
+    syncError: null,
   };
+}
+
+function compareNamesAlphabetically(a, b) {
+  return (
+    String(a.name || "").localeCompare(String(b.name || ""), "vi", { sensitivity: "base" }) ||
+    String(a.id || "").localeCompare(String(b.id || ""), "en", { numeric: true })
+  );
+}
+
+function assignCompetitionRanks(items, getScore) {
+  items.forEach((item, index) => {
+    item.rank =
+      index > 0 && getScore(item) === getScore(items[index - 1])
+        ? items[index - 1].rank
+        : index + 1;
+    item.isTied = false;
+  });
+
+  const rankCounts = new Map();
+  for (const item of items) {
+    rankCounts.set(item.rank, (rankCounts.get(item.rank) || 0) + 1);
+  }
+  for (const item of items) {
+    item.isTied = rankCounts.get(item.rank) > 1;
+  }
+
+  return items;
 }
 
 function supabaseHeaders(extra = {}) {
@@ -609,12 +641,17 @@ export class ScoreStore {
   // =========================================================================
   // THUẬT TOÁN 1: Tính Điểm 1 Vòng Lặp O(N) (Single-Pass Aggregation)
   // =========================================================================
-  calculateScoresFast(targetEvents = this.events, basePoints = BASE_POINTS) {
+  calculateScoresFast(
+    targetEvents = this.events,
+    basePoints = BASE_POINTS,
+    weekId = this.weekId
+  ) {
     const teamScores = {};
     const memberScores = {};
+    const weekTeams = teamsForWeek(weekId);
 
     // 1. Khởi tạo điểm nền 100 điểm
-    for (const t of TEAMS) {
+    for (const t of weekTeams) {
       teamScores[t.id] = {
         id: t.id,
         name: t.name,
@@ -628,7 +665,7 @@ export class ScoreStore {
         minusCount: 0,
         violators: [],
         bonusers: [],
-        locked: this.isWeekLocked(this.weekId),
+        locked: this.isWeekLocked(weekId),
       };
 
       for (const m of t.members) {
@@ -677,49 +714,140 @@ export class ScoreStore {
     }
 
     // Tuần bị khóa sổ: Điểm xếp hạng = 0 (nhưng rawTotal vẫn lưu để xem)
-    const isLocked = this.isWeekLocked(this.weekId);
+    const isLocked = this.isWeekLocked(weekId);
     for (const tId in teamScores) {
       const t = teamScores[tId];
       t.total = isLocked ? 0 : t.rawTotal;
-      t.avg = t.memberCount ? Math.round((t.total / t.memberCount) * 10) / 10 : 0;
+      const displayedTotal = isLocked ? t.rawTotal : t.total;
+      t.avg = t.memberCount
+        ? Math.round((displayedTotal / t.memberCount) * 10) / 10
+        : 0;
     }
 
     return { teamScores, memberScores };
   }
 
-  /** Lấy bảng xếp hạng 4 tổ tuần hiện tại đã sắp xếp (Có xử lý đồng hạng) */
+  /** Điểm bằng nhau giữ đồng hạng; tên chỉ quyết định thứ tự hiển thị. */
   getTeamRankings() {
     const { teamScores } = this.calculateScoresFast(this.events);
+    const isLocked = this.isWeekLocked(this.weekId);
     const sorted = Object.values(teamScores).sort(
-      (a, b) => b.total - a.total || a.name.localeCompare(b.name, "vi")
+      (a, b) =>
+        (isLocked ? b.rawTotal - a.rawTotal : b.total - a.total) ||
+        compareNamesAlphabetically(a, b)
     );
 
-    // Xử lý thứ hạng & đồng hạng (Tied ranking)
-    for (let i = 0; i < sorted.length; i++) {
-      if (i > 0 && sorted[i].total === sorted[i - 1].total) {
-        sorted[i].rank = sorted[i - 1].rank;
-        sorted[i].isTied = true;
-        sorted[i - 1].isTied = true;
-      } else {
-        sorted[i].rank = i + 1;
-        sorted[i].isTied = false;
-      }
-    }
-
-    // Cờ đánh dấu nếu tất cả các tổ đều bằng điểm nhau (ví dụ mới bắt đầu tuần)
-    sorted.allEqual = sorted.length > 1 && sorted.every((t) => t.total === sorted[0].total);
-
-    return sorted;
+    return assignCompetitionRanks(
+      sorted,
+      (team) => (isLocked ? team.rawTotal : team.total)
+    );
   }
 
   /** Lấy danh sách thành viên trong tổ đã sắp xếp theo điểm */
   getTeamMembersSorted(teamId) {
-    const team = TEAM_BY_ID[teamId];
+    const team = teamsForWeek(this.weekId).find((item) => item.id === teamId);
     if (!team) return [];
     const { memberScores } = this.calculateScoresFast(this.events);
-    return team.members
+    const sorted = team.members
       .map((m) => memberScores[m.id] || { ...m, points: BASE_POINTS, teamId })
-      .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, "vi"));
+      .sort((a, b) => b.points - a.points || compareNamesAlphabetically(a, b));
+    return assignCompetitionRanks(sorted, (member) => member.points);
+  }
+
+  getTeamMemberWeekActivity(teamId, weekId = this.weekId) {
+    const team = teamsForWeek(weekId).find((item) => item.id === teamId);
+    if (!team) return [];
+
+    const weekEvents = this.allEvents.filter(
+      (event) => event.weekId === weekId && event.teamId === teamId
+    );
+    const { memberScores } = this.calculateScoresFast(
+      weekEvents,
+      BASE_POINTS,
+      weekId
+    );
+
+    const members = team.members.map((member) => {
+      const score = memberScores[member.id] || {
+        ...member,
+        teamId,
+        points: BASE_POINTS,
+      };
+      const events = weekEvents.filter((event) => event.memberId === member.id);
+      const violations = events.filter((event) => event.points <= 0);
+      const bonuses = events.filter((event) => event.points > 0);
+      const violationGroups = new Map();
+
+      for (const event of violations) {
+        const label = event.label || RULE_BY_ID[event.ruleId]?.label || event.ruleId;
+        const group = violationGroups.get(label) || { label, count: 0, points: 0 };
+        group.count++;
+        group.points += event.points;
+        violationGroups.set(label, group);
+      }
+
+      return {
+        ...score,
+        violationCount: violations.length,
+        bonusCount: bonuses.length,
+        violationGroups: [...violationGroups.values()],
+      };
+    });
+
+    return assignCompetitionRanks(
+      members.sort(
+        (a, b) => b.points - a.points || compareNamesAlphabetically(a, b)
+      ),
+      (member) => member.points
+    );
+  }
+
+  getViolationHistoryByTeam() {
+    const violationsByTeam = new Map(
+      TEAMS.map((team) => [
+        team.id,
+        { id: team.id, name: team.name, members: new Map() },
+      ])
+    );
+
+    for (const event of this.allEvents) {
+      if (event.points > 0) continue;
+      const team = violationsByTeam.get(event.teamId);
+      if (!team) continue;
+
+      const member = MEMBER_BY_ID[event.memberId];
+      const memberHistory = team.members.get(event.memberId) || {
+        id: event.memberId,
+        name: member?.name || event.memberId,
+        events: [],
+        points: 0,
+      };
+      memberHistory.events.push({
+        ...event,
+        weekNumber: weekNumber(event.weekId),
+        label: event.label || RULE_BY_ID[event.ruleId]?.label || event.ruleId,
+      });
+      memberHistory.points += event.points;
+      team.members.set(event.memberId, memberHistory);
+    }
+
+    return [...violationsByTeam.values()].map((team) => ({
+      ...team,
+      members: [...team.members.values()]
+        .map((member) => ({
+          ...member,
+          events: member.events.sort((a, b) => b.createdAt - a.createdAt),
+        }))
+        .sort(
+          (a, b) =>
+            b.events.length - a.events.length ||
+            a.name.localeCompare(b.name, "vi", { sensitivity: "base" })
+        ),
+      eventCount: [...team.members.values()].reduce(
+        (total, member) => total + member.events.length,
+        0
+      ),
+    }));
   }
 
   // =========================================================================
@@ -799,10 +927,15 @@ export class ScoreStore {
 
     // Tính thứ hạng của bạn trong lớp tuần này
     const { memberScores } = this.calculateScoresFast(this.events);
-    const rankedMembers = Object.values(memberScores).sort((a, b) => b.points - a.points);
-    const myPoints = memberScores[memberId]?.points ?? BASE_POINTS;
-    const firstSameIdx = rankedMembers.findIndex((m) => m.points === myPoints);
-    const classRank = firstSameIdx !== -1 ? firstSameIdx + 1 : 1;
+    const rankedMembers = assignCompetitionRanks(
+      Object.values(memberScores).sort(
+        (a, b) => b.points - a.points || compareNamesAlphabetically(a, b)
+      ),
+      (member) => member.points
+    );
+    const rankedMember = rankedMembers.find((m) => m.id === memberId);
+    const classRank = rankedMember?.rank || 1;
+    const isClassRankTied = rankedMember?.isTied || false;
 
     // Điểm tuần trước để tính chênh lệch tăng/giảm
     const curNum = weekNumber(this.weekId);
@@ -826,6 +959,7 @@ export class ScoreStore {
       plusCount,
       minusCount,
       classRank,
+      isClassRankTied,
       totalStudents: rankedMembers.length || 44,
       diffFromLastWeek,
       weekEvents,
@@ -835,8 +969,6 @@ export class ScoreStore {
 
   // —— BXH Toàn Trường / Cá Nhân ——
   getYearRankings() {
-    const countingIds = this.countingWeekIds();
-    const weeksCount = countingIds.length || 1;
     const all = TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, teamId: t.id })));
 
     const sorted = all
@@ -848,33 +980,23 @@ export class ScoreStore {
           ...prof,
         };
       })
-      .sort((a, b) => b.yearTotal - a.yearTotal || a.name.localeCompare(b.name, "vi"));
+      .sort((a, b) => b.yearTotal - a.yearTotal || compareNamesAlphabetically(a, b));
 
-    // Xử lý đồng hạng năm
-    for (let i = 0; i < sorted.length; i++) {
-      if (i > 0 && sorted[i].yearTotal === sorted[i - 1].yearTotal) {
-        sorted[i].rank = sorted[i - 1].rank;
-        sorted[i].isTied = true;
-        sorted[i - 1].isTied = true;
-      } else {
-        sorted[i].rank = i + 1;
-        sorted[i].isTied = false;
-      }
-    }
-
-    return sorted;
+    return assignCompetitionRanks(sorted, (member) => member.yearTotal);
   }
 
   getViolationRankings() {
-    return this.getYearRankings()
+    const rankings = this.getYearRankings()
       .filter((m) => m.minusCount > 0)
-      .sort((a, b) => a.minusPoints - b.minusPoints || b.minusCount - a.minusCount);
+      .sort((a, b) => a.minusPoints - b.minusPoints || compareNamesAlphabetically(a, b));
+    return assignCompetitionRanks(rankings, (member) => member.minusPoints);
   }
 
   getBonusRankings() {
-    return this.getYearRankings()
+    const rankings = this.getYearRankings()
       .filter((m) => m.plusCount > 0)
-      .sort((a, b) => b.plusPoints - a.plusPoints || b.plusCount - a.plusCount);
+      .sort((a, b) => b.plusPoints - a.plusPoints || compareNamesAlphabetically(a, b));
+    return assignCompetitionRanks(rankings, (member) => member.plusPoints);
   }
 
   // =========================================================================
@@ -935,7 +1057,9 @@ export class ScoreStore {
       label: mult > 1 ? `${rule.label} (x${mult})` : rule.label,
       note: String(note || "").slice(0, 200),
       byTeamId,
+      createdByRole: this.isAdmin() ? "admin" : "leader",
       createdAt,
+      syncError: null,
     };
 
     // 1. Optimistic Update (< 5ms): Thêm vào local state ngay lập tức!
@@ -962,13 +1086,19 @@ export class ScoreStore {
             label: event.label,
             note: event.note,
             by_team_id: event.byTeamId,
+            by_role: event.createdByRole,
             created_at: event.createdAt,
           }),
         });
 
         if (!res.ok) {
           const text = await res.text().catch(() => "");
-          throw new Error(text.slice(0, 160) || "Lỗi máy chủ Supabase khi lưu điểm.");
+          const detail = text.slice(0, 160);
+          const message =
+            res.status === 401
+              ? "Supabase từ chối xác thực (401). Hãy kiểm tra SUPABASE_URL và SUPABASE_ANON_KEY trong js/config.js có thuộc cùng một dự án Supabase không."
+              : `Supabase không lưu được điểm (HTTP ${res.status})${detail ? `: ${detail}` : ""}`;
+          throw new Error(message);
         }
 
         const rows = await res.json();
@@ -976,8 +1106,12 @@ export class ScoreStore {
         if (saved && saved.id) {
           event.id = String(saved.id);
         }
+        event.syncError = null;
       } catch (err) {
-        console.warn("Ghi Supabase thất bại, giữ lại trong cache local:", err);
+        event.syncError =
+          err instanceof Error ? err.message : "Không xác định được lỗi khi đồng bộ Supabase.";
+        this._saveToLocal();
+        console.warn("Ghi Supabase thất bại; sự kiện hiện chỉ được lưu trên thiết bị:", err);
       }
     }
 
@@ -1031,7 +1165,7 @@ export class ScoreStore {
     this._emit();
 
     // 2. Gửi xóa lên Supabase
-    if (this.mode === "live") {
+    if (this.mode === "live" && !event.syncError) {
       try {
         await fetchWithTimeout(
           `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(eventId)}`,

@@ -19,6 +19,10 @@
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
   }
 
+  #view-scoring {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6rem);
+  }
+
   .pt-safe {
     padding-top: env(safe-area-inset-top, 0px);
   }
@@ -50,6 +54,11 @@
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   border-top: 1px solid rgba(226, 232, 240, 0.85);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.score-action-bar {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 4.75rem);
 }
 
 .glass-header {
@@ -127,4 +136,260 @@
 
 .score-updated {
   animation: scorePulse 0.4s ease-out;
+}
+
+.member-name-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.member-admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex: 0 0 auto;
+  padding: 0.12rem 0.35rem;
+  border: 1px solid #f5d58a;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff8df, #ffedb4);
+  color: #8a5200;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.member-admin-badge .material-symbols-outlined {
+  font-size: 0.78rem;
+}
+
+.ranking-team-card {
+  isolation: isolate;
+  position: relative;
+  overflow: hidden;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.ranking-team-card::after {
+  position: absolute;
+  z-index: -1;
+  top: -2.5rem;
+  right: -2rem;
+  width: 7rem;
+  height: 7rem;
+  border-radius: 50%;
+  background: var(--rank-glow, rgba(37, 99, 235, 0.08));
+  content: "";
+  filter: blur(1px);
+  pointer-events: none;
+}
+
+.ranking-team-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ranking-team-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(11, 28, 48, 0.09);
+}
+
+.ranking-team-card.rank-1 {
+  --rank-glow: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.36);
+  background: linear-gradient(120deg, #fffdf6 0%, #fff 58%);
+}
+
+.ranking-team-card.rank-2 {
+  --rank-glow: rgba(100, 116, 139, 0.15);
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.ranking-team-card.rank-3 {
+  --rank-glow: rgba(180, 83, 9, 0.13);
+  border-color: rgba(180, 83, 9, 0.24);
+}
+
+.ranking-team-card.rank-1 .ranking-rank-medal {
+  background: #fff0bf;
+  color: #956000;
+}
+
+.ranking-team-card.rank-2 .ranking-rank-medal {
+  background: #e9eef5;
+  color: #475569;
+}
+
+.ranking-team-card.rank-3 .ranking-rank-medal {
+  background: #f8e8dd;
+  color: #9a4a1c;
+}
+
+.ranking-member-card {
+  border: 1px solid rgba(203, 213, 225, 0.55);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.ranking-member-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 16px rgba(11, 28, 48, 0.08);
+}
+
+.ranking-member-card.rank-1 {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: linear-gradient(110deg, #fffaf0, #fff 65%);
+}
+
+.ranking-member-card.rank-2 {
+  border-color: rgba(148, 163, 184, 0.38);
+}
+
+.ranking-member-card.rank-3 {
+  border-color: rgba(180, 83, 9, 0.28);
+}
+
+.ranking-member-card.ranking-member-violation {
+  border-left: 3px solid #e35b5b;
+}
+
+.ranking-member-card.ranking-member-bonus {
+  border-left: 3px solid #22a879;
+}
+
+.history-backdrop {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 72vh;
+  flex-direction: column;
+  gap: 0.85rem;
+  overflow: hidden;
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 1.35rem;
+  background: #1b0a0a;
+}
+
+.history-backdrop::before,
+.history-backdrop::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.history-backdrop::before {
+  background-image: url("../image/tien-an-tien-su.png");
+  background-position: center;
+  background-size: cover;
+  filter: saturate(0.88);
+}
+
+.history-backdrop::after {
+  background:
+    linear-gradient(180deg, rgba(18, 7, 8, 0.72) 0%, rgba(25, 8, 8, 0.28) 30%, rgba(18, 7, 8, 0.62) 100%),
+    linear-gradient(90deg, rgba(16, 7, 8, 0.32), transparent 48%, rgba(16, 7, 8, 0.28));
+}
+
+.history-intro {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 211, 142, 0.5);
+  border-radius: 1rem;
+  background: linear-gradient(115deg, rgba(52, 18, 17, 0.92), rgba(32, 13, 14, 0.78));
+  box-shadow: 0 12px 28px rgba(9, 3, 3, 0.28);
+  color: #fff5e7;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.history-intro > .material-symbols-outlined {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.8rem;
+  background: linear-gradient(145deg, #ffe3a0, #d99535);
+  color: #4c2408;
+  font-size: 1.4rem;
+}
+
+.history-team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.history-team-card {
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 235, 224, 0.26);
+  border-radius: 1rem;
+  background: rgba(25, 10, 10, 0.16);
+  box-shadow: 0 8px 22px rgba(9, 3, 3, 0.12);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.history-team-icon {
+  display: grid;
+  width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  border-radius: 0.6rem;
+  background: #e9efff;
+  color: #315bb4;
+  font-size: 1rem;
+}
+
+.history-member-card {
+  padding: 0.65rem 0.7rem;
+  border-radius: 0.8rem;
+  background: #f6f7fb;
+}
+
+.history-member-link {
+  max-width: 70%;
+}
+
+.history-count {
+  color: #a43b3b;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-details {
+  padding-top: 0.45rem;
+  color: #536174;
+  font-size: 0.68rem;
+}
+
+.history-details summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.history-details li {
+  display: flex;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.55rem;
+  background: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ranking-team-card {
+    transition: none;
+  }
+
+  .ranking-member-card {
+    transition: none;
+  }
 }

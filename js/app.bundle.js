@@ -40,61 +40,59 @@ const TEAMS = [
   {
     id: "to1",
     name: "Tổ 1",
-    leaderName: "Nguyễn Phúc Thịnh",
     members: [
       { id: "to1-01", name: "Nguyễn Lâm Gia" },
       { id: "to1-02", name: "Nguyễn Đỗ Phúc Nguyên" },
-      { id: "to1-03", name: "Nguyễn Phúc Thịnh" },
+      { id: "to1-03", name: "Đinh Quang Vinh" },
       { id: "to1-04", name: "Lê Minh Toàn A" },
-      { id: "to1-05", name: "Đinh Quang Vinh" },
-      { id: "to1-06", name: "Trần Anh Kiệt" },
-      { id: "to1-07", name: "Lê Hoàng Phúc" },
-      { id: "to1-08", name: "Phạm Gia Hưng" },
-      { id: "to1-09", name: "Võ Minh Trí" },
-      { id: "to1-10", name: "Hoàng Nhật Nam" },
-      { id: "to1-11", name: "Đỗ Quốc Bảo" },
+      { id: "to1-05", name: "Lê Thị Diễm Thanh" },
+      { id: "to1-06", name: "Huỳnh Thị Kiều An" },
+      { id: "to1-07", name: "Chung Võ Ái Linh" },
+      { id: "to1-08", name: "Đỗ Ngọc Yến Nhi" },
+      { id: "to1-09", name: "Nguyễn Thị Yến Ngọc" },
+      { id: "to1-10", name: "Huỳnh Gia Hào" },
+      { id: "to1-11", name: "Nguyễn Phúc Thịnh" }
+
     ],
   },
   {
     id: "to2",
     name: "Tổ 2",
-    leaderName: "Trần Ngọc Hân",
     members: [
-      { id: "to2-01", name: "Trần Ngọc Hân" },
-      { id: "to2-02", name: "Trần Minh Quang" },
-      { id: "to2-03", name: "Lê Hoàng Nam" },
-      { id: "to2-04", name: "Phạm Thảo Linh" },
-      { id: "to2-05", name: "Nguyễn Bảo Long" },
-      { id: "to2-06", name: "Đặng Thị Mai Anh" },
-      { id: "to2-07", name: "Vũ Đức Anh" },
-      { id: "to2-08", name: "Lê Hà Anh" },
-      { id: "to2-09", name: "Nguyễn Gia Huy" },
-      { id: "to2-10", name: "Phan Đình Trọng" },
-      { id: "to2-11", name: "Bùi Tuyết Nhi" },
+      { id: "to2-01", name: "Nguyễn Thị Như Ý" },
+      { id: "to2-02", name: "Phan Nguyễn Phương Vi" },
+      { id: "to2-03", name: "Ngô Hoàng Yến" },
+      { id: "to2-04", name: "Nguyễn Thị Ngọc Tú" },
+      { id: "to2-05", name: "Phạm Thanh Huy" },
+      { id: "to2-06", name: "Phạm Ngọc Hân" },
+      { id: "to2-07", name: "Nguyễn Thanh Sang" },
+      { id: "to2-08", name: "Nguyễn Thị Ngọc Kim" },
+      { id: "to2-09", name: "Lê Minh Toàn B" },
+      { id: "to2-10", name: "Nguyễn Phú Trọng" },
+      { id: "to2-11", name: "Thái Huỳnh Hương" },
+
     ],
   },
   {
     id: "to3",
     name: "Tổ 3",
-    leaderName: "Lê Bảo Ngọc",
     members: [
-      { id: "to3-01", name: "Lê Bảo Ngọc" },
-      { id: "to3-02", name: "Nguyễn Văn An" },
-      { id: "to3-03", name: "Trương Hoàng Yến" },
-      { id: "to3-04", name: "Lê Tuấn Kiệt" },
-      { id: "to3-05", name: "Huỳnh Quốc Đạt" },
-      { id: "to3-06", name: "Võ Thị Bích Trâm" },
-      { id: "to3-07", name: "Dương Minh Khang" },
-      { id: "to3-08", name: "Phạm Hải Đăng" },
-      { id: "to3-09", name: "Ngô Kiến Huy" },
-      { id: "to3-10", name: "Tạ Quang Bửu" },
-      { id: "to3-11", name: "Lâm Mỹ Duyên" },
+      { id: "to3-01", name: "Phan Trịnh Công Thành" },
+      { id: "to3-02", name: "Nguyễn Anh Hào" },
+      { id: "to3-03", name: "Lê Minh Quân" },
+      { id: "to3-04", name: "Nguyễn Xuân Trường" },
+      { id: "to3-05", name: "Lâm Trần Chí Hiếu" },
+      { id: "to3-06", name: "Nguyễn Phú Quý" },
+      { id: "to3-07", name: "Phan Tố Tố" },
+      { id: "to3-08", name: "Trần Bảo Ngọc" },
+      { id: "to3-09", name: "Trương Thành Tỷ" },
+      { id: "to3-10", name: "Đặng Khánh Hưng" },
+      { id: "to3-11", name: "Phạm Chí Hào" }
     ],
   },
   {
     id: "to4",
     name: "Tổ 4",
-    leaderName: "Lê Trần Đại Ngọc",
     members: [
       { id: "to4-01", name: "Lê Trần Đại Ngọc" },
       { id: "to4-02", name: "Nguyễn Thị Kim Khánh" },
@@ -106,10 +104,59 @@ const TEAMS = [
       { id: "to4-08", name: "Nguyễn Minh Mẩn" },
       { id: "to4-09", name: "Lê Hữu Khánh" },
       { id: "to4-10", name: "Đỗ Nguyễn Đăng Khoa" },
-      { id: "to4-11", name: "Văng Minh Thiện" },
+      { id: "to4-11", name: "Văng Minh Thiện" }
     ],
   },
 ];
+
+// Các mã này chỉ tạo nhãn nhận diện trên giao diện, không cấp quyền hệ thống.
+const ADMIN_MEMBER_IDS = ["to4-06", "to4-10"];
+
+// Khi chuyển học sinh sang tổ khác, cập nhật TEAMS theo tổ mới và thêm bản ghi
+// vào đây. effectiveWeek là tuần đầu tiên dùng tổ mới (ngày thứ Hai, YYYY-MM-DD).
+// Giữ lại mọi lần chuyển trước đó để các tuần cũ dùng đúng roster lịch sử.
+const TEAM_MOVES = [];
+
+function teamsForWeek(weekId) {
+  const weekTeams = TEAMS.map((team) => ({
+    ...team,
+    members: team.members.map((member) => ({ ...member })),
+  }));
+  const teamById = new Map(weekTeams.map((team) => [team.id, team]));
+  const moves = [...TEAM_MOVES].sort((a, b) =>
+    b.effectiveWeek.localeCompare(a.effectiveWeek)
+  );
+
+  for (const move of moves) {
+    const effectiveDate = new Date(`${move.effectiveWeek}T00:00:00Z`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(move.effectiveWeek) ||
+      Number.isNaN(effectiveDate.getTime()) ||
+      effectiveDate.getUTCDay() !== 1 ||
+      move.fromTeamId === move.toTeamId
+    ) {
+      throw new Error(`Mốc chuyển tổ không hợp lệ cho học sinh ${move.memberId}.`);
+    }
+
+    if (weekId >= move.effectiveWeek) continue;
+
+    const source = teamById.get(move.toTeamId);
+    const destination = teamById.get(move.fromTeamId);
+    const memberIndex = source?.members.findIndex(
+      (member) => member.id === move.memberId
+    );
+    if (!source || !destination || memberIndex === undefined || memberIndex < 0) {
+      throw new Error(
+        `Lịch sử chuyển tổ không hợp lệ cho học sinh ${move.memberId}.`
+      );
+    }
+
+    const [member] = source.members.splice(memberIndex, 1);
+    destination.members.push(member);
+  }
+
+  return weekTeams;
+}
 
 /**
  * =========================================================================
@@ -530,7 +577,9 @@ const safeSession = {
  *   label: string,
  *   note: string,
  *   byTeamId: string,
- *   createdAt: number
+ *   createdByRole: "admin" | "leader",
+ *   createdAt: number,
+ *   syncError?: string
  * }} ScoreEvent
  */
 
@@ -647,8 +696,37 @@ function rowToEvent(row) {
     label: String(row.label || ""),
     note: String(row.note || ""),
     byTeamId: String(row.by_team_id || ""),
+    createdByRole: row.by_role === "admin" ? "admin" : "leader",
     createdAt: Number(row.created_at) || Date.now(),
+    syncError: null,
   };
+}
+
+function compareNamesAlphabetically(a, b) {
+  return (
+    String(a.name || "").localeCompare(String(b.name || ""), "vi", { sensitivity: "base" }) ||
+    String(a.id || "").localeCompare(String(b.id || ""), "en", { numeric: true })
+  );
+}
+
+function assignCompetitionRanks(items, getScore) {
+  items.forEach((item, index) => {
+    item.rank =
+      index > 0 && getScore(item) === getScore(items[index - 1])
+        ? items[index - 1].rank
+        : index + 1;
+    item.isTied = false;
+  });
+
+  const rankCounts = new Map();
+  for (const item of items) {
+    rankCounts.set(item.rank, (rankCounts.get(item.rank) || 0) + 1);
+  }
+  for (const item of items) {
+    item.isTied = rankCounts.get(item.rank) > 1;
+  }
+
+  return items;
 }
 
 function supabaseHeaders(extra = {}) {
@@ -1077,12 +1155,17 @@ class ScoreStore {
   // =========================================================================
   // THUẬT TOÁN 1: Tính Điểm 1 Vòng Lặp O(N) (Single-Pass Aggregation)
   // =========================================================================
-  calculateScoresFast(targetEvents = this.events, basePoints = BASE_POINTS) {
+  calculateScoresFast(
+    targetEvents = this.events,
+    basePoints = BASE_POINTS,
+    weekId = this.weekId
+  ) {
     const teamScores = {};
     const memberScores = {};
+    const weekTeams = teamsForWeek(weekId);
 
     // 1. Khởi tạo điểm nền 100 điểm
-    for (const t of TEAMS) {
+    for (const t of weekTeams) {
       teamScores[t.id] = {
         id: t.id,
         name: t.name,
@@ -1096,7 +1179,7 @@ class ScoreStore {
         minusCount: 0,
         violators: [],
         bonusers: [],
-        locked: this.isWeekLocked(this.weekId),
+        locked: this.isWeekLocked(weekId),
       };
 
       for (const m of t.members) {
@@ -1145,49 +1228,140 @@ class ScoreStore {
     }
 
     // Tuần bị khóa sổ: Điểm xếp hạng = 0 (nhưng rawTotal vẫn lưu để xem)
-    const isLocked = this.isWeekLocked(this.weekId);
+    const isLocked = this.isWeekLocked(weekId);
     for (const tId in teamScores) {
       const t = teamScores[tId];
       t.total = isLocked ? 0 : t.rawTotal;
-      t.avg = t.memberCount ? Math.round((t.total / t.memberCount) * 10) / 10 : 0;
+      const displayedTotal = isLocked ? t.rawTotal : t.total;
+      t.avg = t.memberCount
+        ? Math.round((displayedTotal / t.memberCount) * 10) / 10
+        : 0;
     }
 
     return { teamScores, memberScores };
   }
 
-  /** Lấy bảng xếp hạng 4 tổ tuần hiện tại đã sắp xếp (Có xử lý đồng hạng) */
+  /** Điểm bằng nhau giữ đồng hạng; tên chỉ quyết định thứ tự hiển thị. */
   getTeamRankings() {
     const { teamScores } = this.calculateScoresFast(this.events);
+    const isLocked = this.isWeekLocked(this.weekId);
     const sorted = Object.values(teamScores).sort(
-      (a, b) => b.total - a.total || a.name.localeCompare(b.name, "vi")
+      (a, b) =>
+        (isLocked ? b.rawTotal - a.rawTotal : b.total - a.total) ||
+        compareNamesAlphabetically(a, b)
     );
 
-    // Xử lý thứ hạng & đồng hạng (Tied ranking)
-    for (let i = 0; i < sorted.length; i++) {
-      if (i > 0 && sorted[i].total === sorted[i - 1].total) {
-        sorted[i].rank = sorted[i - 1].rank;
-        sorted[i].isTied = true;
-        sorted[i - 1].isTied = true;
-      } else {
-        sorted[i].rank = i + 1;
-        sorted[i].isTied = false;
-      }
-    }
-
-    // Cờ đánh dấu nếu tất cả các tổ đều bằng điểm nhau (ví dụ mới bắt đầu tuần)
-    sorted.allEqual = sorted.length > 1 && sorted.every((t) => t.total === sorted[0].total);
-
-    return sorted;
+    return assignCompetitionRanks(
+      sorted,
+      (team) => (isLocked ? team.rawTotal : team.total)
+    );
   }
 
   /** Lấy danh sách thành viên trong tổ đã sắp xếp theo điểm */
   getTeamMembersSorted(teamId) {
-    const team = TEAM_BY_ID[teamId];
+    const team = teamsForWeek(this.weekId).find((item) => item.id === teamId);
     if (!team) return [];
     const { memberScores } = this.calculateScoresFast(this.events);
-    return team.members
+    const sorted = team.members
       .map((m) => memberScores[m.id] || { ...m, points: BASE_POINTS, teamId })
-      .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, "vi"));
+      .sort((a, b) => b.points - a.points || compareNamesAlphabetically(a, b));
+    return assignCompetitionRanks(sorted, (member) => member.points);
+  }
+
+  getTeamMemberWeekActivity(teamId, weekId = this.weekId) {
+    const team = teamsForWeek(weekId).find((item) => item.id === teamId);
+    if (!team) return [];
+
+    const weekEvents = this.allEvents.filter(
+      (event) => event.weekId === weekId && event.teamId === teamId
+    );
+    const { memberScores } = this.calculateScoresFast(
+      weekEvents,
+      BASE_POINTS,
+      weekId
+    );
+
+    const members = team.members.map((member) => {
+      const score = memberScores[member.id] || {
+        ...member,
+        teamId,
+        points: BASE_POINTS,
+      };
+      const events = weekEvents.filter((event) => event.memberId === member.id);
+      const violations = events.filter((event) => event.points <= 0);
+      const bonuses = events.filter((event) => event.points > 0);
+      const violationGroups = new Map();
+
+      for (const event of violations) {
+        const label = event.label || RULE_BY_ID[event.ruleId]?.label || event.ruleId;
+        const group = violationGroups.get(label) || { label, count: 0, points: 0 };
+        group.count++;
+        group.points += event.points;
+        violationGroups.set(label, group);
+      }
+
+      return {
+        ...score,
+        violationCount: violations.length,
+        bonusCount: bonuses.length,
+        violationGroups: [...violationGroups.values()],
+      };
+    });
+
+    return assignCompetitionRanks(
+      members.sort(
+        (a, b) => b.points - a.points || compareNamesAlphabetically(a, b)
+      ),
+      (member) => member.points
+    );
+  }
+
+  getViolationHistoryByTeam() {
+    const violationsByTeam = new Map(
+      TEAMS.map((team) => [
+        team.id,
+        { id: team.id, name: team.name, members: new Map() },
+      ])
+    );
+
+    for (const event of this.allEvents) {
+      if (event.points > 0) continue;
+      const team = violationsByTeam.get(event.teamId);
+      if (!team) continue;
+
+      const member = MEMBER_BY_ID[event.memberId];
+      const memberHistory = team.members.get(event.memberId) || {
+        id: event.memberId,
+        name: member?.name || event.memberId,
+        events: [],
+        points: 0,
+      };
+      memberHistory.events.push({
+        ...event,
+        weekNumber: weekNumber(event.weekId),
+        label: event.label || RULE_BY_ID[event.ruleId]?.label || event.ruleId,
+      });
+      memberHistory.points += event.points;
+      team.members.set(event.memberId, memberHistory);
+    }
+
+    return [...violationsByTeam.values()].map((team) => ({
+      ...team,
+      members: [...team.members.values()]
+        .map((member) => ({
+          ...member,
+          events: member.events.sort((a, b) => b.createdAt - a.createdAt),
+        }))
+        .sort(
+          (a, b) =>
+            b.events.length - a.events.length ||
+            a.name.localeCompare(b.name, "vi", { sensitivity: "base" })
+        ),
+      eventCount: [...team.members.values()].reduce(
+        (total, member) => total + member.events.length,
+        0
+      ),
+    }));
   }
 
   // =========================================================================
@@ -1267,10 +1441,15 @@ class ScoreStore {
 
     // Tính thứ hạng của bạn trong lớp tuần này
     const { memberScores } = this.calculateScoresFast(this.events);
-    const rankedMembers = Object.values(memberScores).sort((a, b) => b.points - a.points);
-    const myPoints = memberScores[memberId]?.points ?? BASE_POINTS;
-    const firstSameIdx = rankedMembers.findIndex((m) => m.points === myPoints);
-    const classRank = firstSameIdx !== -1 ? firstSameIdx + 1 : 1;
+    const rankedMembers = assignCompetitionRanks(
+      Object.values(memberScores).sort(
+        (a, b) => b.points - a.points || compareNamesAlphabetically(a, b)
+      ),
+      (member) => member.points
+    );
+    const rankedMember = rankedMembers.find((m) => m.id === memberId);
+    const classRank = rankedMember?.rank || 1;
+    const isClassRankTied = rankedMember?.isTied || false;
 
     // Điểm tuần trước để tính chênh lệch tăng/giảm
     const curNum = weekNumber(this.weekId);
@@ -1294,6 +1473,7 @@ class ScoreStore {
       plusCount,
       minusCount,
       classRank,
+      isClassRankTied,
       totalStudents: rankedMembers.length || 44,
       diffFromLastWeek,
       weekEvents,
@@ -1303,8 +1483,6 @@ class ScoreStore {
 
   // —— BXH Toàn Trường / Cá Nhân ——
   getYearRankings() {
-    const countingIds = this.countingWeekIds();
-    const weeksCount = countingIds.length || 1;
     const all = TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, teamId: t.id })));
 
     const sorted = all
@@ -1316,33 +1494,23 @@ class ScoreStore {
           ...prof,
         };
       })
-      .sort((a, b) => b.yearTotal - a.yearTotal || a.name.localeCompare(b.name, "vi"));
+      .sort((a, b) => b.yearTotal - a.yearTotal || compareNamesAlphabetically(a, b));
 
-    // Xử lý đồng hạng năm
-    for (let i = 0; i < sorted.length; i++) {
-      if (i > 0 && sorted[i].yearTotal === sorted[i - 1].yearTotal) {
-        sorted[i].rank = sorted[i - 1].rank;
-        sorted[i].isTied = true;
-        sorted[i - 1].isTied = true;
-      } else {
-        sorted[i].rank = i + 1;
-        sorted[i].isTied = false;
-      }
-    }
-
-    return sorted;
+    return assignCompetitionRanks(sorted, (member) => member.yearTotal);
   }
 
   getViolationRankings() {
-    return this.getYearRankings()
+    const rankings = this.getYearRankings()
       .filter((m) => m.minusCount > 0)
-      .sort((a, b) => a.minusPoints - b.minusPoints || b.minusCount - a.minusCount);
+      .sort((a, b) => a.minusPoints - b.minusPoints || compareNamesAlphabetically(a, b));
+    return assignCompetitionRanks(rankings, (member) => member.minusPoints);
   }
 
   getBonusRankings() {
-    return this.getYearRankings()
+    const rankings = this.getYearRankings()
       .filter((m) => m.plusCount > 0)
-      .sort((a, b) => b.plusPoints - a.plusPoints || b.plusCount - a.plusCount);
+      .sort((a, b) => b.plusPoints - a.plusPoints || compareNamesAlphabetically(a, b));
+    return assignCompetitionRanks(rankings, (member) => member.plusPoints);
   }
 
   // =========================================================================
@@ -1403,7 +1571,9 @@ class ScoreStore {
       label: mult > 1 ? `${rule.label} (x${mult})` : rule.label,
       note: String(note || "").slice(0, 200),
       byTeamId,
+      createdByRole: this.isAdmin() ? "admin" : "leader",
       createdAt,
+      syncError: null,
     };
 
     // 1. Optimistic Update (< 5ms): Thêm vào local state ngay lập tức!
@@ -1430,13 +1600,19 @@ class ScoreStore {
             label: event.label,
             note: event.note,
             by_team_id: event.byTeamId,
+            by_role: event.createdByRole,
             created_at: event.createdAt,
           }),
         });
 
         if (!res.ok) {
           const text = await res.text().catch(() => "");
-          throw new Error(text.slice(0, 160) || "Lỗi máy chủ Supabase khi lưu điểm.");
+          const detail = text.slice(0, 160);
+          const message =
+            res.status === 401
+              ? "Supabase từ chối xác thực (401). Hãy kiểm tra SUPABASE_URL và SUPABASE_ANON_KEY trong js/config.js có thuộc cùng một dự án Supabase không."
+              : `Supabase không lưu được điểm (HTTP ${res.status})${detail ? `: ${detail}` : ""}`;
+          throw new Error(message);
         }
 
         const rows = await res.json();
@@ -1444,8 +1620,12 @@ class ScoreStore {
         if (saved && saved.id) {
           event.id = String(saved.id);
         }
+        event.syncError = null;
       } catch (err) {
-        console.warn("Ghi Supabase thất bại, giữ lại trong cache local:", err);
+        event.syncError =
+          err instanceof Error ? err.message : "Không xác định được lỗi khi đồng bộ Supabase.";
+        this._saveToLocal();
+        console.warn("Ghi Supabase thất bại; sự kiện hiện chỉ được lưu trên thiết bị:", err);
       }
     }
 
@@ -1499,7 +1679,7 @@ class ScoreStore {
     this._emit();
 
     // 2. Gửi xóa lên Supabase
-    if (this.mode === "live") {
+    if (this.mode === "live" && !event.syncError) {
       try {
         await fetchWithTimeout(
           `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(eventId)}`,
@@ -1573,7 +1753,6 @@ const state = {
   scoringMultiplier: 1,
   scoringTeamFilter: "my", // my | all | to1 | to2 | to3 | to4
   profileMemberId: "to1-05", // Mặc định Đinh Quang Vinh
-  profileTeamFilter: "all", // all | to1 | to2 | to3 | to4
   profileFilter: "all", // all | minus | plus
   sessionLog: [], // Các lượt chấm trong phiên làm việc
 };
@@ -1607,6 +1786,35 @@ function getInitials(name) {
   if (!parts.length) return "HS";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => {
+    const entities = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[char];
+  });
+}
+
+function renderMemberName(member, nameClass = "") {
+  const adminBadge = ADMIN_MEMBER_IDS.includes(member.id)
+    ? `<span class="member-admin-badge" title="Admin lớp"><span class="material-symbols-outlined">admin_panel_settings</span><span>ADMIN</span></span>`
+    : "";
+
+  return `<span class="member-name-display">${adminBadge}<span class="${nameClass}">${member.name}</span></span>`;
+}
+
+function getRankLabel(item) {
+  return item.isTied ? `Đồng hạng ${item.rank}` : `Hạng ${item.rank}`;
+}
+
+function getRankMedal(rank) {
+  return rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`;
 }
 
 function formatRelativeTime(timestamp) {
@@ -1700,24 +1908,22 @@ function renderLeaderboard() {
     lockText.textContent = "Đang mở";
   }
 
-  // 2. Quick Snapshot (Xử lý đồng hạng)
+  // 2. Quick Snapshot
   const teamRanks = store.getTeamRankings();
   const leaderTeam = teamRanks[0] || { name: "Tổ 1", total: 400, rawTotal: 400 };
 
   $("#snapshot-main-title").textContent = `Tuần ${curNum}`;
   $("#snapshot-sub-title").textContent = `• ${weekRangeLabel(currentWeek)}`;
 
-  if (teamRanks.allEqual) {
-    $("#snapshot-rank-lead").textContent = "Cả 4 Tổ Đồng Hạng 1";
-    $("#snapshot-note").textContent = `Mỗi tổ đang có ${isLocked ? leaderTeam.rawTotal : leaderTeam.total} điểm`;
-  } else if (teamRanks.length > 1 && teamRanks[0].rank === teamRanks[1].rank) {
-    const tiedTops = teamRanks.filter((t) => t.rank === 1).map((t) => t.name).join(" & ");
-    $("#snapshot-rank-lead").textContent = `Đồng Quán Quân: ${tiedTops}`;
-    $("#snapshot-note").textContent = "Các tổ đang chia sẻ ngôi đầu";
-  } else {
-    $("#snapshot-rank-lead").textContent = `${leaderTeam.name} Dẫn đầu`;
-    $("#snapshot-note").textContent = "4 Tổ đang bám đuổi quyết liệt";
-  }
+  const tiedLeaders = teamRanks.filter((team) => team.rank === 1);
+  $("#snapshot-rank-lead").textContent =
+    tiedLeaders.length > 1
+      ? `Đồng hạng 1 • ${tiedLeaders.length} tổ`
+      : `${leaderTeam.name} Dẫn đầu`;
+  $("#snapshot-note").textContent =
+    tiedLeaders.length > 1
+      ? "Các tổ cùng điểm được đồng hạng; mỗi tổ hiển thị riêng"
+      : "Nếu bằng điểm, giữ đồng hạng và xếp tên A–Z";
 
   $("#snapshot-top-score").textContent = isLocked ? leaderTeam.rawTotal : leaderTeam.total;
 
@@ -1726,107 +1932,61 @@ function renderLeaderboard() {
   const netDelta = plusTotal + minusTotal;
   $("#snapshot-delta").textContent = `${formatPoints(netDelta)} điểm`;
 
-  // 3. Week Carousel Pills
-  const weekCarousel = $("#week-carousel");
+  // 3. Week selector: keeps every competition week reachable on mobile.
+  const weekSelector = $("#week-selector");
   const allWeekIds = competitionWeekIds();
   const through = studiedThroughWeek();
 
-  weekCarousel.innerHTML = allWeekIds
+  weekSelector.innerHTML = allWeekIds
     .map((wId) => {
       const n = weekNumber(wId);
       const isSelected = wId === currentWeek;
       const isCurStudied = n === through;
       const wLocked = store.isWeekLocked(wId);
+      const suffix = [
+        isCurStudied ? "Hiện tại" : "",
+        wLocked ? "Đã khóa" : "",
+      ].filter(Boolean).join(" • ");
+      const label = `Tuần ${n}${suffix ? ` (${suffix})` : ""}`;
 
-      let classes =
-        "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap active:scale-95 transition-all flex items-center gap-1 shrink-0 ";
-
-      if (isSelected) {
-        classes += "bg-primary text-on-primary shadow-xs font-bold";
-      } else if (wLocked) {
-        classes += "bg-surface-container text-outline line-through";
-      } else if (isCurStudied) {
-        classes += "bg-primary-fixed text-primary font-bold";
-      } else {
-        classes += "bg-surface-container text-on-surface-variant";
-      }
-
-      const pingDot =
-        isCurStudied && !isSelected
-          ? `<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-ping"></span>`
-          : "";
-
-      const label = `Tuần ${n}${isCurStudied ? " (Hiện tại)" : ""}${wLocked ? " 🔒" : ""}`;
-
-      return `<button type="button" class="${classes}" data-week="${wId}">
-        ${pingDot}
-        <span>${label}</span>
-      </button>`;
+      return `<option value="${wId}" ${isSelected ? "selected" : ""}>${label}</option>`;
     })
     .join("");
 
-  // Bắt sự kiện chọn tuần
-  $$("#week-carousel button").forEach((btn) => {
-    btn.onclick = () => {
-      store.setWeek(btn.dataset.week);
-    };
-  });
-
-  // 4. Podium Top Teams (Xử lý đồng hạng)
+  // 4. Podium chỉ dùng khi ba vị trí đầu không bị chia sẻ do đồng điểm.
   const podiumGrid = $("#podium-grid");
-  if (teamRanks.length >= 3 && state.currentBoard === "teams") {
+  const podiumHasTie = teamRanks.some(
+    (team) =>
+      team.rank <= 3 &&
+      teamRanks.some((other) => other.id !== team.id && other.rank === team.rank)
+  );
+  if (teamRanks.length >= 3 && state.currentBoard === "teams" && !podiumHasTie) {
     $("#podium-section").classList.remove("hidden");
 
-    if (teamRanks.allEqual) {
-      // Trường hợp cả 4 tổ bằng điểm nhau
-      podiumGrid.className = "grid grid-cols-2 sm:grid-cols-4 gap-2 items-stretch pt-2";
-      podiumGrid.innerHTML = teamRanks
-        .map((t) => `
-          <div class="flex flex-col items-center cursor-pointer active:scale-95 transition-transform bg-surface-container-lowest rounded-2xl p-3 shadow-xs border-t-4 border-amber-400 text-center justify-between gap-2" data-podium-team="${t.id}">
-            <div class="relative">
-              <span class="material-symbols-outlined text-[20px] text-amber-500 absolute -top-4 left-1/2 -translate-x-1/2" style="font-variation-settings: 'FILL' 1;">crown</span>
-              <div class="w-11 h-11 rounded-2xl bg-primary flex items-center justify-center text-on-primary font-heading font-bold text-sm shadow-sm">
-                ${t.name.replace("Tổ ", "T")}
-              </div>
-              <span class="absolute -top-1.5 -right-1 w-5 h-5 rounded-full bg-amber-400 text-stone-900 flex items-center justify-center text-[10px] font-bold shadow-xs">1</span>
-            </div>
-            <div>
-              <span class="font-heading font-bold text-xs text-on-surface block truncate">${t.name}</span>
-              <span class="text-[10px] text-secondary font-bold tabular-nums">${formatPoints(t.plusPoints - Math.abs(t.minusPoints))} đ</span>
-            </div>
-            <div class="w-full bg-primary-fixed/50 rounded-lg py-1 px-1">
-              <span class="font-heading font-bold text-sm text-primary block tabular-nums">${isLocked ? t.rawTotal : t.total}</span>
-              <span class="text-[9px] text-primary font-bold uppercase">Đồng Hạng 1</span>
-            </div>
-          </div>
-        `)
-        .join("");
-    } else {
-      podiumGrid.className = "grid grid-cols-3 gap-2 items-end pt-5";
-      const t1 = teamRanks[0];
-      const t2 = teamRanks[1];
-      const t3 = teamRanks[2];
+    podiumGrid.className = "grid grid-cols-3 gap-2 items-end pt-5";
+    const t1 = teamRanks[0];
+    const t2 = teamRanks[1];
+    const t3 = teamRanks[2];
 
-      const getBadgeLabel = (t) => {
-        if (t.rank === 1) return t.isTied ? "Đồng Quán Quân" : "Quán Quân";
-        if (t.rank === 2) return t.isTied ? "Đồng Hạng Nhì" : "Hạng Nhì";
-        if (t.rank === 3) return t.isTied ? "Đồng Hạng Ba" : "Hạng Ba";
-        return `Hạng ${t.rank}`;
-      };
+    const getBadgeLabel = (t) => {
+      if (t.rank === 1) return "Quán Quân";
+      if (t.rank === 2) return "Hạng Nhì";
+      if (t.rank === 3) return "Hạng Ba";
+      return `Hạng ${t.rank}`;
+    };
 
-      const t1Border = t1.rank === 1 ? "border-amber-400" : "border-slate-300";
-      const t2Border = t2.rank === 1 ? "border-amber-400" : t2.rank === 2 ? "border-slate-300" : "border-amber-600";
-      const t3Border = t3.rank === 2 ? "border-slate-300" : "border-amber-600";
+    const t1Border = "border-amber-400";
+    const t2Border = "border-slate-300";
+    const t3Border = "border-amber-600";
 
-      podiumGrid.innerHTML = `
-        <!-- Hạng 2 (hoặc Đồng Quán Quân) -->
+    podiumGrid.innerHTML = `
+        <!-- Hạng 2 -->
         <div class="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" data-podium-team="${t2.id}">
           <div class="relative mb-2">
-            ${t2.rank === 1 ? `<span class="material-symbols-outlined text-[20px] text-amber-500 absolute -top-4 left-1/2 -translate-x-1/2" style="font-variation-settings: 'FILL' 1;">crown</span>` : ""}
-            <div class="w-11 h-11 rounded-2xl ${t2.rank === 1 ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface"} flex items-center justify-center font-heading font-bold text-sm shadow-xs">
+            <div class="w-11 h-11 rounded-2xl bg-surface-container-high text-on-surface flex items-center justify-center font-heading font-bold text-sm shadow-xs">
               ${t2.name.replace("Tổ ", "T")}
             </div>
-            <span class="absolute -top-1.5 -right-1 w-5 h-5 rounded-full ${t2.rank === 1 ? "bg-amber-400 text-stone-900" : "bg-slate-300 text-slate-800"} flex items-center justify-center text-[10px] font-bold shadow-xs">${t2.rank}</span>
+            <span class="absolute -top-1.5 -right-1 w-5 h-5 rounded-full bg-slate-300 text-slate-800 flex items-center justify-center text-[10px] font-bold shadow-xs">${t2.rank}</span>
           </div>
           <div class="w-full bg-surface-container-lowest rounded-t-2xl p-2.5 flex flex-col items-center text-center shadow-xs h-28 justify-between border-t-2 ${t2Border}">
             <div>
@@ -1861,13 +2021,13 @@ function renderLeaderboard() {
           </div>
         </div>
 
-        <!-- Hạng 3 (hoặc Đồng Hạng Nhì / Đồng Hạng Ba) -->
+        <!-- Hạng 3 -->
         <div class="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" data-podium-team="${t3.id}">
           <div class="relative mb-2">
             <div class="w-11 h-11 rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface font-heading font-bold text-sm shadow-xs">
               ${t3.name.replace("Tổ ", "T")}
             </div>
-            <span class="absolute -top-1.5 -right-1 w-5 h-5 rounded-full ${t3.rank === 2 ? "bg-slate-300 text-slate-800" : "bg-amber-700 text-white"} flex items-center justify-center text-[10px] font-bold shadow-xs">${t3.rank}</span>
+            <span class="absolute -top-1.5 -right-1 w-5 h-5 rounded-full bg-amber-700 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">${t3.rank}</span>
           </div>
           <div class="w-full bg-surface-container-lowest rounded-t-2xl p-2.5 flex flex-col items-center text-center shadow-xs h-24 justify-between border-t-2 ${t3Border}">
             <div>
@@ -1880,8 +2040,7 @@ function renderLeaderboard() {
             </div>
           </div>
         </div>
-      `;
-    }
+    `;
 
     $$("[data-podium-team]").forEach((el) => {
       el.onclick = () => openTeamDetailModal(el.dataset.podiumTeam);
@@ -1894,6 +2053,7 @@ function renderLeaderboard() {
   renderRankingsList(teamRanks);
 
   // 6. Realtime Activity Feed
+  $("#activity-feed-card")?.classList.toggle("hidden", state.currentBoard === "history");
   renderRealtimeFeed();
 }
 
@@ -1904,25 +2064,24 @@ function renderRankingsList(teamRanks) {
   if (state.currentBoard === "teams") {
     container.innerHTML = teamRanks
       .map((t) => {
-        const medal = t.rank === 1 ? "🥇" : t.rank === 2 ? "🥈" : t.rank === 3 ? "🥉" : `#${t.rank}`;
+        const medal = getRankMedal(t.rank);
         const score = isLocked ? t.rawTotal : t.total;
-        const tieBadge = t.isTied
-          ? `<span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 text-[10px] font-bold border border-amber-500/20">Đồng hạng ${t.rank}</span>`
-          : `<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[10px] font-semibold">Hạng ${t.rank}</span>`;
+        const rankBadge = `<span class="px-2 py-0.5 rounded-full ${t.isTied ? "bg-amber-500/10 text-amber-700" : "bg-surface-container text-on-surface-variant"} text-[10px] font-semibold">${getRankLabel(t)}</span>`;
+        const rankClass = `rank-${Math.min(t.rank, 4)}`;
 
         return `
-          <div class="bg-surface-container-lowest rounded-2xl p-3.5 shadow-xs border border-surface-container/70 flex flex-col gap-2.5 transition-all">
+          <div class="ranking-team-card ${rankClass} bg-surface-container-lowest rounded-2xl p-3.5 shadow-xs border border-surface-container/70 flex flex-col gap-2.5 transition-all">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <span class="w-8 h-8 rounded-xl bg-surface-container-low flex items-center justify-center font-heading font-bold text-sm text-on-surface">
+                <span class="ranking-rank-medal w-9 h-9 rounded-xl bg-surface-container-low flex items-center justify-center font-heading font-bold text-sm text-on-surface">
                   ${medal}
                 </span>
                 <div class="flex flex-col">
                   <div class="flex items-center gap-1.5">
                     <span class="font-heading font-bold text-sm text-on-surface">${t.name}</span>
-                    ${tieBadge}
+                    ${rankBadge}
                   </div>
-                  <span class="text-[11px] text-on-surface-variant">Tổ trưởng: ${t.leaderName} • ${t.memberCount} học sinh</span>
+                  <span class="text-[11px] text-on-surface-variant">Tổ trưởng: ${t.leaderName || "Chưa cập nhật"} • ${t.memberCount} học sinh</span>
                 </div>
               </div>
               <div class="text-right">
@@ -1951,22 +2110,20 @@ function renderRankingsList(teamRanks) {
       btn.onclick = () => openTeamDetailModal(btn.dataset.teamId);
     });
   } else if (state.currentBoard === "year") {
-    // Cá nhân cả năm (Có xử lý đồng hạng)
+    // Cá nhân cả năm: bằng điểm được đồng hạng; tên chỉ quyết định thứ tự hiển thị.
     const yearRanks = store.getYearRankings();
     container.innerHTML = yearRanks
       .map((m) => {
-        const medal = m.rank === 1 ? "🥇" : m.rank === 2 ? "🥈" : m.rank === 3 ? "🥉" : `#${m.rank}`;
-        const tieBadge = m.isTied
-          ? `<span class="px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 text-[9px] font-bold">Đồng hạng ${m.rank}</span>`
-          : "";
+        const medal = getRankMedal(m.rank);
+        const rankBadge = `<span class="px-1.5 py-0.5 rounded-full ${m.isTied ? "bg-amber-500/10 text-amber-700" : "bg-surface-container text-on-surface-variant"} text-[9px] font-semibold">${getRankLabel(m)}</span>`;
         return `
-          <div class="bg-surface-container-lowest rounded-xl p-3 shadow-xs flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors" data-view-member="${m.id}">
+          <div class="ranking-member-card rank-${Math.min(m.rank, 3)} bg-surface-container-lowest rounded-xl p-3 shadow-xs flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors" data-view-member="${m.id}">
             <div class="flex items-center gap-2.5 min-w-0">
               <span class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center font-heading font-bold text-xs shrink-0">${medal}</span>
               <div class="flex flex-col min-w-0">
                 <div class="flex items-center gap-1.5">
-                  <span class="font-heading font-bold text-xs text-on-surface truncate">${m.name}</span>
-                  ${tieBadge}
+                  ${renderMemberName(m, "font-heading font-bold text-xs text-on-surface truncate")}
+                  ${rankBadge}
                 </div>
                 <span class="text-[10px] text-on-surface-variant">${m.teamName} • ${m.id}</span>
               </div>
@@ -1988,12 +2145,13 @@ function renderRankingsList(teamRanks) {
       container.innerHTML = `<div class="bg-surface-container-lowest p-6 rounded-2xl text-center text-xs text-outline">Không có học sinh nào bị trừ điểm!</div>`;
     } else {
       container.innerHTML = violRanks
-        .map((m, idx) => `
-          <div class="bg-surface-container-lowest rounded-xl p-3 shadow-xs flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors" data-view-member="${m.id}">
+        .map((m) => `
+          <div class="ranking-member-card ranking-member-violation bg-surface-container-lowest rounded-xl p-3 shadow-xs flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors" data-view-member="${m.id}">
             <div class="flex items-center gap-2.5 min-w-0">
-              <span class="w-7 h-7 rounded-lg bg-error-container text-error flex items-center justify-center font-heading font-bold text-xs shrink-0">#${idx + 1}</span>
+              <span class="w-7 h-7 rounded-lg bg-error-container text-error flex items-center justify-center font-heading font-bold text-xs shrink-0">${getRankMedal(m.rank)}</span>
               <div class="flex flex-col min-w-0">
-                <span class="font-heading font-bold text-xs text-on-surface truncate">${m.name}</span>
+                ${renderMemberName(m, "font-heading font-bold text-xs text-on-surface truncate")}
+                ${m.isTied ? `<span class="text-[9px] font-semibold text-amber-700">Đồng hạng ${m.rank}</span>` : ""}
                 <span class="text-[10px] text-on-surface-variant">${m.teamName}</span>
               </div>
             </div>
@@ -2010,12 +2168,13 @@ function renderRankingsList(teamRanks) {
     // Điểm cộng nhiều nhất
     const bonusRanks = store.getBonusRankings();
     container.innerHTML = bonusRanks
-      .map((m, idx) => `
-        <div class="bg-surface-container-lowest rounded-xl p-3 shadow-xs flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors" data-view-member="${m.id}">
+      .map((m) => `
+        <div class="ranking-member-card ranking-member-bonus bg-surface-container-lowest rounded-xl p-3 shadow-xs flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors" data-view-member="${m.id}">
           <div class="flex items-center gap-2.5 min-w-0">
-            <span class="w-7 h-7 rounded-lg bg-secondary-container text-on-secondary-container flex items-center justify-center font-heading font-bold text-xs shrink-0">#${idx + 1}</span>
+            <span class="w-7 h-7 rounded-lg bg-secondary-container text-on-secondary-container flex items-center justify-center font-heading font-bold text-xs shrink-0">${getRankMedal(m.rank)}</span>
             <div class="flex flex-col min-w-0">
-              <span class="font-heading font-bold text-xs text-on-surface truncate">${m.name}</span>
+              ${renderMemberName(m, "font-heading font-bold text-xs text-on-surface truncate")}
+              ${m.isTied ? `<span class="text-[9px] font-semibold text-amber-700">Đồng hạng ${m.rank}</span>` : ""}
               <span class="text-[10px] text-on-surface-variant">${m.teamName}</span>
             </div>
           </div>
@@ -2027,13 +2186,85 @@ function renderRankingsList(teamRanks) {
       `)
       .join("");
     bindMemberClickEvents(container);
+  } else if (state.currentBoard === "history") {
+    renderViolationHistory(container);
   }
+}
+
+function renderViolationHistory(container) {
+  const teams = store.getViolationHistoryByTeam();
+  const teamSections = teams
+    .map((team) => {
+      const memberRows = team.members.length
+        ? team.members
+            .map(
+              (member) => `
+                <article class="history-member-card">
+                  <div class="flex items-center justify-between gap-2">
+                    <button type="button" class="history-member-link min-w-0 text-left" data-view-member="${member.id}">
+                      ${renderMemberName(member, "font-heading font-bold text-xs text-error truncate")}
+                    </button>
+                    <span class="history-count shrink-0">${member.events.length} lượt • ${member.points}đ</span>
+                  </div>
+                  <details class="history-details">
+                    <summary>Xem toàn bộ vi phạm</summary>
+                    <ul class="mt-2 space-y-1.5">
+                      ${member.events
+                        .map(
+                          (event) => `
+                            <li class="flex items-start justify-between gap-2">
+                              <span class="min-w-0">${escapeHtml(event.label)}${event.note ? `<span class="block text-[10px] text-on-surface-variant">${escapeHtml(event.note)}</span>` : ""}<span class="block text-[10px] text-outline">Tuần ${event.weekNumber}</span></span>
+                              <span class="shrink-0 font-bold tabular-nums ${event.points < 0 ? "text-error" : "text-on-surface-variant"}">${formatPoints(event.points)}đ</span>
+                            </li>
+                          `
+                        )
+                        .join("")}
+                    </ul>
+                  </details>
+                </article>
+              `
+            )
+            .join("")
+        : `<p class="rounded-xl bg-surface-container-low p-3 text-xs text-on-surface-variant">Chưa có lượt vi phạm được ghi nhận.</p>`;
+
+      return `
+        <section class="history-team-card">
+          <header class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="history-team-icon material-symbols-outlined">groups</span>
+              <h3 class="font-heading font-bold text-sm text-white">${team.name}</h3>
+            </div>
+            <span class="text-[10px] font-semibold text-white/85">${team.members.length} học sinh vi phạm • ${team.eventCount} lượt</span>
+          </header>
+          <div class="mt-2 space-y-2">${memberRows}</div>
+        </section>
+      `;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <div class="history-backdrop">
+      <div class="history-intro">
+        <span class="material-symbols-outlined">history_edu</span>
+        <div>
+          <h2 class="font-heading font-bold text-base">Tiền Án Tiền Sự</h2>
+          <p class="text-xs opacity-80">Toàn bộ lượt vi phạm, nhóm theo tổ tại thời điểm ghi nhận.</p>
+        </div>
+      </div>
+      <div class="history-team-list">${teamSections}</div>
+    </div>
+  `;
+  bindMemberClickEvents(container);
 }
 
 function bindMemberClickEvents(root) {
   $$("[data-view-member]", root).forEach((el) => {
     el.onclick = () => {
+      closeTeamDetailModal();
       state.profileMemberId = el.dataset.viewMember;
+      const searchInput = $("#profile-search-input");
+      if (searchInput) searchInput.value = "";
+      $("#btn-clear-profile-search")?.classList.add("hidden");
       switchView("profile");
     };
   });
@@ -2041,7 +2272,9 @@ function bindMemberClickEvents(root) {
 
 function renderRealtimeFeed() {
   const feed = $("#realtime-activity-feed");
-  const recentEvents = store.allEvents.slice(0, 5);
+  const recentEvents = store.allEvents
+    .filter((event) => event.createdByRole !== "admin")
+    .slice(0, 5);
 
   if (!recentEvents.length) {
     feed.innerHTML = `<p class="text-xs text-outline text-center py-2">Chưa có ghi nhận nào trong tuần này.</p>`;
@@ -2431,7 +2664,17 @@ async function handleScoreSubmit() {
     if (saved && saved.length > 0) {
       // Thêm vào session log để cho phép xóa trong 15p
       state.sessionLog = [...saved, ...state.sessionLog];
-      showToast(`Đã ghi thành công cho ${saved.length} học sinh!`, "check_circle");
+      const failedSyncs = saved.filter((event) => event.syncError);
+      if (failedSyncs.length) {
+        showToast(`${failedSyncs.length} lượt chưa đồng bộ`, "cloud_off");
+        alert(
+          `Đã ghi ${saved.length} lượt vào bộ nhớ trên thiết bị, nhưng ${failedSyncs.length} lượt chưa đồng bộ lên Supabase.\n\n${failedSyncs[0].syncError}\n\nDữ liệu này chưa được chia sẻ với thiết bị khác.`
+        );
+      } else if (store.mode === "live") {
+        showToast(`Đã ghi và đồng bộ cho ${saved.length} học sinh!`, "check_circle");
+      } else {
+        showToast(`Đã lưu trên thiết bị cho ${saved.length} học sinh (ngoại tuyến).`, "cloud_off");
+      }
 
       // Reset form
       state.selectedStudentIds.clear();
@@ -2514,34 +2757,25 @@ function renderSessionLog() {
 // ===========================================================================
 function getFilteredProfileStudents() {
   const query = toNonAccentVietnamese($("#profile-search-input")?.value || "");
-  const team = state.profileTeamFilter || "all";
-  let list = [];
-  if (team === "all") {
-    list = TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, teamId: t.id })));
-  } else {
-    const t = TEAM_BY_ID[team];
-    list = t ? t.members.map((m) => ({ ...m, teamId: t.id })) : [];
-  }
-
-  if (query) {
-    list = list.filter(
-      (m) => toNonAccentVietnamese(m.name).includes(query) || m.id.toLowerCase().includes(query)
-    );
-  }
-  return list;
+  return TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, teamId: t.id }))).filter(
+    (m) => toNonAccentVietnamese(m.name).includes(query) || m.id.toLowerCase().includes(query)
+  );
 }
 
 function renderProfileStudentPicker() {
   const listEl = $("#profile-students-quick-list");
   if (!listEl) return;
-  const filtered = getFilteredProfileStudents();
-  const countEl = $("#profile-match-count");
-  if (countEl) {
-    countEl.textContent = `${filtered.length} học sinh`;
+  const query = toNonAccentVietnamese($("#profile-search-input")?.value || "");
+  listEl.classList.toggle("hidden", !query);
+  if (!query) {
+    listEl.innerHTML = "";
+    return;
   }
 
+  const filtered = getFilteredProfileStudents();
+
   if (!filtered.length) {
-    listEl.innerHTML = `<span class="text-xs text-outline py-2 px-3 italic">Không tìm thấy học sinh nào phù hợp.</span>`;
+    listEl.innerHTML = `<span class="text-xs text-outline py-2 px-1 italic">Không tìm thấy học sinh nào phù hợp.</span>`;
     return;
   }
 
@@ -2553,9 +2787,9 @@ function renderProfileStudentPicker() {
         : "bg-surface-container-low text-on-surface hover:bg-surface-container";
 
       return `
-        <button type="button" class="profile-student-btn px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${bgClass}" data-member-id="${m.id}">
+        <button type="button" role="option" aria-selected="${isSelected}" class="profile-student-btn px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${bgClass}" data-member-id="${m.id}">
           <span class="w-5 h-5 rounded-md ${isSelected ? "bg-white/20 text-white" : "bg-primary-fixed text-primary"} flex items-center justify-center text-[10px] font-bold">${getInitials(m.name)}</span>
-          <span>${m.name}</span>
+          ${renderMemberName(m, "font-semibold")}
         </button>
       `;
     })
@@ -2564,6 +2798,9 @@ function renderProfileStudentPicker() {
   $$(".profile-student-btn", listEl).forEach((btn) => {
     btn.onclick = () => {
       state.profileMemberId = btn.dataset.memberId;
+      const searchInput = $("#profile-search-input");
+      if (searchInput) searchInput.value = "";
+      $("#btn-clear-profile-search")?.classList.add("hidden");
       renderProfileView();
     };
   });
@@ -2581,11 +2818,24 @@ function renderProfileView() {
   }
   if (!profile) return;
 
-  const { member, currentWeekPoints, yearTotal, avgScore, classRank, totalStudents, diffFromLastWeek, weekEvents, allEvents } = profile;
+  const {
+    member,
+    currentWeekPoints,
+    yearTotal,
+    avgScore,
+    classRank,
+    isClassRankTied,
+    diffFromLastWeek,
+    weekEvents,
+    allEvents,
+  } = profile;
 
   // 1. Hero Card
   $("#profile-hero-avatar").textContent = getInitials(member.name);
-  $("#profile-hero-name").textContent = member.name;
+  $("#profile-hero-name").innerHTML = renderMemberName(
+    member,
+    "font-heading font-bold text-base text-on-surface truncate"
+  );
   $("#profile-hero-team").textContent = TEAM_BY_ID[member.teamId]?.name || member.teamId;
   $("#profile-hero-id").textContent = member.id;
 
@@ -2604,7 +2854,7 @@ function renderProfileView() {
   }
 
   $("#profile-rank-badge").textContent = `#${classRank}`;
-  $("#profile-rank-sub").textContent = `Tuần ${weekNumber(store.weekId)}`;
+  $("#profile-rank-sub").textContent = `${isClassRankTied ? "Đồng hạng • " : ""}Tuần ${weekNumber(store.weekId)}`;
   $("#profile-week-points").textContent = currentWeekPoints;
   $("#profile-year-points").textContent = yearTotal;
 
@@ -2767,14 +3017,17 @@ function renderAdminPanel() {
   // 3. Tiến độ thi đua 4 tổ
   const progressList = $("#admin-teams-progress");
   const teamRanks = store.getTeamRankings();
+  const displayScore = (team) =>
+    store.isWeekLocked(store.weekId) ? team.rawTotal : team.total;
   progressList.innerHTML = teamRanks
     .map((t) => {
-      const pct = Math.min(100, Math.max(30, Math.round((t.total / 500) * 100)));
+      const score = displayScore(t);
+      const pct = Math.min(100, Math.max(30, Math.round((score / 500) * 100)));
       return `
         <div class="flex flex-col gap-1 text-xs">
           <div class="flex items-center justify-between">
-            <span class="font-heading font-bold text-on-surface">${t.name} (${t.leaderName})</span>
-            <span class="font-heading font-bold text-primary tabular-nums">${t.total} đ</span>
+            <span class="font-heading font-bold text-on-surface">${t.name} • ${getRankLabel(t)}</span>
+            <span class="font-heading font-bold text-primary tabular-nums">${score} đ</span>
           </div>
           <div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
             <div class="bg-primary h-full rounded-full transition-all duration-300" style="width: ${pct}%;"></div>
@@ -2794,19 +3047,35 @@ function openTeamDetailModal(teamId) {
 
   const modal = $("#modal-team-detail");
   $("#team-modal-badge").textContent = team.id.replace("to", "T");
-  $("#team-modal-title").textContent = `Chi Tiết ${team.name} • Lớp 11A1`;
+  $("#team-modal-title").textContent = `Chi Tiết ${team.name} • Tuần ${weekNumber(store.weekId)}`;
 
   const membersList = $("#team-modal-members-list");
+  const weekActivity = new Map(
+    store
+      .getTeamMemberWeekActivity(teamId)
+      .map((member) => [member.id, member])
+  );
   const sortedMembers = store.getTeamMembersSorted(teamId);
 
   membersList.innerHTML = sortedMembers
-    .map((m, idx) => {
-      const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`;
+    .map((m) => {
+      const medal = getRankMedal(m.rank);
+      const activity = weekActivity.get(m.id);
+      const activityDetails = activity?.violationGroups.length
+        ? activity.violationGroups
+            .map((group) => `${group.label}${group.count > 1 ? ` ×${group.count}` : ""}`)
+            .join(" • ")
+        : "Không có vi phạm tuần này";
       return `
         <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer" data-view-member="${m.id}">
           <div class="flex items-center gap-2.5 min-w-0">
             <span class="w-6 h-6 rounded-md bg-surface-container-high flex items-center justify-center font-heading font-bold text-xs shrink-0">${medal}</span>
-            <span class="font-heading font-bold text-xs text-on-surface truncate">${m.name}</span>
+            <div class="flex flex-col min-w-0">
+              ${renderMemberName(m, "font-heading font-bold text-xs text-on-surface truncate")}
+              ${m.isTied ? `<span class="text-[9px] font-semibold text-amber-700">Đồng hạng ${m.rank}</span>` : ""}
+              <span class="text-[10px] ${activity?.violationCount ? "text-error" : "text-on-surface-variant"}">${activity?.violationCount || 0} lần vi phạm • ${activity?.bonusCount || 0} lần được cộng điểm</span>
+              <span class="text-[10px] text-on-surface-variant">${activityDetails}</span>
+            </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <span class="font-heading font-bold text-xs text-primary tabular-nums">${m.points} đ</span>
@@ -2820,6 +3089,12 @@ function openTeamDetailModal(teamId) {
   bindMemberClickEvents(membersList);
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+}
+
+function closeTeamDetailModal() {
+  const modal = $("#modal-team-detail");
+  modal?.classList.add("hidden");
+  modal?.classList.remove("flex");
 }
 
 function openRulesCatalogModal() {
@@ -2890,14 +3165,19 @@ function setupEventListeners() {
     btn.onclick = () => {
       state.currentBoard = btn.dataset.board;
       $$("#board-tabs .board-tab").forEach((b) => {
-        b.className =
-          b.dataset.board === state.currentBoard
-            ? "board-tab flex-1 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-lowest text-primary shadow-xs transition-all text-center"
-            : "board-tab flex-1 py-1.5 text-xs font-semibold rounded-lg text-on-surface-variant transition-all text-center";
+        const isActive = b.dataset.board === state.currentBoard;
+        b.classList.toggle("bg-surface-container-lowest", isActive);
+        b.classList.toggle("text-primary", isActive);
+        b.classList.toggle("shadow-xs", isActive);
+        b.classList.toggle("text-on-surface-variant", !isActive);
       });
       renderLeaderboard();
     };
   });
+
+  $("#week-selector").onchange = (event) => {
+    store.setWeek(event.currentTarget.value);
+  };
 
   // 3. User Avatar Top Right
   $("#btn-user-profile").onclick = () => {
@@ -2997,19 +3277,6 @@ function setupEventListeners() {
     };
   }
 
-  $$("#profile-team-chips .prof-team-chip").forEach((btn) => {
-    btn.onclick = () => {
-      state.profileTeamFilter = btn.dataset.team;
-      $$("#profile-team-chips .prof-team-chip").forEach((b) => {
-        b.className =
-          b.dataset.team === state.profileTeamFilter
-            ? "prof-team-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 bg-primary text-on-primary shadow-xs"
-            : "prof-team-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 bg-surface-container-low text-on-surface-variant";
-      });
-      renderProfileStudentPicker();
-    };
-  });
-
   // 8. Scoring: Stepper Multiplier
   $("#btn-multiplier-plus").onclick = () => {
     if (state.scoringMultiplier < 10) state.scoringMultiplier++;
@@ -3041,10 +3308,7 @@ function setupEventListeners() {
   };
 
   // 12. Team Detail Modal Close
-  $("#btn-close-team-modal").onclick = () => {
-    $("#modal-team-detail").classList.add("hidden");
-    $("#modal-team-detail").classList.remove("flex");
-  };
+  $("#btn-close-team-modal").onclick = closeTeamDetailModal;
 
   // 13. Profile Filter Buttons
   $$(".prof-filter-btn").forEach((btn) => {
@@ -3206,6 +3470,9 @@ async function initApp() {
     else rolePill.textContent = "Khách";
 
     renderLeaderboard();
+    if (state.currentView === "scoring") renderScoringWorkspace();
+    else if (state.currentView === "profile") renderProfileView();
+    else if (state.currentView === "admin") renderAdminPanel();
   });
 
   // Tải dữ liệu và kích hoạt WebSocket

@@ -30,61 +30,59 @@ export const TEAMS = [
   {
     id: "to1",
     name: "Tổ 1",
-    leaderName: "Nguyễn Phúc Thịnh",
     members: [
       { id: "to1-01", name: "Nguyễn Lâm Gia" },
       { id: "to1-02", name: "Nguyễn Đỗ Phúc Nguyên" },
-      { id: "to1-03", name: "Nguyễn Phúc Thịnh" },
+      { id: "to1-03", name: "Đinh Quang Vinh" },
       { id: "to1-04", name: "Lê Minh Toàn A" },
-      { id: "to1-05", name: "Đinh Quang Vinh" },
-      { id: "to1-06", name: "Trần Anh Kiệt" },
-      { id: "to1-07", name: "Lê Hoàng Phúc" },
-      { id: "to1-08", name: "Phạm Gia Hưng" },
-      { id: "to1-09", name: "Võ Minh Trí" },
-      { id: "to1-10", name: "Hoàng Nhật Nam" },
-      { id: "to1-11", name: "Đỗ Quốc Bảo" },
+      { id: "to1-05", name: "Lê Thị Diễm Thanh" },
+      { id: "to1-06", name: "Huỳnh Thị Kiều An" },
+      { id: "to1-07", name: "Chung Võ Ái Linh" },
+      { id: "to1-08", name: "Đỗ Ngọc Yến Nhi" },
+      { id: "to1-09", name: "Nguyễn Thị Yến Ngọc" },
+      { id: "to1-10", name: "Huỳnh Gia Hào" },
+      { id: "to1-11", name: "Nguyễn Phúc Thịnh" }
+
     ],
   },
   {
     id: "to2",
     name: "Tổ 2",
-    leaderName: "Trần Ngọc Hân",
     members: [
-      { id: "to2-01", name: "Trần Ngọc Hân" },
-      { id: "to2-02", name: "Trần Minh Quang" },
-      { id: "to2-03", name: "Lê Hoàng Nam" },
-      { id: "to2-04", name: "Phạm Thảo Linh" },
-      { id: "to2-05", name: "Nguyễn Bảo Long" },
-      { id: "to2-06", name: "Đặng Thị Mai Anh" },
-      { id: "to2-07", name: "Vũ Đức Anh" },
-      { id: "to2-08", name: "Lê Hà Anh" },
-      { id: "to2-09", name: "Nguyễn Gia Huy" },
-      { id: "to2-10", name: "Phan Đình Trọng" },
-      { id: "to2-11", name: "Bùi Tuyết Nhi" },
+      { id: "to2-01", name: "Nguyễn Thị Như Ý" },
+      { id: "to2-02", name: "Phan Nguyễn Phương Vi" },
+      { id: "to2-03", name: "Ngô Hoàng Yến" },
+      { id: "to2-04", name: "Nguyễn Thị Ngọc Tú" },
+      { id: "to2-05", name: "Phạm Thanh Huy" },
+      { id: "to2-06", name: "Phạm Ngọc Hân" },
+      { id: "to2-07", name: "Nguyễn Thanh Sang" },
+      { id: "to2-08", name: "Nguyễn Thị Ngọc Kim" },
+      { id: "to2-09", name: "Lê Minh Toàn B" },
+      { id: "to2-10", name: "Nguyễn Phú Trọng" },
+      { id: "to2-11", name: "Thái Huỳnh Hương" },
+
     ],
   },
   {
     id: "to3",
     name: "Tổ 3",
-    leaderName: "Lê Bảo Ngọc",
     members: [
-      { id: "to3-01", name: "Lê Bảo Ngọc" },
-      { id: "to3-02", name: "Nguyễn Văn An" },
-      { id: "to3-03", name: "Trương Hoàng Yến" },
-      { id: "to3-04", name: "Lê Tuấn Kiệt" },
-      { id: "to3-05", name: "Huỳnh Quốc Đạt" },
-      { id: "to3-06", name: "Võ Thị Bích Trâm" },
-      { id: "to3-07", name: "Dương Minh Khang" },
-      { id: "to3-08", name: "Phạm Hải Đăng" },
-      { id: "to3-09", name: "Ngô Kiến Huy" },
-      { id: "to3-10", name: "Tạ Quang Bửu" },
-      { id: "to3-11", name: "Lâm Mỹ Duyên" },
+      { id: "to3-01", name: "Phan Trịnh Công Thành" },
+      { id: "to3-02", name: "Nguyễn Anh Hào" },
+      { id: "to3-03", name: "Lê Minh Quân" },
+      { id: "to3-04", name: "Nguyễn Xuân Trường" },
+      { id: "to3-05", name: "Lâm Trần Chí Hiếu" },
+      { id: "to3-06", name: "Nguyễn Phú Quý" },
+      { id: "to3-07", name: "Phan Tố Tố" },
+      { id: "to3-08", name: "Trần Bảo Ngọc" },
+      { id: "to3-09", name: "Trương Thành Tỷ" },
+      { id: "to3-10", name: "Đặng Khánh Hưng" },
+      { id: "to3-11", name: "Phạm Chí Hào" }
     ],
   },
   {
     id: "to4",
     name: "Tổ 4",
-    leaderName: "Lê Trần Đại Ngọc",
     members: [
       { id: "to4-01", name: "Lê Trần Đại Ngọc" },
       { id: "to4-02", name: "Nguyễn Thị Kim Khánh" },
@@ -96,10 +94,59 @@ export const TEAMS = [
       { id: "to4-08", name: "Nguyễn Minh Mẩn" },
       { id: "to4-09", name: "Lê Hữu Khánh" },
       { id: "to4-10", name: "Đỗ Nguyễn Đăng Khoa" },
-      { id: "to4-11", name: "Văng Minh Thiện" },
+      { id: "to4-11", name: "Văng Minh Thiện" }
     ],
   },
 ];
+
+// Các mã này chỉ tạo nhãn nhận diện trên giao diện, không cấp quyền hệ thống.
+export const ADMIN_MEMBER_IDS = ["to4-06", "to4-10"];
+
+// Khi chuyển học sinh sang tổ khác, cập nhật TEAMS theo tổ mới và thêm bản ghi
+// vào đây. effectiveWeek là tuần đầu tiên dùng tổ mới (ngày thứ Hai, YYYY-MM-DD).
+// Giữ lại mọi lần chuyển trước đó để các tuần cũ dùng đúng roster lịch sử.
+export const TEAM_MOVES = [];
+
+export function teamsForWeek(weekId) {
+  const weekTeams = TEAMS.map((team) => ({
+    ...team,
+    members: team.members.map((member) => ({ ...member })),
+  }));
+  const teamById = new Map(weekTeams.map((team) => [team.id, team]));
+  const moves = [...TEAM_MOVES].sort((a, b) =>
+    b.effectiveWeek.localeCompare(a.effectiveWeek)
+  );
+
+  for (const move of moves) {
+    const effectiveDate = new Date(`${move.effectiveWeek}T00:00:00Z`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(move.effectiveWeek) ||
+      Number.isNaN(effectiveDate.getTime()) ||
+      effectiveDate.getUTCDay() !== 1 ||
+      move.fromTeamId === move.toTeamId
+    ) {
+      throw new Error(`Mốc chuyển tổ không hợp lệ cho học sinh ${move.memberId}.`);
+    }
+
+    if (weekId >= move.effectiveWeek) continue;
+
+    const source = teamById.get(move.toTeamId);
+    const destination = teamById.get(move.fromTeamId);
+    const memberIndex = source?.members.findIndex(
+      (member) => member.id === move.memberId
+    );
+    if (!source || !destination || memberIndex === undefined || memberIndex < 0) {
+      throw new Error(
+        `Lịch sử chuyển tổ không hợp lệ cho học sinh ${move.memberId}.`
+      );
+    }
+
+    const [member] = source.members.splice(memberIndex, 1);
+    destination.members.push(member);
+  }
+
+  return weekTeams;
+}
 
 /**
  * =========================================================================

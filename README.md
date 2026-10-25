@@ -63,6 +63,14 @@ c:\Users\KhoaNguyen\Desktop\11A1\
 └── supabase-enable-delete.sql             # Script kích hoạt quyền xóa cho tổ trưởng & admin
 ```
 
+Sau khi cập nhật ứng dụng, hãy chạy lại `supabase.sql` hoặc `supabase-full-setup.sql` trong Supabase SQL Editor để thêm cột phân biệt người ghi điểm (`by_role`). Nhật ký cập nhật tức thời chỉ hiển thị lượt ghi mới của tổ trưởng; lượt ghi mới của admin không xuất hiện trong nhật ký. Các lượt ghi cũ không có thông tin vai trò nên không thể phân biệt ngược lại.
+
+### Bảo toàn dữ liệu lịch sử khi sửa nội quy hoặc chuyển tổ
+
+- Mỗi lượt ghi điểm lưu sẵn `points`, `label`, `ruleId`, `weekId` và `teamId`. Vì vậy, đổi mức điểm trong `js/rules.js` chỉ áp dụng cho lượt ghi mới; điểm, tên nội quy và tổ đã ghi ở các tuần cũ không được tính lại.
+- Khi chuyển học sinh sang tổ khác, cập nhật thành viên hiện tại trong `TEAMS` ở `js/config.js`, đồng thời thêm một bản ghi vào `TEAM_MOVES`, ví dụ `{ memberId: "to1-01", fromTeamId: "to1", toTeamId: "to2", effectiveWeek: "2026-10-26" }`. `effectiveWeek` phải là ngày thứ Hai của tuần đầu tiên ở tổ mới. Không xóa các bản ghi chuyển tổ cũ; chúng giữ nguyên roster, sĩ số và bảng chi tiết của những tuần trước.
+- Lịch sử chuyển tổ chỉ có thể tái dựng từ khi bắt đầu ghi các mốc trong `TEAM_MOVES`; các lần đổi roster trước đó mà không lưu mốc không thể khôi phục chính xác từ dữ liệu điểm.
+
 ---
 
 ## 🚀 HƯỚNG DẪN CHẠY DỰ ÁN

@@ -163,24 +163,35 @@
         </div>
       </div>
 
-      <!-- Week Filter Pill Carousel -->
-      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-4 px-4" id="week-carousel">
-        <!-- Generated dynamically via JS -->
+      <!-- Week Selector -->
+      <div class="bg-surface-container-lowest rounded-xl px-3 py-2 shadow-xs">
+        <label for="week-selector" class="flex items-center justify-between gap-3">
+          <span class="flex items-center gap-1.5 text-xs font-heading font-bold text-on-surface">
+            <span class="material-symbols-outlined text-[18px] text-primary">calendar_month</span>
+            Chọn tuần
+          </span>
+          <select id="week-selector" class="min-w-0 flex-1 bg-surface-container-low rounded-lg px-3 py-2 text-xs font-semibold text-primary outline-none focus:ring-2 focus:ring-primary/20">
+            <!-- Generated dynamically via JS -->
+          </select>
+        </label>
       </div>
 
       <!-- Sub-tabs: Tổ, Cả năm, Vi phạm, Điểm cộng -->
-      <div class="flex items-center gap-1 p-1 rounded-xl bg-surface-container-low" id="board-tabs">
-        <button type="button" class="board-tab flex-1 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-lowest text-primary shadow-xs transition-all text-center" data-board="teams">
+      <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-surface-container-low" id="board-tabs">
+        <button type="button" class="board-tab min-w-0 py-2 text-[11px] font-semibold rounded-lg bg-surface-container-lowest text-primary shadow-xs transition-all text-center" data-board="teams">
           🏆 Xếp Hạng Tổ
         </button>
-        <button type="button" class="board-tab flex-1 py-1.5 text-xs font-semibold rounded-lg text-on-surface-variant transition-all text-center" data-board="year">
+        <button type="button" class="board-tab min-w-0 py-2 text-[11px] font-semibold rounded-lg text-on-surface-variant transition-all text-center" data-board="year">
           🌟 Cả Năm
         </button>
-        <button type="button" class="board-tab flex-1 py-1.5 text-xs font-semibold rounded-lg text-on-surface-variant transition-all text-center" data-board="minus">
+        <button type="button" class="board-tab min-w-0 py-2 text-[11px] font-semibold rounded-lg text-on-surface-variant transition-all text-center" data-board="minus">
           ⚠️ Vi Phạm
         </button>
-        <button type="button" class="board-tab flex-1 py-1.5 text-xs font-semibold rounded-lg text-on-surface-variant transition-all text-center" data-board="plus">
+        <button type="button" class="board-tab min-w-0 py-2 text-[11px] font-semibold rounded-lg text-on-surface-variant transition-all text-center" data-board="plus">
           🎖️ Điểm Cộng
+        </button>
+        <button type="button" class="board-tab min-w-0 py-2 text-[11px] font-semibold rounded-lg text-on-surface-variant transition-all text-center" data-board="history">
+          📜 Tiền Án Tiền Sự
         </button>
       </div>
 
@@ -205,7 +216,7 @@
       </div>
 
       <!-- Realtime Activity Stream -->
-      <div class="w-full bg-surface-container-lowest rounded-2xl p-3.5 shadow-xs flex flex-col gap-2.5 mt-2">
+      <div id="activity-feed-card" class="w-full bg-surface-container-lowest rounded-2xl p-3.5 shadow-xs flex flex-col gap-2.5 mt-2">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5">
             <span class="material-symbols-outlined text-secondary text-[18px]">history</span>
@@ -381,16 +392,6 @@
             </div>
           </div>
           <input id="score-note-input" type="text" placeholder="Ghi chú chi tiết (ví dụ: Tiết 2 Hóa cô Lan, bài tập hình...)" class="w-full h-10 bg-surface-container-low px-3 rounded-xl text-xs text-on-surface placeholder:text-outline outline-none focus:ring-2 focus:ring-primary/20" />
-          <button id="btn-submit-score-inline" type="button" class="w-full h-11 mt-1 bg-primary hover:bg-primary-container active:scale-[0.98] transition-all rounded-xl flex items-center justify-between px-4 text-on-primary shadow-sm disabled:opacity-40 disabled:pointer-events-none" disabled>
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-[18px]">check_circle</span>
-              <span class="font-heading font-bold text-xs uppercase tracking-wide">Xác Nhận Lưu Điểm</span>
-            </div>
-            <div class="flex items-center gap-1.5 bg-white/20 py-1 px-2.5 rounded-lg text-xs font-bold">
-              <span id="submit-summary-text-inline">Chưa chọn mục</span>
-              <span class="material-symbols-outlined text-[15px]">arrow_forward</span>
-            </div>
-          </button>
         </div>
 
         <!-- Lịch sử vừa chấm trong phiên (Cơ chế sửa sai 15 phút) -->
@@ -405,12 +406,12 @@
         </div>
 
         <!-- Sticky Floating Action Bar (Đã đẩy cao lên 4.75rem trên thanh điều hướng, không bị che) -->
-        <div class="fixed inset-x-0 z-30 max-w-lg mx-auto px-4 pointer-events-none" style="bottom: calc(env(safe-area-inset-bottom, 0px) + 4.75rem);">
+        <div class="score-action-bar fixed inset-x-0 z-30 max-w-lg mx-auto px-4 pointer-events-none">
           <div class="glass-floating rounded-2xl p-2.5 pointer-events-auto flex flex-col gap-1 shadow-lg">
             <button id="btn-submit-score" type="button" class="w-full h-12 bg-primary-container hover:bg-primary active:scale-[0.98] transition-all rounded-xl flex items-center justify-between px-4 text-on-primary shadow-md disabled:opacity-50 disabled:pointer-events-none" disabled>
               <div class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-[20px] animate-pulse">flash_on</span>
-                <span class="font-heading font-bold text-xs uppercase tracking-wide">LƯU & ĐỒNG BỘ</span>
+                <span class="font-heading font-bold text-xs uppercase tracking-wide">XÁC NHẬN LƯU ĐIỂM</span>
               </div>
               <div class="flex items-center gap-1.5 bg-white/20 py-1 px-2.5 rounded-lg text-xs font-bold">
                 <span id="submit-summary-text">Chưa chọn mục</span>
@@ -418,8 +419,8 @@
               </div>
             </button>
             <div class="flex items-center justify-center gap-1 text-[11px] text-on-surface-variant font-medium">
-              <span class="material-symbols-outlined text-[13px] text-secondary">verified</span>
-              <span>Đồng bộ tự động & Lưu trữ an toàn</span>
+              <span class="material-symbols-outlined text-[13px] text-secondary">cloud_sync</span>
+              <span>Đồng bộ Supabase khi có kết nối</span>
             </div>
           </div>
         </div>
@@ -433,23 +434,15 @@
     <section id="view-profile" class="app-view flex-col w-full gap-3 pb-8">
       
       <!-- Thanh Tìm Kiếm Học Sinh Xem Trang Cá Nhân -->
-      <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex flex-col gap-2">
-        <div class="flex items-center justify-between px-1">
-          <span class="font-heading font-bold text-xs text-on-surface">TÌM KIẾM HỌC SINH</span>
-          <span id="profile-match-count" class="text-[10px] text-outline font-semibold">44 học sinh</span>
-        </div>
+      <div class="relative w-full">
         <div class="relative w-full">
           <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
-          <input id="profile-search-input" type="text" placeholder="Tìm tên học sinh (gõ không dấu: vinh, quang, ngoc, khoa)..." class="w-full h-10 bg-surface-container-low pl-9 pr-8 rounded-xl text-xs text-on-surface placeholder:text-outline outline-none focus:ring-2 focus:ring-primary/20" />
+          <input id="profile-search-input" type="text" aria-label="Tìm học sinh theo tên hoặc mã" placeholder="Tìm tên học sinh (có thể gõ không dấu)..." class="w-full h-10 bg-surface-container-low pl-9 pr-8 rounded-xl text-xs text-on-surface placeholder:text-outline outline-none focus:ring-2 focus:ring-primary/20" />
           <button id="btn-clear-profile-search" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 hidden text-outline hover:text-on-surface">
             <span class="material-symbols-outlined text-[16px]">close</span>
           </button>
         </div>
-
-        <!-- Danh sách học sinh chọn nhanh (ngang) -->
-        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1" id="profile-students-quick-list">
-          <!-- Filled dynamically via JS -->
-        </div>
+        <div class="hidden flex flex-wrap gap-1.5 pt-2" id="profile-students-quick-list" role="listbox" aria-label="Kết quả tìm học sinh"></div>
       </div>
 
       <!-- Hero Profile Banner -->

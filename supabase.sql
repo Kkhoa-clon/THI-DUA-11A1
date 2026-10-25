@@ -11,8 +11,13 @@ create table if not exists public.events (
   label text not null,
   note text not null default '',
   by_team_id text not null,
+  by_role text not null default 'leader' check (by_role in ('admin', 'leader')),
   created_at bigint not null
 );
+
+alter table public.events
+  add column if not exists by_role text not null default 'leader'
+  check (by_role in ('admin', 'leader'));
 
 create index if not exists events_week_created_idx
   on public.events (week_id, created_at desc);
