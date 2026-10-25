@@ -126,16 +126,17 @@ function constantTimeEqual(left, right) {
 }
 
 function resolvePushRole(code) {
-  if (typeof code !== "string" || code.length < 16) return null;
+  if (typeof code !== "string" || !code.trim()) return null;
   let adminCodes;
   try {
     adminCodes = JSON.parse(process.env.PUSH_ADMIN_CODES || "[]");
   } catch {
     throw new Error("PUSH_ADMIN_CODES phải là mảng JSON hợp lệ.");
   }
-  if (Array.isArray(adminCodes) && adminCodes.some(
-    (expected) => typeof expected === "string" && expected.length >= 16 && constantTimeEqual(code, expected)
-  )) {
+  if (Array.isArray(adminCodes) && adminCodes.some((expected) => {
+    const accepted = Array.isArray(expected) ? expected : [expected];
+    return accepted.some((value) => typeof value === "string" && constantTimeEqual(code, value));
+  })) {
     return { role: "admin" };
   }
   let leaderCodes;
@@ -145,11 +146,10 @@ function resolvePushRole(code) {
     throw new Error("PUSH_LEADER_CODES phải là JSON hợp lệ.");
   }
   for (const [teamId, expectedCode] of Object.entries(leaderCodes)) {
+    const accepted = Array.isArray(expectedCode) ? expectedCode : [expectedCode];
     if (
       /^to[1-4]$/.test(teamId) &&
-      typeof expectedCode === "string" &&
-      expectedCode.length >= 16 &&
-      constantTimeEqual(code, expectedCode)
+      accepted.some((value) => typeof value === "string" && constantTimeEqual(code, value))
     ) {
       return { role: "leader", teamId };
     }

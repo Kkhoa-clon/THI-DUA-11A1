@@ -1583,24 +1583,18 @@ function setupEventListeners() {
   };
 
   // 4. Scoring: Login
-  const doLogin = async (code, pushCode) => {
+  const doLogin = async (code) => {
     const auth = resolveAuthCode(code);
     if (!auth) {
       alert("Mã hoặc PIN không chính xác! Vui lòng thử lại.");
       return;
     }
-    if (pushCode) {
-      try {
-        await authenticateNotificationSender(pushCode, auth.role, auth.teamId);
-      } catch (error) {
-        clearNotificationToken();
-        console.error("Không xác thực được quyền gửi push:", error);
-        showToast("Đăng nhập ghi điểm được; mã push chưa hợp lệ.", "notifications_off");
-      } finally {
-        $("#push-login-code").value = "";
-      }
-    } else {
+    try {
+      await authenticateNotificationSender(code, auth.role, auth.teamId);
+    } catch (error) {
       clearNotificationToken();
+      console.error("Không xác thực được quyền gửi push:", error);
+      showToast("Đăng nhập được; chưa xác thực được quyền gửi push.", "notifications_off");
     }
     store.setAuth(auth.role, auth.teamId, auth.leaderName);
     showToast(`Xin chào ${store.getLeaderName()}!`, "verified");
@@ -1609,15 +1603,11 @@ function setupEventListeners() {
 
   $("#btn-do-login").onclick = () => {
     const val = $("#login-code-input").value;
-    doLogin(val, $("#push-login-code").value.trim());
+    doLogin(val);
   };
 
   $("#login-code-input").onkeydown = (e) => {
-    if (e.key === "Enter") doLogin(e.target.value, $("#push-login-code").value.trim());
-  };
-
-  $("#push-login-code").onkeydown = (e) => {
-    if (e.key === "Enter") doLogin($("#login-code-input").value, e.target.value.trim());
+    if (e.key === "Enter") doLogin(e.target.value);
   };
 
   $("#btn-workspace-logout").onclick = () => {
@@ -1737,19 +1727,12 @@ function setupEventListeners() {
     const pass = $("#admin-pass-input").value;
     const auth = resolveAuthCode(pass);
     if (auth && auth.role === "admin") {
-      const pushCode = $("#admin-push-code").value.trim();
-      if (pushCode) {
-        try {
-          await authenticateNotificationSender(pushCode, "admin");
-        } catch (error) {
-          clearNotificationToken();
-          console.error("Không xác thực được quyền gửi push:", error);
-          showToast("Đăng nhập Admin được; mã push chưa hợp lệ.", "notifications_off");
-        } finally {
-          $("#admin-push-code").value = "";
-        }
-      } else {
+      try {
+        await authenticateNotificationSender(pass, "admin");
+      } catch (error) {
         clearNotificationToken();
+        console.error("Không xác thực được quyền gửi push:", error);
+        showToast("Đăng nhập Admin được; chưa xác thực được quyền gửi push.", "notifications_off");
       }
       store.setAuth("admin");
       renderAdminPanel();
