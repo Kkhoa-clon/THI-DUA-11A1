@@ -15,5 +15,8 @@
     "supabase"
   ],
   "author": "Lớp 11A1",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.1"
+  }
 }

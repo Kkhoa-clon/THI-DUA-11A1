@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const JavaScriptObfuscator = require('javascript-obfuscator');
 
 const dir = __dirname;
 const configSrc = fs.readFileSync(path.join(dir, 'js', 'config.js'), 'utf8');
@@ -46,5 +47,26 @@ const bundled = [
   '})();'
 ].join('\n');
 
-fs.writeFileSync(path.join(dir, 'js', 'app.bundle.js'), bundled, 'utf8');
-console.log('Bundle created successfully! Size:', bundled.length, 'bytes');
+const obfuscated = JavaScriptObfuscator.obfuscate(bundled, {
+  compact: true,
+  controlFlowFlattening: false,
+  deadCodeInjection: false,
+  debugProtection: false,
+  identifierNamesGenerator: 'hexadecimal',
+  numbersToExpressions: false,
+  renameGlobals: false,
+  selfDefending: false,
+  simplify: true,
+  stringArray: true,
+  stringArrayEncoding: ['base64'],
+  stringArrayThreshold: 1,
+  target: 'browser',
+  unicodeEscapeSequence: false,
+}).getObfuscatedCode();
+
+fs.writeFileSync(path.join(dir, 'js', 'app.bundle.js'), obfuscated, 'utf8');
+console.log(
+  'Obfuscated bundle created successfully! Size:',
+  obfuscated.length,
+  'bytes'
+);

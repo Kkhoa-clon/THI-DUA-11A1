@@ -29,17 +29,11 @@ Dự án Web App thi đua Lớp 11A1 được thiết kế và tái cấu trúc 
 
 ---
 
-## 🔑 MÃ ĐĂNG NHẬP & MÃ PIN NHANH
+## 🔐 Lưu ý về mã nguồn và đăng nhập
 
-Hệ thống hỗ trợ cả mã chữ truyền thống và **mã PIN 4 số** siêu tiện lợi:
+`npm run build` tạo `js/app.bundle.js` đã làm rối để cản việc đọc lướt mã chạy trên trang. Đây chỉ là biện pháp gây khó đọc, không phải bảo mật: GitHub Pages và repository công khai vẫn cho phép tải/xem các file nguồn như `js/config.js`, và người dùng có thể phân tích bundle.
 
-| Vai trò | Người phụ trách | Mã chữ | Mã PIN 4 số |
-|---|---|---|---|
-| **Tổ trưởng Tổ 1** | Nguyễn Phúc Thịnh | `phucthinh` | `1101` |
-| **Tổ trưởng Tổ 2** | Trần Ngọc Hân | `ngochan` | `1102` |
-| **Tổ trưởng Tổ 3** | Lê Bảo Ngọc | `baongoc` | `1103` |
-| **Tổ trưởng Tổ 4** | Lê Trần Đại Ngọc | `daingoc` | `1104` |
-| **Admin / GVCN** | Thầy Khoa | `khoa2112` | `2112` hoặc `1100` |
+Không đặt mật khẩu, PIN hoặc khóa bí mật trong JavaScript phía trình duyệt. Các mã đăng nhập hiện tại đã nằm trong mã nguồn/bundle công khai; hãy đổi chúng và không dựa vào obfuscation để bảo vệ quyền Admin hoặc dữ liệu. Muốn phân quyền thật, cần xác thực phía máy chủ và chính sách Supabase RLS hạn chế theo người dùng/role.
 
 ---
 
@@ -71,5 +65,6 @@ Sau khi cập nhật ứng dụng, hãy chạy lại `supabase.sql` hoặc `supa
 - Khi chuyển học sinh sang tổ khác, cập nhật thành viên hiện tại trong `TEAMS` ở `js/config.js`, đồng thời thêm một bản ghi vào `TEAM_MOVES`, ví dụ `{ memberId: "to1-01", fromTeamId: "to1", toTeamId: "to2", effectiveWeek: "2026-10-26" }`. `effectiveWeek` phải là ngày thứ Hai của tuần đầu tiên ở tổ mới. Không xóa các bản ghi chuyển tổ cũ; chúng giữ nguyên roster, sĩ số và bảng chi tiết của những tuần trước.
 - Lịch sử chuyển tổ chỉ có thể tái dựng từ khi bắt đầu ghi các mốc trong `TEAM_MOVES`; các lần đổi roster trước đó mà không lưu mốc không thể khôi phục chính xác từ dữ liệu điểm.
 
----
+Sau mỗi lần sửa JavaScript, chạy `npm run build` trước khi triển khai để tạo bundle đã làm rối mới nhất.
 
+---
