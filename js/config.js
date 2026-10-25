@@ -1,9 +1,6 @@
 /**
- * Cấu hình lớp 11A1 — sửa roster, mã tổ trưởng và Supabase tại đây.
- *
- * Supabase (miễn phí): https://supabase.com → New project
- * → SQL Editor chạy file supabase.sql → Settings → API → copy URL + anon key.
- * Để trống → chế độ offline (localStorage, chỉ 1 máy).
+ * Cấu hình Lớp 11A1 — Niên khóa 2026–2027
+ * Giữ nguyên kết nối cơ sở dữ liệu Supabase và phân quyền tổ trưởng/admin.
  */
 
 export const CLASS_NAME = "11A1";
@@ -11,22 +8,13 @@ export const SCHOOL_YEAR = "2026–2027";
 
 /**
  * Thứ Hai của Tuần 1 thi đua (YYYY-MM-DD).
- * App luôn có sẵn Tuần 1 → Tuần TOTAL_WEEKS (để trống, tự cập nhật điểm).
- * Đổi COMPETITION_START 1 lần khi chốt lịch; không đổi giữa chừng kẻo lệch số tuần.
+ * Tuần 1 = 07/09/2026 → Tự động tính số tuần theo lịch.
  */
-/** Tuần 1 = 14/09/2026 → hôm nay (19/10/2026) = Tuần 6 — tự chạy theo lịch */
-export const COMPETITION_START = "2026-09-14";
+export const COMPETITION_START = "2026-09-07";
 export const TOTAL_WEEKS = 35;
 
-// === STREAK START ===
-/** Chuỗi hạng 1 ≥ ngưỡng này mới hiện huy hiệu "🔥 N tuần" (đơn vị: tuần đã kết thúc). */
-export const STREAK_MIN = 2;
-// === STREAK END ===
-
-/** Project URL dạng https://xxxx.supabase.co */
+/** Supabase Project Credentials */
 export const SUPABASE_URL = "https://dgiqqwbdvtziulmkutkl.supabase.co";
-
-/** anon / public key (an toàn để dùng trên frontend với RLS) */
 export const SUPABASE_ANON_KEY = "sb_publishable_CpSpqy_NyvPi4bvbJFdqcw_K_KL3O1B";
 
 export const SUPABASE_ENABLED =
@@ -36,8 +24,7 @@ export const SUPABASE_ENABLED =
   SUPABASE_ANON_KEY.length > 20;
 
 /**
- * Tổ + thành viên (placeholder — thay bằng danh sách thật).
- * id thành viên phải duy nhất toàn lớp.
+ * Danh sách 4 Tổ và thành viên Lớp 11A1 (44 học sinh)
  */
 export const TEAMS = [
   {
@@ -72,7 +59,7 @@ export const TEAMS = [
       { id: "to2-08", name: "Nguyễn Thị Ngọc Kim" },
       { id: "to2-09", name: "Lê Minh Toàn B" },
       { id: "to2-10", name: "Nguyễn Phú Trọng" },
-      { id: "to1-11", name: "Thái Huỳnh Hương" },
+      { id: "to2-11", name: "Thái Huỳnh Hương" },
 
     ],
   },
@@ -112,32 +99,88 @@ export const TEAMS = [
   },
 ];
 
+// Các mã này chỉ tạo nhãn nhận diện trên giao diện, không cấp quyền hệ thống.
+export const ADMIN_MEMBER_IDS = ["to4-06", "to4-10"];
+
+// Khi chuyển học sinh sang tổ khác, cập nhật TEAMS theo tổ mới và thêm bản ghi
+// vào đây. effectiveWeek là tuần đầu tiên dùng tổ mới (ngày thứ Hai, YYYY-MM-DD).
+// Giữ lại mọi lần chuyển trước đó để các tuần cũ dùng đúng roster lịch sử.
+export const TEAM_MOVES = [];
+
+export function teamsForWeek(weekId) {
+  const weekTeams = TEAMS.map((team) => ({
+    ...team,
+    members: team.members.map((member) => ({ ...member })),
+  }));
+  const teamById = new Map(weekTeams.map((team) => [team.id, team]));
+  const moves = [...TEAM_MOVES].sort((a, b) =>
+    b.effectiveWeek.localeCompare(a.effectiveWeek)
+  );
+
+  for (const move of moves) {
+    const effectiveDate = new Date(`${move.effectiveWeek}T00:00:00Z`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(move.effectiveWeek) ||
+      Number.isNaN(effectiveDate.getTime()) ||
+      effectiveDate.getUTCDay() !== 1 ||
+      move.fromTeamId === move.toTeamId
+    ) {
+      throw new Error(`Mốc chuyển tổ không hợp lệ cho học sinh ${move.memberId}.`);
+    }
+
+    if (weekId >= move.effectiveWeek) continue;
+
+    const source = teamById.get(move.toTeamId);
+    const destination = teamById.get(move.fromTeamId);
+    const memberIndex = source?.members.findIndex(
+      (member) => member.id === move.memberId
+    );
+    if (!source || !destination || memberIndex === undefined || memberIndex < 0) {
+      throw new Error(
+        `Lịch sử chuyển tổ không hợp lệ cho học sinh ${move.memberId}.`
+      );
+    }
+
+    const [member] = source.members.splice(memberIndex, 1);
+    destination.members.push(member);
+  }
+
+  return weekTeams;
+}
+
 /**
- * Mã tổ trưởng do bạn cấp (đổi bất cứ lúc nào).
- * Ví dụ: tổ 4 → "to4"
+ * =========================================================================
+ * MÃ ĐĂNG NHẬP & PIN TỔ TRƯỞNG (BẢO MẬT NỘI BỘ - KHÔNG CÔNG KHAI TRÊN WEB)
+ * =========================================================================
+ * Bạn tự đọc và đổi mã đăng nhập / PIN 4 số tại đây:
+ * - Tổ 1 (Nguyễn Phúc Thịnh):  "phucthinh"  hoặc PIN  "1101"
+ * - Tổ 2 (Trần Ngọc Hân):      "ngochan"    hoặc PIN  "1102"
+ * - Tổ 3 (Lê Bảo Ngọc):        "baongoc"    hoặc PIN  "1103"
+ * - Tổ 4 (Lê Trần Đại Ngọc):   "daingoc"    hoặc PIN  "1104"
  */
 export const LEADER_CODES = {
-  to1: "phucthinh",
-  to2: "ngochan",
-  to3: "baongoc",
-  to4: "daingoc",
+  to1: ["phucthinh", "1101"],
+  to2: ["ngochan", "1102"],
+  to3: ["baongoc", "1103"],
+  to4: ["daingoc", "1104"],
 };
 
-/** Mật khẩu admin — toàn quyền (mọi tổ, mọi tuần). Đổi được tại đây.
- *  Cũng dùng để "mở khóa" Bảng cờ luân lưu (khóa mềm, xem note trong js/flags.js). */
+/**
+ * MẬT KHẨU ADMIN GVCN (QUẢN TRỊ VIÊN LỚP 11A1 - TOÀN QUYỀN)
+ * - Mật khẩu:  "khoa2112"
+ * - PIN nhanh: "2112" hoặc "1100"
+ */
+export const ADMIN_CODES = ["khoa2112", "2112", "1100", "thaycan"];
+
+/** ——— BẢNG CỜ LUÂN LƯU (js/flags.js) ——— */
+/** Mật khẩu mở khóa bảng cờ (flags.js so sánh giá trị này). */
 export const ADMIN_CODE = "khoa2112";
 
-/**
- * —— BẢNG CỜ LUÂN LƯU ——
- * 3 loại cờ khai báo tại ĐÂY (một chỗ duy nhất) để dễ đổi tên/ảnh.
- * id cũng chính là giá trị lưu vào cột flag_type trên Supabase,
- * và là ràng buộc CHECK trong supabase-flags.sql — đổi id thì đổi cả SQL.
- * Ảnh đặt tại  images/flags/<file>.  Chưa có ảnh → app tự hiện placeholder.
- */
+/** 3 loại cờ — id khớp ràng buộc CHECK cột flag_type trong supabase-flags.sql. */
 export const FLAG_TYPES = [
-  { id: "co-1", name: "Cờ Nhất", image: "images/flags/co-1.png" },
-  { id: "co-2", name: "Cờ Nhì", image: "images/flags/co-2.png" },
-  { id: "co-3", name: "Cờ Ba", image: "images/flags/co-3.png" },
+  { id: "co-1", name: "Cờ Nhất", image: "image/luanluu1.png" },
+  { id: "co-2", name: "Cờ Nhì", image: "image/luanluu2.png" },
+  { id: "co-3", name: "Cờ Ba", image: "image/luanluu3.png" },
 ];
 
 export const FLAG_TYPE_BY_ID = Object.fromEntries(FLAG_TYPES.map((f) => [f.id, f]));
@@ -149,22 +192,39 @@ export const MEMBER_BY_ID = Object.fromEntries(
 );
 
 /**
- * @returns {{ role: "admin" } | { role: "leader", teamId: string } | null}
+ * Xác thực mã đăng nhập hoặc PIN nhanh
+ * @param {string} raw
+ * @returns {{ role: "admin" } | { role: "leader", teamId: string, leaderName: string } | null}
  */
 export function resolveAuthCode(raw) {
   const code = String(raw || "")
     .trim()
     .toLowerCase();
   if (!code) return null;
-  if (code === String(ADMIN_CODE).toLowerCase()) return { role: "admin" };
-  for (const [teamId, expected] of Object.entries(LEADER_CODES)) {
-    if (expected.toLowerCase() === code) return { role: "leader", teamId };
+
+  if (ADMIN_CODES.map((c) => c.toLowerCase()).includes(code)) {
+    return { role: "admin" };
   }
+
+  for (const [teamId, list] of Object.entries(LEADER_CODES)) {
+    const matched = list.some((c) => c.toLowerCase() === code);
+    if (matched) {
+      const leaderName = TEAM_BY_ID[teamId]?.leaderName || TEAM_BY_ID[teamId]?.name;
+      return { role: "leader", teamId, leaderName };
+    }
+  }
+
   return null;
 }
 
-/** @deprecated dùng resolveAuthCode */
-export function resolveLeaderCode(raw) {
-  const auth = resolveAuthCode(raw);
-  return auth?.role === "leader" ? auth.teamId : null;
+/**
+ * Thuật toán 4: Chuẩn hóa tiếng Việt không dấu siêu tốc để tìm kiếm
+ */
+export function toNonAccentVietnamese(str) {
+  return (str || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .trim();
 }

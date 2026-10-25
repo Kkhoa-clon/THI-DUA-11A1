@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Mockup · Tab "Cờ luân lưu" — 11A1 Thi đua</title>
+
+  <!-- Google Fonts: Space Grotesk & Manrope (giống index.html) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN + đúng config màu của index.html -->
+  <script src="../../js/theme.js"></script><script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            surface: "rgb(var(--a1-surface) / <alpha-value>)",
+            "surface-dim": "rgb(var(--a1-surface-dim) / <alpha-value>)",
+            "surface-bright": "rgb(var(--a1-surface-bright) / <alpha-value>)",
+            "surface-container-lowest": "rgb(var(--a1-surface-container-lowest) / <alpha-value>)",
+            "surface-container-low": "rgb(var(--a1-surface-container-low) / <alpha-value>)",
+            "surface-container": "rgb(var(--a1-surface-container) / <alpha-value>)",
+            "surface-container-high": "rgb(var(--a1-surface-container-high) / <alpha-value>)",
+            "surface-container-highest": "rgb(var(--a1-surface-container-highest) / <alpha-value>)",
+            "on-surface": "rgb(var(--a1-on-surface) / <alpha-value>)",
+            "on-surface-variant": "rgb(var(--a1-on-surface-variant) / <alpha-value>)",
+            "inverse-surface": "rgb(var(--a1-inverse-surface) / <alpha-value>)",
+            "inverse-on-surface": "rgb(var(--a1-inverse-on-surface) / <alpha-value>)",
+            outline: "rgb(var(--a1-outline) / <alpha-value>)",
+            "outline-variant": "rgb(var(--a1-outline-variant) / <alpha-value>)",
+            primary: "rgb(var(--a1-primary) / <alpha-value>)",
+            "on-primary": "rgb(var(--a1-on-primary) / <alpha-value>)",
+            "primary-container": "rgb(var(--a1-primary-container) / <alpha-value>)",
+            "on-primary-container": "rgb(var(--a1-on-primary-container) / <alpha-value>)",
+            "primary-fixed": "rgb(var(--a1-primary-fixed) / <alpha-value>)",
+            "on-primary-fixed": "rgb(var(--a1-on-primary-fixed) / <alpha-value>)",
+            secondary: "rgb(var(--a1-secondary) / <alpha-value>)",
+            "on-secondary": "rgb(var(--a1-on-secondary) / <alpha-value>)",
+            "secondary-container": "rgb(var(--a1-secondary-container) / <alpha-value>)",
+            "on-secondary-container": "rgb(var(--a1-on-secondary-container) / <alpha-value>)",
+            "secondary-fixed": "rgb(var(--a1-secondary-fixed) / <alpha-value>)",
+            "on-secondary-fixed": "rgb(var(--a1-on-secondary-fixed) / <alpha-value>)",
+            tertiary: "rgb(var(--a1-tertiary) / <alpha-value>)",
+            "on-tertiary": "rgb(var(--a1-on-tertiary) / <alpha-value>)",
+            "tertiary-container": "rgb(var(--a1-tertiary-container) / <alpha-value>)",
+            "on-tertiary-container": "rgb(var(--a1-on-tertiary-container) / <alpha-value>)",
+            "tertiary-fixed": "rgb(var(--a1-tertiary-fixed) / <alpha-value>)",
+            error: "rgb(var(--a1-error) / <alpha-value>)",
+            "on-error": "rgb(var(--a1-on-error) / <alpha-value>)",
+            "error-container": "rgb(var(--a1-error-container) / <alpha-value>)",
+            "on-error-container": "rgb(var(--a1-on-error-container) / <alpha-value>)",
+          },
+          borderRadius: {
+            DEFAULT: "0.5rem",
+            lg: "0.75rem",
+            xl: "1rem",
+            "2xl": "1.25rem",
+            full: "9999px",
+          },
+          fontFamily: {
+            heading: ["Space Grotesk", "sans-serif"],
+            body: ["Manrope", "sans-serif"],
+            metric: ["Space Grotesk", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    @layer base {
+      html, body { width: 100%; margin: 0; padding: 0; }
+      .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+      .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+    }
+    ::-webkit-scrollbar { display: none; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .glass-header { background: rgba(248, 249, 255, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    .glass-nav { background: rgba(248, 249, 255, 0.9); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid #c3c6d7; }
+    .modal-scrim { background: rgba(11, 28, 48, 0.45); backdrop-filter: blur(2px); }
+
+    /* ===== Kéo thả cờ vào bảng thành tích ===== */
+    .flag-draggable { cursor: grab; touch-action: none; }
+    .flag-dragging { cursor: grabbing; }
+    .flag-ghost {
+      position: fixed; z-index: 999; margin: 0; pointer-events: none;
+      border-radius: 0.75rem; box-shadow: 0 14px 32px rgba(11, 28, 48, 0.38);
+      background: rgba(255, 255, 255, 0.9);
+    }
+    #board-drop { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    #board-drop.drop-over {
+      transform: scale(1.02);
+      box-shadow: 0 0 0 2px rgb(var(--a1-primary, 0 74 198)), 0 12px 28px rgba(11, 28, 48, 0.16);
+    }
+    @keyframes dropLanded {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.045); }
+      100% { transform: scale(1); }
+    }
+    #board-drop.drop-landed { animation: dropLanded 0.45s ease; }
+  </style>
+</head>
+
+<body class="bg-surface font-body text-on-surface antialiased flex flex-col min-h-screen select-none">
+
+  <!-- ===================== DEMO BAR (chỉ để duyệt mockup — KHÔNG vào app) ===================== -->
+  <div class="sticky top-0 z-[60] bg-on-surface text-inverse-on-surface text-[11px] font-semibold px-3 py-2 flex flex-wrap items-center gap-2">
+    <span class="opacity-70">MOCKUP · Cờ luân lưu — demo:</span>
+    <button type="button" data-demo="live" class="demo-toggle px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25">Live (Supabase)</button>
+    <button type="button" data-demo="offline" class="demo-toggle px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25">Offline</button>
+    <span class="mx-1 opacity-30">|</span>
+    <button type="button" data-demo="authed0" class="demo-toggle px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25">Chưa mở khóa</button>
+    <button type="button" data-demo="authed1" class="demo-toggle px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25">Đã mở khóa</button>
+    <span class="mx-1 opacity-30">|</span>
+    <button type="button" data-demo="data" class="demo-toggle px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25">Có cờ</button>
+    <button type="button" data-demo="empty" class="demo-toggle px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25">Trống</button>
+    <button type="button" data-demo="loading" class="demo-toggle px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25">Đang tải</button>
+  </div>
+
+  <!-- ===================== HEADER (giống app) ===================== -->
+  <header class="sticky top-[33px] z-40 glass-header">
+    <div class="h-14 px-4 flex items-center justify-between max-w-lg mx-auto w-full">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg bg-primary-container text-on-primary flex items-center justify-center font-heading font-bold text-sm shadow-sm">11A1</div>
+        <div class="flex flex-col">
+          <div class="flex items-center gap-1.5">
+            <span class="font-heading font-bold text-sm tracking-tight text-on-surface">THI ĐUA 11A1</span>
+            <span id="live-dot" class="inline-block w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+          </div>
+          <span class="text-[11px] text-on-surface-variant flex items-center gap-1 font-medium">
+            <span>Tuần 7</span> • <span id="header-online" class="text-secondary font-semibold">Realtime</span>
+          </span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" class="flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full bg-surface-container text-xs font-semibold">
+          <span id="header-role" class="truncate max-w-[110px]">Khách</span>
+          <span class="material-symbols-outlined text-[18px] text-primary">account_circle</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="flex-1 flex flex-col relative w-full max-w-lg mx-auto pt-3 pb-safe px-4 bg-surface">
+
+    <section id="view-flags" class="app-view active-view flex-col w-full gap-3 pb-28">
+
+      <!-- Thanh trạng thái Realtime / Offline -->
+      <div class="w-full bg-surface-container-high/80 rounded-xl px-3 py-2 flex items-center justify-between shadow-xs">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span id="mode-icon" class="material-symbols-outlined text-[16px] text-primary">bolt</span>
+          <span id="mode-text" class="text-xs text-on-surface truncate font-medium">Bảng cờ luân lưu lớp 11A1</span>
+        </div>
+        <span id="mode-badge" class="text-[11px] flex items-center gap-1 shrink-0 ml-2 font-bold px-2 py-0.5 rounded-full bg-secondary/15 text-secondary">
+          <span class="w-1.5 h-1.5 rounded-full bg-secondary"></span><span id="mode-badge-text">Realtime</span>
+        </span>
+      </div>
+
+      <!-- ===== Thẻ MẬT KHẨU (chỉ hiện khi live & chưa mở khóa) ===== -->
+      <div id="flags-login-card" class="hidden bg-surface-container-lowest rounded-2xl p-5 shadow-sm flex flex-col items-center text-center gap-4">
+        <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shadow-xs">
+          <span class="material-symbols-outlined text-[32px]">shield_person</span>
+        </div>
+        <div>
+          <h2 class="font-heading font-bold text-lg text-on-surface">Bảng Cờ Luân Lưu</h2>
+          <p class="text-xs text-on-surface-variant mt-1">Nhập mật khẩu GVCN để nhận · sửa · xóa cờ. Xem bảng thì không cần mở khóa.</p>
+        </div>
+        <div class="w-full flex flex-col gap-2.5 max-w-xs">
+          <input id="flag-pass-input" type="password" placeholder="Nhập mật khẩu..." autocomplete="off"
+            class="w-full h-12 bg-surface-container-low px-4 rounded-xl text-center font-heading text-base font-bold text-on-surface outline-none focus:ring-2 focus:ring-primary/20" />
+          <button id="btn-flag-login" type="button"
+            class="w-full h-11 bg-primary hover:bg-primary-container text-on-primary font-semibold rounded-xl active:scale-[0.98] transition-all text-sm shadow-xs">
+            Mở khóa bảng cờ
+          </button>
+        </div>
+        <p class="text-[11px] text-outline pt-1 text-center font-medium">Demo mockup: thử mật khẩu <span class="font-bold">khoa2112</span></p>
+      </div>
+
+      <!-- ===== Toàn bộ khi đã mở khóa (offline) / hoặc live authed ===== -->
+      <div id="flags-content" class="flex-col w-full gap-3">
+
+        <!-- Stats -->
+        <div id="board-drop" class="bg-surface-container-lowest rounded-2xl p-3.5 shadow-xs flex flex-col gap-3 transition-shadow">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[18px] text-primary">flag</span>
+              <span class="font-heading text-sm font-bold text-on-surface">Tổng kết bảng cờ</span>
+            </div>
+            <div class="flex items-baseline gap-1">
+              <span id="stat-total" class="font-heading text-2xl font-bold text-primary tabular-nums">0</span>
+              <span class="text-[11px] text-on-surface-variant font-medium">lá cờ</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-2" id="stat-by-type"><!-- pills --></div>
+        </div>
+
+        <!-- Bộ lọc -->
+        <div id="flag-filters" class="bg-surface-container-lowest rounded-xl px-3 py-2.5 shadow-xs flex flex-col gap-2">
+          <div class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px] text-on-surface-variant">filter_list</span>
+            <span class="text-xs font-heading font-bold text-on-surface">Lọc cờ</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <select id="filter-type" class="min-w-0 flex-1 bg-surface-container-low rounded-lg px-3 py-2 text-xs font-semibold text-primary outline-none focus:ring-2 focus:ring-primary/20">
+              <option value="">Tất cả loại cờ</option>
+            </select>
+            <select id="filter-month" class="min-w-0 flex-1 bg-surface-container-low rounded-lg px-3 py-2 text-xs font-semibold text-primary outline-none focus:ring-2 focus:ring-primary/20">
+              <option value="">Tất cả tháng</option>
+            </select>
+            <button id="btn-clear-filters" type="button" class="hidden shrink-0 px-2.5 py-2 rounded-lg bg-surface-container-low hover:bg-error-container hover:text-error text-xs font-semibold transition-colors">
+              Xóa lọc
+            </button>
+          </div>
+        </div>
+
+        <!-- Nút "Đặt cờ" + form inline (chỉ khi mở khóa) -->
+        <div id="flag-place-zone" class="flex flex-col gap-2.5">
+          <button id="btn-toggle-place" type="button"
+            class="w-full h-11 bg-secondary hover:brightness-95 text-on-secondary font-semibold rounded-xl active:scale-[0.98] transition-all text-sm shadow-xs flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-[20px]">add</span>
+            <span>Nhận cờ mới</span>
+          </button>
+
+          <div id="flag-form" class="hidden bg-surface-container-lowest rounded-2xl p-4 shadow-sm flex flex-col gap-3 border border-outline-variant">
+            <div class="flex items-center justify-between">
+              <span id="form-title" class="font-heading text-sm font-bold text-on-surface flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[18px] text-primary">flag</span> Nhận cờ
+              </span>
+              <button id="btn-cancel-form" type="button" class="material-symbols-outlined text-[20px] text-on-surface-variant hover:text-on-surface">close</button>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-[11px] font-semibold text-on-surface-variant" for="form-type">Loại cờ</label>
+              <select id="form-type" class="w-full bg-surface-container-low rounded-lg px-3 py-2.5 text-sm font-semibold text-primary outline-none focus:ring-2 focus:ring-primary/20"></select>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-[11px] font-semibold text-on-surface-variant" for="form-date">Ngày nhận</label>
+              <input id="form-date" type="date" class="w-full bg-surface-container-low rounded-lg px-3 py-2.5 text-sm font-semibold text-on-surface outline-none focus:ring-2 focus:ring-primary/20" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] font-semibold text-on-surface-variant" for="form-note">Ghi chú</label>
+                <span id="note-count" class="text-[11px] text-outline font-medium tabular-nums">0/200</span>
+              </div>
+              <textarea id="form-note" rows="2" maxlength="200" placeholder="Ví dụ: Nhất tuần cờ thi đua học tốt..."
+                class="w-full bg-surface-container-low rounded-lg px-3 py-2.5 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 resize-none"></textarea>
+            </div>
+            <button id="btn-submit-form" type="button"
+              class="w-full h-11 bg-primary hover:bg-primary-container text-on-primary font-semibold rounded-xl active:scale-[0.98] transition-all text-sm shadow-xs">
+              Đặt lên bảng
+            </button>
+          </div>
+        </div>
+
+        <!-- Danh sách cờ -->
+        <div class="flex items-center justify-between px-1 pt-1">
+          <span class="font-heading text-sm font-bold text-on-surface">Các lá cờ đã đặt</span>
+          <span id="list-count" class="text-[11px] text-on-surface-variant font-medium tabular-nums"></span>
+        </div>
+        <p class="px-1 -mt-1 text-[11px] text-outline font-medium flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]">drag_indicator</span>
+          Kéo một lá cờ thả vào "Tổng kết bảng cờ" — buông ngoài bảng, cờ sẽ tự bay về chỗ cũ.
+        </p>
+
+        <!-- Skeleton (loading) -->
+        <div id="flags-loading" class="hidden flex-col gap-2.5">
+          <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex items-center gap-3"><div class="w-12 h-12 rounded-xl bg-surface-container animate-pulse"></div><div class="flex-1 flex flex-col gap-2"><div class="h-3 w-24 rounded bg-surface-container animate-pulse"></div><div class="h-3 w-full rounded bg-surface-container animate-pulse"></div></div></div>
+          <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex items-center gap-3"><div class="w-12 h-12 rounded-xl bg-surface-container animate-pulse"></div><div class="flex-1 flex flex-col gap-2"><div class="h-3 w-20 rounded bg-surface-container animate-pulse"></div><div class="h-3 w-4/5 rounded bg-surface-container animate-pulse"></div></div></div>
+          <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex items-center gap-3"><div class="w-12 h-12 rounded-xl bg-surface-container animate-pulse"></div><div class="flex-1 flex flex-col gap-2"><div class="h-3 w-28 rounded bg-surface-container animate-pulse"></div><div class="h-3 w-2/3 rounded bg-surface-container animate-pulse"></div></div></div>
+        </div>
+
+        <!-- Empty -->
+        <div id="flags-empty" class="hidden bg-surface-container-lowest rounded-2xl p-8 shadow-xs flex flex-col items-center text-center gap-2">
+          <div class="w-14 h-14 rounded-2xl bg-surface-container flex items-center justify-center text-on-surface-variant">
+            <span class="material-symbols-outlined text-[30px]">flag</span>
+          </div>
+          <h3 class="font-heading font-bold text-sm text-on-surface">Chưa có lá cờ nào</h3>
+          <p id="empty-desc" class="text-xs text-on-surface-variant max-w-[220px]">Mỗi lần lớp đạt thành tích, GVCN mở khóa rồi nhận cờ đặt lên bảng.</p>
+        </div>
+
+        <!-- List -->
+        <div id="flags-list" class="flex-col gap-2.5"></div>
+
+        <!-- Khóa lại (live & đã mở khóa) -->
+        <button id="btn-signout" type="button" class="hidden w-full h-10 rounded-xl bg-surface-container text-on-surface-variant hover:bg-error-container hover:text-error text-xs font-semibold transition-colors flex items-center justify-center gap-1.5">
+          <span class="material-symbols-outlined text-[16px]">lock</span> Khóa lại bảng cờ
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== BOTTOM NAV — 5 TAB ===================== -->
+  <nav class="fixed bottom-0 inset-x-0 z-40 glass-nav">
+    <div class="h-16 max-w-lg mx-auto grid grid-cols-5 items-center px-1">
+      <button type="button" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant font-medium transition-all min-h-[44px]">
+        <span class="material-symbols-outlined text-[22px]">leaderboard</span><span class="text-[11px] font-heading">Bảng điểm</span>
+      </button>
+      <button type="button" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant font-medium transition-all min-h-[44px]">
+        <span class="material-symbols-outlined text-[22px]">edit_square</span><span class="text-[11px] font-heading">Ghi điểm</span>
+      </button>
+      <button type="button" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant font-medium transition-all min-h-[44px]">
+        <span class="material-symbols-outlined text-[22px]">person</span><span class="text-[11px] font-heading">Cá nhân</span>
+      </button>
+      <button type="button" class="flex flex-col items-center justify-center gap-1 py-1 text-primary font-bold transition-all min-h-[44px]">
+        <span class="material-symbols-outlined text-[22px]">flag</span><span class="text-[11px] font-heading">Cờ luân lưu</span>
+      </button>
+      <button type="button" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant font-medium transition-all min-h-[44px]">
+        <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span><span class="text-[11px] font-heading">Quản trị</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ===================== CONFIRM BOX (tùy chỉnh — thay cho confirm()) ===================== -->
+  <div id="confirm-modal" class="fixed inset-0 z-50 modal-scrim hidden items-center justify-center p-4">
+    <div class="bg-surface-container-lowest rounded-2xl w-full max-w-xs shadow-2xl overflow-hidden flex flex-col">
+      <div class="p-5 flex flex-col items-center text-center gap-2">
+        <div class="w-12 h-12 rounded-2xl bg-error-container text-on-error-container flex items-center justify-center">
+          <span class="material-symbols-outlined text-[26px]">delete</span>
+        </div>
+        <h3 id="confirm-title" class="font-heading font-bold text-base text-on-surface">Xóa lá cờ này?</h3>
+        <p id="confirm-desc" class="text-xs text-on-surface-variant">Hành động này không thể hoàn tác.</p>
+      </div>
+      <div class="flex gap-2 px-5 pb-5">
+        <button id="btn-confirm-cancel" type="button" class="flex-1 h-11 rounded-xl bg-surface-container text-on-surface font-semibold text-sm active:scale-[0.98] transition-all">Hủy</button>
+        <button id="btn-confirm-delete" type="button" class="flex-1 h-11 rounded-xl bg-error text-on-error font-semibold text-sm active:scale-[0.98] transition-all">Xóa cờ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TOAST (hiển thị lỗi store nguyên văn) ===================== -->
+  <div id="toast" class="fixed bottom-20 inset-x-0 z-[70] flex justify-center px-4 pointer-events-none">
+    <div id="toast-inner" class="hidden max-w-sm w-full bg-inverse-surface text-inverse-on-surface text-sm font-medium rounded-xl px-4 py-3 shadow-lg flex items-center gap-2 transition-opacity">
+      <span id="toast-icon" class="material-symbols-outlined text-[18px]">error</span>
+      <span id="toast-text"></span>
+    </div>
+  </div>
+
+  <!-- ===================== DEMO SCRIPT (mô phỏng FlagStore — KHÔNG đưa vào app) ===================== -->
+  <script>
+  (function () {
+    // ---- "API" giả lập đúng hình dạng FlagStore ----
+    var FLAG_TYPES = [
+      { id: "co-1", name: "Cờ Nhất", image: "../../image/luanluu1.png" },
+      { id: "co-2", name: "Cờ Nhì", image: "../../image/luanluu2.png" },
+      { id: "co-3", name: "Cờ Ba", image: "../../image/luanluu3.png" }
+    ];
+    var TYPE_BY_ID = {}; FLAG_TYPES.forEach(function (f) { TYPE_BY_ID[f.id] = f; });
+    function todayISO() {
+      var d = new Date(); var tz = d.getTimezoneOffset() * 60000;
+      return new Date(d.getTime() - tz).toISOString().slice(0, 10);
+    }
+    var SEED = [
+      { id: "f1", flag_type: "co-1", placed_date: "2026-10-20", note: "Nhất tuần — phong trào học tập Tổ 2", created_at: "2026-10-20T02:00:00Z" },
+      { id: "f2", flag_type: "co-2", placed_date: "2026-10-18", note: "Nhì tuần — giữ nề nếp ra vào lớp", created_at: "2026-10-18T02:00:00Z" },
+      { id: "f3", flag_type: "co-3", placed_date: "2026-09-28", note: "Ba tuần — lao động vệ sinh xuất sắc", created_at: "2026-09-28T02:00:00Z" },
+      { id: "f4", flag_type: "co-1", placed_date: "2026-09-21", note: "Nhất tuần — tích cực phát biểu xây dựng bài", created_at: "2026-09-21T02:00:00Z" }
+    ];
+    var store = {
+      mode: "live", loading: false, unlocked: true, flags: SEED.slice(),
+      isAuthenticated: function () { return this.mode === "offline" ? true : this.unlocked; },
+      signIn: function (c) { if (String(c).trim().toLowerCase() !== "khoa2112") throw new Error("Mật khẩu không đúng."); this.unlocked = true; },
+      signOut: function () { this.unlocked = false; },
+      stats: function () { var b = {}; FLAG_TYPES.forEach(function (f) { b[f.id] = 0; }); this.flags.forEach(function (f) { if (b[f.flag_type] != null) b[f.flag_type]++; }); return { total: this.flags.length, byType: b }; },
+      months: function () { var s = {}; this.flags.forEach(function (f) { s[String(f.placed_date).slice(0, 7)] = 1; }); return Object.keys(s).sort().reverse(); },
+      filtered: function (o) { o = o || {}; return this.flags.filter(function (f) { return (!o.type || f.flag_type === o.type) && (!o.month || String(f.placed_date).indexOf(o.month) === 0); }); }
+    };
+    window.__mockStore = store;
+
+    var $ = function (s) { return document.querySelector(s); };
+    var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+    function fmtDate(iso) { var p = String(iso).slice(0, 10).split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
+    function fmtMonth(ym) { var p = String(ym).split("-"); return "Tháng " + Number(p[1]) + "/" + p[0]; }
+
+    var state = { type: "", month: "", formOpen: false, editingId: null, confirmId: null };
+
+    function showToast(msg, kind) {
+      var inner = $("#toast-inner"); $("#toast-text").textContent = msg;
+      $("#toast-icon").textContent = kind === "ok" ? "check_circle" : "error";
+      inner.classList.remove("hidden"); inner.classList.add("flex");
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(function () { inner.classList.add("hidden"); inner.classList.remove("flex"); }, 2600);
+    }
+
+    function renderMode() {
+      var live = store.mode === "live";
+      $("#live-dot").classList.toggle("hidden", !live);
+      $("#header-online").textContent = live ? "Realtime" : "Offline";
+      $("#header-online").className = "font-semibold " + (live ? "text-secondary" : "text-on-surface-variant");
+      $("#mode-icon").textContent = live ? "bolt" : "cloud_off";
+      var badge = $("#mode-badge"), bt = $("#mode-badge-text");
+      if (live) { badge.className = "text-[11px] flex items-center gap-1 shrink-0 ml-2 font-bold px-2 py-0.5 rounded-full bg-secondary/15 text-secondary"; bt.textContent = "Realtime"; }
+      else { badge.className = "text-[11px] flex items-center gap-1 shrink-0 ml-2 font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant"; bt.textContent = "Offline · máy này"; }
+    }
+
+    function renderStats() {
+      var s = store.stats();
+      $("#stat-total").textContent = s.total;
+      var wrap = $("#stat-by-type"); wrap.innerHTML = "";
+      FLAG_TYPES.forEach(function (f) {
+        var el = document.createElement("div");
+        el.className = "bg-surface-container-low rounded-xl p-2.5 flex flex-col items-center gap-1";
+        var img = document.createElement("img"); img.src = f.image; img.alt = f.name;
+        img.className = "w-8 h-8 object-contain rounded"; img.onerror = function () { this.style.visibility = "hidden"; };
+        var num = document.createElement("span"); num.className = "font-heading text-lg font-bold text-on-surface tabular-nums leading-none"; num.textContent = s.byType[f.id];
+        var nm = document.createElement("span"); nm.className = "text-[10px] text-on-surface-variant font-semibold"; nm.textContent = f.name;
+        el.appendChild(img); el.appendChild(num); el.appendChild(nm); wrap.appendChild(el);
+      });
+    }
+
+    function syncFilterSelects() {
+      var ts = $("#filter-type");
+      if (ts.options.length <= 1) {
+        FLAG_TYPES.forEach(function (f) { var o = document.createElement("option"); o.value = f.id; o.textContent = f.name; ts.appendChild(o); });
+      }
+      var ms = $("#filter-month"); var cur = store.months();
+      ms.innerHTML = ""; var all = document.createElement("option"); all.value = ""; all.textContent = "Tất cả tháng"; ms.appendChild(all);
+      cur.forEach(function (m) { var o = document.createElement("option"); o.value = m; o.textContent = fmtMonth(m); ms.appendChild(o); });
+      ts.value = state.type; ms.value = state.month;
+      $("#btn-clear-filters").classList.toggle("hidden", !(state.type || state.month));
+    }
+
+    function makeRow(flag) {
+      var row = document.createElement("div");
+      row.className = "bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex items-center gap-3";
+      var img = document.createElement("img"); img.src = TYPE_BY_ID[flag.flag_type].image; img.alt = TYPE_BY_ID[flag.flag_type].name;
+      img.className = "w-12 h-12 rounded-xl bg-surface-container object-contain p-1 shrink-0"; img.onerror = function () { this.style.visibility = "hidden"; };
+      makeDraggable(img, flag);
+      var info = document.createElement("div"); info.className = "flex-1 min-w-0 flex flex-col gap-0.5";
+      var top = document.createElement("div"); top.className = "flex items-center gap-2 flex-wrap";
+      var name = document.createElement("span"); name.className = "font-heading text-sm font-bold text-on-surface"; name.textContent = TYPE_BY_ID[flag.flag_type].name;
+      var date = document.createElement("span"); date.className = "text-[11px] font-semibold text-primary tabular-nums px-2 py-0.5 rounded-full bg-primary-fixed"; date.textContent = fmtDate(flag.placed_date);
+      top.appendChild(name); top.appendChild(date); info.appendChild(top);
+      if (flag.note) { var note = document.createElement("p"); note.className = "text-xs text-on-surface-variant truncate"; note.textContent = flag.note; info.appendChild(note); }
+      row.appendChild(img); row.appendChild(info);
+
+      if (store.isAuthenticated()) {
+        var actions = document.createElement("div"); actions.className = "flex items-center gap-1 shrink-0";
+        var edit = document.createElement("button"); edit.type = "button";
+        edit.className = "w-9 h-9 rounded-lg bg-surface-container-low hover:bg-surface-container-high flex items-center justify-center text-primary transition-colors";
+        edit.innerHTML = '<span class="material-symbols-outlined text-[18px]">edit</span>';
+        edit.onclick = function () { openEdit(flag.id); };
+        var del = document.createElement("button"); del.type = "button";
+        del.className = "w-9 h-9 rounded-lg bg-surface-container-low hover:bg-error-container flex items-center justify-center text-on-surface-variant hover:text-error transition-colors";
+        del.innerHTML = '<span class="material-symbols-outlined text-[18px]">delete</span>';
+        del.onclick = function () { state.confirmId = flag.id; openConfirm(); };
+        actions.appendChild(edit); actions.appendChild(del); row.appendChild(actions);
+      }
+      return row;
+    }
+
+    function renderList() {
+      var authed = store.isAuthenticated();
+      // login card vs content
+      $("#flags-login-card").classList.toggle("hidden", authed);
+      $("#flags-content").classList.toggle("hidden", !authed);
+      $("#header-role").textContent = authed ? (store.mode === "live" ? "GVCN · đã mở" : "Offline") : "Khách";
+
+      // place zone: hiện form/nút chỉ khi authed
+      $("#flag-place-zone").classList.toggle("hidden", !authed);
+      // signout: chỉ khi live & authed
+      $("#btn-signout").classList.toggle("hidden", !(store.mode === "live" && authed));
+
+      if (store.loading) { $("#flags-loading").classList.remove("hidden"); $("#flags-loading").classList.add("flex"); $("#flags-list").innerHTML = ""; $("#flags-empty").classList.add("hidden"); $("#list-count").textContent = ""; return; }
+      $("#flags-loading").classList.add("hidden"); $("#flags-loading").classList.remove("flex");
+
+      var list = store.filtered({ type: state.type, month: state.month });
+      var wrap = $("#flags-list"); wrap.innerHTML = ""; wrap.classList.remove("hidden"); wrap.classList.add("flex");
+      if (list.length === 0) {
+        $("#list-count").textContent = "";
+        var empty = $("#flags-empty"); empty.classList.remove("hidden"); empty.classList.add("flex");
+        $("#empty-desc").textContent = (state.type || state.month)
+          ? "Không có cờ khớp bộ lọc hiện tại."
+          : "Mỗi lần lớp đạt thành tích, GVCN mở khóa rồi nhận cờ đặt lên bảng.";
+      } else {
+        $("#flags-empty").classList.add("hidden"); $("#flags-empty").classList.remove("flex");
+        $("#list-count").textContent = list.length + " cờ";
+        list.forEach(function (f) { wrap.appendChild(makeRow(f)); });
+      }
+    }
+
+    function renderAll() { renderMode(); renderStats(); syncFilterSelects(); renderList(); }
+
+    function resetForm() { state.formOpen = false; state.editingId = null; $("#flag-form").classList.add("hidden"); $("#flag-form").classList.remove("flex"); }
+    function openAdd() {
+      state.editingId = null; state.formOpen = true;
+      $("#form-title").innerHTML = '<span class="material-symbols-outlined text-[18px] text-primary">flag</span> Nhận cờ';
+      $("#btn-submit-form").textContent = "Đặt lên bảng";
+      $("#form-date").value = todayISO(); $("#form-note").value = ""; updateCount();
+      $("#form-type").value = FLAG_TYPES[0].id;
+      $("#flag-form").classList.remove("hidden"); $("#flag-form").classList.add("flex");
+    }
+    function openEdit(id) {
+      var flag = store.flags.filter(function (f) { return f.id === id; })[0]; if (!flag) return;
+      state.editingId = id; state.formOpen = true;
+      $("#form-title").innerHTML = '<span class="material-symbols-outlined text-[18px] text-primary">edit</span> Sửa cờ';
+      $("#btn-submit-form").textContent = "Lưu thay đổi";
+      $("#form-type").value = flag.flag_type; $("#form-date").value = flag.placed_date; $("#form-note").value = flag.note || ""; updateCount();
+      $("#flag-form").classList.remove("hidden"); $("#flag-form").classList.add("flex");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    function updateCount() { $("#note-count").textContent = ($("#form-note").value.length) + "/200"; }
+
+    function openConfirm() { var m = $("#confirm-modal"); m.classList.remove("hidden"); m.classList.add("flex"); }
+    function closeConfirm() { var m = $("#confirm-modal"); m.classList.add("hidden"); m.classList.remove("flex"); state.confirmId = null; }
+
+    // ---- wire ----
+    function initTypeSelect() {
+      var fs = $("#form-type"); fs.innerHTML = "";
+      FLAG_TYPES.forEach(function (f) { var o = document.createElement("option"); o.value = f.id; o.textContent = f.name; fs.appendChild(o); });
+    }
+    $("#btn-toggle-place").onclick = function () { state.formOpen && !state.editingId ? resetForm() : openAdd(); };
+    $("#btn-cancel-form").onclick = resetForm;
+    $("#form-note").oninput = updateCount;
+    $("#filter-type").onchange = function () { state.type = this.value; renderList(); syncFilterSelects(); };
+    $("#filter-month").onchange = function () { state.month = this.value; renderList(); syncFilterSelects(); };
+    $("#btn-clear-filters").onclick = function () { state.type = ""; state.month = ""; renderList(); syncFilterSelects(); };
+
+    $("#btn-flag-login").onclick = function () {
+      try { store.signIn($("#flag-pass-input").value); showToast("Đã mở khóa bảng cờ.", "ok"); renderAll(); }
+      catch (e) { showToast(e.message, "err"); }
+    };
+    $("#btn-signout").onclick = function () { store.signOut(); resetForm(); renderAll(); };
+
+    $("#btn-submit-form").onclick = function () {
+      var payload = { flagType: $("#form-type").value, placedDate: $("#form-date").value || todayISO(), note: $("#form-note").value.slice(0, 200) };
+      if (!store.isAuthenticated()) { showToast("Cần mở khóa để đặt cờ.", "err"); return; }
+      if (state.editingId) {
+        var t = store.flags.filter(function (f) { return f.id === state.editingId; })[0];
+        if (t) { t.flag_type = payload.flagType; t.placed_date = payload.placedDate; t.note = payload.note; }
+        showToast("Đã cập nhật lá cờ.", "ok");
+      } else {
+        store.flags.unshift({ id: "x" + Date.now(), flag_type: payload.flagType, placed_date: payload.placedDate, note: payload.note, created_at: new Date().toISOString() });
+        showToast("Đã đặt cờ lên bảng.", "ok");
+      }
+      store.flags.sort(function (a, b) { return String(b.placed_date).localeCompare(String(a.placed_date)); });
+      resetForm(); renderAll();
+    };
+    $("#btn-confirm-cancel").onclick = closeConfirm;
+    $("#btn-confirm-delete").onclick = function () {
+      if (state.confirmId) { store.flags = store.flags.filter(function (f) { return f.id !== state.confirmId; }); }
+      closeConfirm(); renderAll(); showToast("Đã xóa lá cờ.", "ok");
+    };
+
+    // ===== KÉO THẢ CỜ VÀO BẢNG THÀNH TÍCH (demo UI, pointer events: chuột + cảm ứng) =====
+    var board = $("#board-drop");
+    function rectHasPoint(r, x, y, pad) {
+      return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+    }
+    function makeDraggable(img, flag) {
+      img.classList.add("flag-draggable");
+      img.draggable = false;
+      img.addEventListener("dragstart", function (e) { e.preventDefault(); });
+      img.addEventListener("pointerdown", function (e) {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        var startX = e.clientX, startY = e.clientY;
+        var rect = img.getBoundingClientRect();
+        var ghost = null, over = false, active = false;
+
+        function flyBack() {
+          board.classList.remove("drop-over");
+          document.body.classList.remove("flag-dragging");
+          if (!ghost) { img.style.opacity = ""; return; }
+          // Buông ra ngoài bảng → lá cờ tự bay về đúng chỗ ban đầu
+          ghost.style.transition = "transform .45s cubic-bezier(.3,1.35,.5,1)";
+          ghost.style.transform = "translate(0px,0px) rotate(0deg) scale(1)";
+          setTimeout(function () { ghost.remove(); img.style.opacity = ""; }, 470);
+        }
+        function onMove(ev) {
+          var dx = ev.clientX - startX, dy = ev.clientY - startY;
+          if (!active) {
+            if (Math.abs(dx) + Math.abs(dy) < 8) return; // tap thường, không kéo
+            active = true;
+            ghost = img.cloneNode(true);
+            ghost.classList.add("flag-ghost");
+            ghost.style.left = rect.left + "px";
+            ghost.style.top = rect.top + "px";
+            ghost.style.width = rect.width + "px";
+            ghost.style.height = rect.height + "px";
+            document.body.appendChild(ghost);
+            img.style.opacity = "0.25";
+            document.body.classList.add("flag-dragging");
+          }
+          ev.preventDefault();
+          over = rectHasPoint(board.getBoundingClientRect(), ev.clientX, ev.clientY, 14);
+          board.classList.toggle("drop-over", over);
+          ghost.style.transition = "none";
+          ghost.style.transform = "translate(" + dx + "px," + dy + "px) rotate(6deg) scale(1.1)";
+        }
+        function onUp(ev) {
+          document.removeEventListener("pointermove", onMove);
+          document.removeEventListener("pointerup", onUp);
+          document.removeEventListener("pointercancel", onCancel);
+          if (!active) return;
+          if (!over) { flyBack(); return; }
+          // Thả trúng bảng → cờ thu nhỏ bay vào giữa bảng + nhấp nháy card + toast
+          board.classList.remove("drop-over");
+          document.body.classList.remove("flag-dragging");
+          var b = board.getBoundingClientRect();
+          var tx = b.left + b.width / 2 - (rect.left + rect.width / 2);
+          var ty = b.top + b.height / 2 - (rect.top + rect.height / 2);
+          ghost.style.transition = "transform .3s ease-in, opacity .3s ease-in";
+          ghost.style.transform = "translate(" + tx + "px," + ty + "px) scale(.28)";
+          ghost.style.opacity = "0";
+          board.classList.add("drop-landed");
+          setTimeout(function () { board.classList.remove("drop-landed"); ghost.remove(); }, 480);
+          img.style.opacity = "";
+          showToast("Đã kéo " + TYPE_BY_ID[flag.flag_type].name + " vào bảng thành tích.", "ok");
+        }
+        function onCancel() {
+          document.removeEventListener("pointermove", onMove);
+          document.removeEventListener("pointerup", onUp);
+          document.removeEventListener("pointercancel", onCancel);
+          if (active) flyBack();
+        }
+        document.addEventListener("pointermove", onMove);
+        document.addEventListener("pointerup", onUp);
+        document.addEventListener("pointercancel", onCancel);
+      });
+    }
+
+    // demo toggles
+    $$(".demo-toggle").forEach(function (b) {
+      b.onclick = function () {
+        var k = b.dataset.demo;
+        if (k === "live") { store.mode = "live"; }
+        else if (k === "offline") { store.mode = "offline"; }
+        else if (k === "authed0") { store.mode = "live"; store.unlocked = false; }
+        else if (k === "authed1") { store.mode = "live"; store.unlocked = true; }
+        else if (k === "data") { store.loading = false; store.flags = SEED.slice(); }
+        else if (k === "empty") { store.loading = false; store.flags = []; }
+        else if (k === "loading") { store.loading = true; }
+        renderAll();
+      };
+    });
+
+    initTypeSelect();
+    // Cho phép mở nhanh 1 trạng thái qua ?state=locked|form|empty|loading|offline
+    try {
+      var st = new URLSearchParams(location.search).get("state");
+      if (st === "locked") { store.mode = "live"; store.unlocked = false; }
+      else if (st === "offline") { store.mode = "offline"; }
+      else if (st === "empty") { store.flags = []; }
+      else if (st === "loading") { store.loading = true; }
+    } catch (e) {}
+    renderAll();
+    try {
+      if (new URLSearchParams(location.search).get("state") === "form") openAdd();
+    } catch (e) {}
+  })();
+  </script>
+</body>
+</html>
