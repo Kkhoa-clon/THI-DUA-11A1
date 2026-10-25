@@ -11,6 +11,37 @@ function json(res, status, value) {
   res.end(JSON.stringify(value));
 }
 
+function describeOperationalError(error, requestId) {
+  const message = String(error?.message || "");
+  if (message.startsWith("Thiếu biến môi trường ")) {
+    return `${message} Hãy thêm biến này trong Vercel → Settings → Environment Variables, rồi redeploy.`;
+  }
+  if (message.includes("PUSH_ADMIN_CODES") || message.includes("PUSH_LEADER_CODES")) {
+    return `${message} Kiểm tra Value là JSON hợp lệ trong Vercel, sau đó redeploy.`;
+  }
+  if (message.includes("PUSH_TOKEN_SECRET")) {
+    return `${message} Dùng chuỗi ngẫu nhiên ít nhất 32 ký tự rồi redeploy.`;
+  }
+  if (message.includes("VAPID")) {
+    return "Cặp khóa VAPID không hợp lệ. Tạo lại public/private key cùng một lần và cập nhật cả hai biến trên Vercel.";
+  }
+  if (error?.upstreamStatus === 404) {
+    return "Supabase không tìm thấy bảng push_subscriptions hoặc push_ranking_state. Chạy lại supabase-push.sql trong đúng project Supabase.";
+  }
+  if (error?.upstreamStatus === 401 || error?.upstreamStatus === 403) {
+    return "Supabase từ chối quyền API. Kiểm tra SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY có cùng project; dùng service_role/secret key ở Vercel, không dùng anon/publishable key.";
+  }
+  if (error?.upstreamStatus) {
+    return `Supabase trả HTTP ${error.upstreamStatus}. Kiểm tra bảng và quyền service_role trong Supabase.`;
+  }
+  if (Number.isInteger(error?.statusCode)) {
+    return error.statusCode === 401 || error.statusCode === 403
+      ? "Nhà cung cấp Web Push từ chối VAPID. Kiểm tra VAPID_PUBLIC_KEY và VAPID_PRIVATE_KEY là cùng một cặp khóa."
+      : `Nhà cung cấp Web Push trả HTTP ${error.statusCode}. Kiểm tra cặp VAPID và trạng thái subscription.`;
+  }
+  return `Lỗi cấu hình hoặc dịch vụ phía máy chủ (mã ${requestId}). Mở Vercel → Deployments → Functions → api/notifications → Logs để xem chi tiết.`;
+}
+
 function allowedOrigin(req) {
   const origin = req.headers.origin;
   if (!origin) return true;
@@ -76,8 +107,9 @@ async function supabaseRequest(path, options = {}) {
     },
   });
   if (!response.ok) {
-    const detail = (await response.text()).slice(0, 300);
-    throw new Error(`Supabase trả HTTP ${response.status}: ${detail}`);
+    const error = new Error(`Supabase trả HTTP ${response.status}.`);
+    error.upstreamStatus = response.status;
+    throw error;
   }
   const text = await response.text();
   return text ? JSON.parse(text) : null;
@@ -178,11 +210,18 @@ function assertRole(claims, roles) {
 }
 
 function configureWebPush() {
-  webpush.setVapidDetails(
-    requiredEnv("VAPID_SUBJECT"),
-    requiredEnv("VAPID_PUBLIC_KEY"),
-    requiredEnv("VAPID_PRIVATE_KEY")
-  );
+  try {
+    webpush.setVapidDetails(
+      requiredEnv("VAPID_SUBJECT"),
+      requiredEnv("VAPID_PUBLIC_KEY"),
+      requiredEnv("VAPID_PRIVATE_KEY")
+    );
+  } catch (error) {
+    if (String(error?.message || "").includes("VAPID")) throw error;
+    const configError = new Error("Cấu hình VAPID không hợp lệ.");
+    configError.cause = error;
+    throw configError;
+  }
 }
 
 async function sendToSubscribers(title, body, url = "/") {
@@ -519,10 +558,15 @@ export default async function handler(req, res) {
     return json(res, 200, await handleAdminAction(action, body, claims));
   } catch (error) {
     if (!error.status || error.status >= 500) {
-      console.error("Notification API error:", error);
+      const requestId = crypto.randomUUID();
+      console.error(`Notification API error [${requestId}]:`, error);
+      return json(res, 500, {
+        error: describeOperationalError(error, requestId),
+        requestId,
+      });
     }
     return json(res, error.status || 500, {
-      error: error.status ? error.message : "Không thể xử lý thông báo. Kiểm tra cấu hình API và Supabase.",
+      error: error.message,
     });
   }
 }

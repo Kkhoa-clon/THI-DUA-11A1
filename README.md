@@ -87,6 +87,13 @@ Web Push hoạt động khi trang được triển khai qua HTTPS trên Vercel. 
 
 Tổ trưởng gửi thông báo sau khi lượt điểm đã đồng bộ thành công. Server gửi thêm thông báo nếu vị trí top 1/2/3 của bảng điểm cộng hoặc vi phạm thay đổi; lần đầu chỉ lưu mốc so sánh để tránh gửi bảng xếp hạng giả định ban đầu. Admin có thể gửi thông báo tùy chỉnh, gửi danh sách vi phạm tuần hiện tại, và thông báo chốt sổ. Nội dung bảng vi phạm được đưa trực tiếp vào push và có thể hiển thị trên màn hình khóa; người dùng nên cân nhắc quyền riêng tư của lớp.
 
+### Chẩn đoán lỗi POST `/api/notifications` trả HTTP 500
+
+- Cập nhật/redeploy API để giao diện hiển thị nguyên nhân an toàn thay vì lỗi chung. Thông báo thường chỉ rõ biến Vercel cần bổ sung, bảng Supabase chưa có, hoặc cặp VAPID không hợp lệ; không hiển thị giá trị bí mật.
+- Nếu được báo thiếu bảng, chạy `supabase-push.sql` trong đúng project Supabase, rồi kiểm tra `SUPABASE_URL` và `SUPABASE_SERVICE_ROLE_KEY` trên Vercel thuộc cùng project.
+- Nếu được báo thiếu `PUSH_TOKEN_SECRET`, tạo chuỗi ngẫu nhiên từ 32 ký tự trở lên. Nếu cập nhật thêm mã đăng nhập Admin trong `js/config.js`, cũng cập nhật `PUSH_ADMIN_CODES` trên Vercel thành mảng JSON gồm các mã đang dùng.
+- Với lỗi chưa phân loại, mở Vercel → Deployments → Functions → `api/notifications` → Logs, tìm dòng có cùng `requestId` mà giao diện hiển thị. Chỉ chia sẻ thông báo lỗi đã che URL/token/subscription và mọi giá trị bí mật; không gửi environment variables hoặc service-role key.
+
 Lưu ý: các mã đăng nhập hiện có nằm trong JavaScript phía trình duyệt và có thể bị xem trong repository/bundle. Dùng lại chúng để xác thực gửi push nghĩa là người xem mã nguồn có thể lấy mã và gọi API; rate limit chỉ hạn chế phần nào việc lạm dụng, không biến mã thành bí mật. Muốn bảo vệ chắc chắn hơn cần xác thực người dùng thật ở phía máy chủ.
 
 ---

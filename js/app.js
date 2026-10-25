@@ -61,7 +61,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 // Utility Toast
-function showToast(msg, icon = "cloud_done") {
+function showToast(msg, icon = "cloud_done", duration = 2400) {
   const toast = $("#toast-sync");
   const msgEl = $("#toast-msg");
   const iconEl = $("#toast-icon");
@@ -77,7 +77,7 @@ function showToast(msg, icon = "cloud_done") {
   showToast._timer = setTimeout(() => {
     toast.classList.add("opacity-0", "pointer-events-none", "-translate-y-2");
     toast.classList.remove("opacity-100", "translate-y-0");
-  }, 2400);
+  }, duration);
 }
 
 function getInitials(name) {
@@ -146,7 +146,7 @@ async function reportPushResult(action, details, successMessage) {
     return result;
   } catch (error) {
     console.error("Không gửi được thông báo đẩy:", error);
-    showToast(`Đã lưu thay đổi nhưng không gửi được push: ${error.message}`, "notifications_off");
+    showToast(`Push lỗi: ${error.message}`, "notifications_off", 8000);
     return null;
   }
 }

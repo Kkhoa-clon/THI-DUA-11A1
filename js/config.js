@@ -170,7 +170,7 @@ export const LEADER_CODES = {
  * - Mật khẩu:  "khoa2112"
  * - PIN nhanh: "2112" hoặc "1100"
  */
-export const ADMIN_CODES = ["khoa2112", "2112", "1100"];
+export const ADMIN_CODES = ["khoa2112", "2112", "1100", "thaycan"];
 
 export const TEAM_BY_ID = Object.fromEntries(TEAMS.map((t) => [t.id, t]));
 
