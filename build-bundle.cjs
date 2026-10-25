@@ -6,6 +6,13 @@ const dir = __dirname;
 const configSrc = fs.readFileSync(path.join(dir, 'js', 'config.js'), 'utf8');
 const rulesSrc = fs.readFileSync(path.join(dir, 'js', 'rules.js'), 'utf8');
 const storeSrc = fs.readFileSync(path.join(dir, 'js', 'store.js'), 'utf8');
+const flagsSrcRaw = fs.readFileSync(path.join(dir, 'js', 'flags.js'), 'utf8');
+// flags.js khai báo lại fetchWithTimeout y hệt store.js — bỏ bản trùng để khỏi lỗi
+// "redeclaration" khi gộp chung một scope (không sửa source flags.js).
+const flagsSrc = flagsSrcRaw.replace(
+  /async function fetchWithTimeout\(url, options = \{\}, ms = 10000\) \{[\s\S]*?\n\}\n/,
+  ''
+);
 const notificationsSrc = fs.readFileSync(path.join(dir, 'js', 'notifications.js'), 'utf8');
 const appSrc = fs.readFileSync(path.join(dir, 'js', 'app.js'), 'utf8');
 
@@ -39,6 +46,11 @@ const bundled = [
   '  // 3. STORE DỮ LIỆU & SUPABASE REALTIME',
   '  // ========================================== ',
   stripModules(storeSrc),
+  '',
+  '  // ========================================== ',
+  '  // 3b. BẢNG CỜ LUÂN LƯU (FlagStore)',
+  '  // ========================================== ',
+  stripModules(flagsSrc),
   '',
   '  // ========================================== ',
   '  // 4. WEB PUSH NOTIFICATIONS',

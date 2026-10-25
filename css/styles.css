@@ -393,3 +393,130 @@
     transition: none;
   }
 }
+
+/* ============================================================
+   DARK MODE — override các khối hardcode màu sáng ở trên.
+   Palette token + glass + palette thô đã xử lý trong js/theme.js;
+   riêng các component nội dung file này cần specificity thắng thế.
+   ============================================================ */
+html.dark,
+html.dark body {
+  background-color: #0d1420;
+  color: #dde4f0;
+}
+
+html.dark .member-admin-badge {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+}
+
+html.dark .ranking-team-card.rank-1 {
+  --rank-glow: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.3);
+  background: linear-gradient(120deg, #17202f 0%, #192332 58%);
+}
+
+html.dark .ranking-team-card.rank-2 {
+  --rank-glow: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+html.dark .ranking-team-card.rank-3 {
+  --rank-glow: rgba(180, 83, 9, 0.14);
+  border-color: rgba(180, 83, 9, 0.3);
+}
+
+html.dark .ranking-team-card.rank-1 .ranking-rank-medal {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+}
+
+html.dark .ranking-team-card.rank-2 .ranking-rank-medal {
+  background: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+}
+
+html.dark .ranking-team-card.rank-3 .ranking-rank-medal {
+  background: rgba(180, 83, 9, 0.22);
+  color: #f0a06a;
+}
+
+html.dark .ranking-member-card {
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+html.dark .ranking-member-card.rank-1 {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: linear-gradient(110deg, #1b2231, #192332 65%);
+}
+
+html.dark .ranking-member-card.rank-2 {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+html.dark .ranking-member-card.rank-3 {
+  border-color: rgba(180, 83, 9, 0.3);
+}
+
+html.dark .ranking-member-card.ranking-member-violation {
+  border-left-color: #ff8a80;
+}
+
+html.dark .ranking-member-card.ranking-member-bonus {
+  border-left-color: #5debb0;
+}
+
+/* Khối lịch sử tuần: nền đã tối sẵn, chỉ sửa các mảng trắng */
+html.dark .history-member-card {
+  background: #152034;
+  color: #dde4f0;
+}
+
+html.dark .history-team-icon {
+  background: rgba(110, 163, 255, 0.18);
+  color: #9fc0ff;
+}
+
+html.dark .history-member-link {
+  color: #dde4f0;
+}
+
+html.dark .history-details {
+  color: #a9b4c4;
+}
+
+html.dark .history-details li {
+  background: #192332;
+  color: #dde4f0;
+}
+
+html.dark .history-count {
+  color: #f2a0a0;
+}
+
+/* ============================================================
+   KÉO THẢ CỜ VÀO BẢNG THÀNH TÍCH (tab Cờ luân lưu)
+   ============================================================ */
+.flag-draggable { cursor: grab; touch-action: none; }
+.flag-dragging, .flag-dragging * { cursor: grabbing !important; }
+.flag-ghost {
+  position: fixed; z-index: 999; margin: 0; pointer-events: none;
+  border-radius: 0.75rem; box-shadow: 0 14px 32px rgba(11, 28, 48, 0.38);
+  background: rgba(255, 255, 255, 0.9);
+}
+html.dark .flag-ghost {
+  background: rgba(25, 35, 50, 0.95);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
+}
+#flags-board-drop { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+#flags-board-drop.drop-over {
+  transform: scale(1.02);
+  box-shadow: 0 0 0 2px rgb(var(--a1-primary, 0 74 198)), 0 12px 28px rgba(11, 28, 48, 0.16);
+}
+@keyframes flagsDropLanded {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+#flags-board-drop.drop-landed { animation: flagsDropLanded 0.45s ease; }

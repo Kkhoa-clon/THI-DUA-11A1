@@ -172,6 +172,19 @@ export const LEADER_CODES = {
  */
 export const ADMIN_CODES = ["khoa2112", "2112", "1100", "thaycan"];
 
+/** ——— BẢNG CỜ LUÂN LƯU (js/flags.js) ——— */
+/** Mật khẩu mở khóa bảng cờ (flags.js so sánh giá trị này). */
+export const ADMIN_CODE = "khoa2112";
+
+/** 3 loại cờ — id khớp ràng buộc CHECK cột flag_type trong supabase-flags.sql. */
+export const FLAG_TYPES = [
+  { id: "co-1", name: "Cờ Nhất", image: "image/luanluu1.png" },
+  { id: "co-2", name: "Cờ Nhì", image: "image/luanluu2.png" },
+  { id: "co-3", name: "Cờ Ba", image: "image/luanluu3.png" },
+];
+
+export const FLAG_TYPE_BY_ID = Object.fromEntries(FLAG_TYPES.map((f) => [f.id, f]));
+
 export const TEAM_BY_ID = Object.fromEntries(TEAMS.map((t) => [t.id, t]));
 
 export const MEMBER_BY_ID = Object.fromEntries(

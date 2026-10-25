@@ -39,9 +39,15 @@ import {
   getNotificationSubscription,
   sendPushNotification,
 } from "./notifications.js";
+import { FlagStore, FLAG_TYPES, FLAG_TYPE_BY_ID, todayISO } from "./flags.js";
 
 // Khởi tạo Store trung tâm
 const store = new ScoreStore();
+// ——— START CỜ LUÂN LƯU ———
+const flagStore = new FlagStore();
+let flagsUnsub = null;
+const flagsUI = { type: "", month: "", editingId: null, confirmId: null, dragging: false, pending: [], placing: new Set() };
+// ——— END CỜ LUÂN LƯU ———
 
 // Trạng thái cục bộ của giao diện
 const state = {
@@ -217,6 +223,11 @@ function switchView(viewName) {
     renderProfileView();
   } else if (viewName === "admin") {
     renderAdminPanel();
+  } else if (viewName === "flags") {
+    // ——— CỜ LUÂN LƯU ———
+    enterFlagsView();
+  } else {
+    exitFlagsView();
   }
 }
 
@@ -1918,10 +1929,571 @@ function setupEventListeners() {
 }
 
 // ===========================================================================
+// ——— START CỜ LUÂN LƯU (tab 5 — chỉ giao diện, logic dùng FlagStore có sẵn) ———
+// ===========================================================================
+function flagsDateLabel(iso) {
+  const p = String(iso || "").slice(0, 10).split("-");
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(iso || "");
+}
+
+function flagsMonthLabel(ym) {
+  const p = String(ym || "").split("-");
+  return p.length === 2 ? `Tháng ${Number(p[1])}/${p[0]}` : String(ym || "");
+}
+
+function setFlagsVisible(el, visible) {
+  if (!el) return;
+  el.classList.toggle("hidden", !visible);
+  el.classList.toggle("flex", visible);
+}
+
+function enterFlagsView() {
+  if (!flagsUnsub) {
+    flagsUnsub = flagStore.subscribe(() => renderFlagsView());
+    void flagStore.init();
+  }
+}
+
+function exitFlagsView() {
+  if (flagsUnsub) {
+    flagsUnsub();
+    flagsUnsub = null;
+  }
+  flagsCloseForm();
+}
+
+function renderFlagsStats() {
+  const s = flagStore.stats();
+  const totalEl = $("#flags-stat-total");
+  if (totalEl) totalEl.textContent = String(s.total);
+  const wrap = $("#flags-stat-pills");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  for (const f of FLAG_TYPES) {
+    const cell = document.createElement("div");
+    cell.className = "bg-surface-container-low rounded-xl p-2.5 flex flex-col items-center gap-1";
+    const img = document.createElement("img");
+    img.src = f.image;
+    img.alt = f.name;
+    img.className = "w-8 h-8 object-contain rounded";
+    img.onerror = () => { img.style.visibility = "hidden"; };
+    const num = document.createElement("span");
+    num.className = "font-heading text-lg font-bold text-on-surface tabular-nums leading-none";
+    num.textContent = String(s.byType[f.id] ?? 0);
+    const nm = document.createElement("span");
+    nm.className = "text-[10px] text-on-surface-variant font-semibold";
+    nm.textContent = f.name;
+    cell.append(img, num, nm);
+    wrap.appendChild(cell);
+  }
+}
+
+function renderFlagsFilters() {
+  const typeSel = $("#flag-filter-type");
+  const monthSel = $("#flag-filter-month");
+  if (!typeSel || !monthSel) return;
+  if (typeSel.options.length <= 1) {
+    for (const f of FLAG_TYPES) {
+      const o = document.createElement("option");
+      o.value = f.id;
+      o.textContent = f.name;
+      typeSel.appendChild(o);
+    }
+  }
+  const prevMonth = flagsUI.month;
+  monthSel.innerHTML = "";
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = "Tất cả tháng";
+  monthSel.appendChild(all);
+  for (const m of flagStore.months()) {
+    const o = document.createElement("option");
+    o.value = m;
+    o.textContent = flagsMonthLabel(m);
+    monthSel.appendChild(o);
+  }
+  typeSel.value = flagsUI.type;
+  monthSel.value = flagsUI.month = monthSel.querySelector(`option[value="${CSS.escape(prevMonth)}"]`) ? prevMonth : "";
+  setFlagsVisible($("#btn-flag-clear-filters"), Boolean(flagsUI.type || flagsUI.month));
+}
+
+function makeFlagRow(flag) {
+  const type = FLAG_TYPE_BY_ID[flag.flag_type];
+  const card = document.createElement("div");
+  card.className = "bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex flex-col items-center gap-1.5 text-center";
+
+  const img = document.createElement("img");
+  img.src = type?.image || "";
+  img.alt = type?.name || flag.flag_type;
+  img.className = "w-24 h-24 rounded-xl bg-surface-container object-contain p-1.5";
+  img.onerror = () => { img.style.visibility = "hidden"; };
+  card.appendChild(img);
+
+  const name = document.createElement("span");
+  name.className = "font-heading text-sm font-bold text-on-surface";
+  name.textContent = type?.name || flag.flag_type;
+  card.appendChild(name);
+
+  const date = document.createElement("span");
+  date.className = "text-[11px] font-semibold text-primary tabular-nums px-2 py-0.5 rounded-full bg-primary/15";
+  date.textContent = flagsDateLabel(flag.placed_date);
+  card.appendChild(date);
+
+  if (flag.note) {
+    const note = document.createElement("p");
+    note.className = "text-[11px] text-on-surface-variant leading-tight w-full";
+    note.style.display = "-webkit-box";
+    note.style.setProperty("-webkit-box-orient", "vertical");
+    note.style.setProperty("-webkit-line-clamp", "2");
+    note.style.overflow = "hidden";
+    note.textContent = flag.note; // textContent — không innerHTML với dữ liệu người dùng
+    card.appendChild(note);
+  }
+
+  if (flagStore.isAuthenticated()) {
+    const actions = document.createElement("div");
+    actions.className = "flex items-center gap-1.5 w-full mt-0.5";
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "flex-1 h-8 rounded-lg bg-surface-container-low hover:bg-surface-container-high text-primary text-[11px] font-bold flex items-center justify-center gap-1 transition-colors";
+    edit.innerHTML = '<span class="material-symbols-outlined text-[15px]">edit</span>Sửa';
+    edit.onclick = () => flagsOpenEdit(flag.id);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "flex-1 h-8 rounded-lg bg-surface-container-low hover:bg-error-container text-on-surface-variant hover:text-error text-[11px] font-bold flex items-center justify-center gap-1 transition-colors";
+    del.innerHTML = '<span class="material-symbols-outlined text-[15px]">delete</span>Xóa';
+    del.onclick = () => flagsAskDelete(flag.id);
+    actions.append(edit, del);
+    card.appendChild(actions);
+  }
+  return card;
+}
+
+function renderFlagsList() {
+  const authed = flagStore.isAuthenticated();
+  // Bảng thành tích LUÔN hiển thị (kể cả khi khóa). Khóa chỉ chặn đặt/sửa/xóa.
+  setFlagsVisible($("#flags-login-card"), !authed);
+  setFlagsVisible($("#flags-content"), true);
+  setFlagsVisible($("#flag-place-zone"), authed);
+  setFlagsVisible($("#btn-flag-signout"), flagStore.mode === "live" && authed);
+
+  const icon = $("#flags-mode-icon");
+  const badge = $("#flags-mode-badge");
+  const badgeText = $("#flags-mode-badge-text");
+  if (icon) icon.textContent = flagStore.mode === "live" ? "bolt" : "cloud_off";
+  if (badge && badgeText) {
+    if (flagStore.mode === "live") {
+      badge.className = "text-[11px] text-secondary flex items-center gap-1 shrink-0 ml-2 font-bold px-2 py-0.5 rounded-full bg-secondary/15";
+      badgeText.textContent = "Realtime";
+    } else {
+      badge.className = "text-[11px] text-on-surface-variant flex items-center gap-1 shrink-0 ml-2 font-bold px-2 py-0.5 rounded-full bg-surface-container";
+      badgeText.textContent = "Offline · máy này";
+    }
+  }
+  const badgeDot = badge?.querySelector("span:not(#flags-mode-badge-text)");
+  if (badgeDot) badgeDot.className = `w-1.5 h-1.5 rounded-full ${flagStore.mode === "live" ? "bg-secondary" : "bg-outline"}`;
+
+  if (flagStore.loading) {
+    setFlagsVisible($("#flags-loading"), true);
+    setFlagsVisible($("#flags-empty"), false);
+    const list = $("#flags-list");
+    if (list) list.innerHTML = "";
+    const count = $("#flags-list-count");
+    if (count) count.textContent = "";
+    return;
+  }
+  setFlagsVisible($("#flags-loading"), false);
+
+  if (flagsUI.dragging) return; // đang kéo cờ — giữ nguyên row, render lại khi thả xong
+
+  const list = flagStore.filtered({ type: flagsUI.type, month: flagsUI.month });
+  const wrap = $("#flags-list");
+  if (wrap) {
+    wrap.innerHTML = "";
+    for (const f of list) wrap.appendChild(makeFlagRow(f));
+  }
+  const count = $("#flags-list-count");
+  if (count) count.textContent = list.length ? `${list.length} cờ` : "";
+  const emptyDesc = $("#flags-empty-desc");
+  if (emptyDesc) {
+    emptyDesc.textContent = flagsUI.type || flagsUI.month
+      ? "Không có cờ khớp bộ lọc hiện tại."
+      : "Mỗi lần lớp đạt thành tích, GVCN mở khóa rồi nhận cờ đặt lên bảng.";
+  }
+  setFlagsVisible($("#flags-empty"), list.length === 0);
+}
+
+function renderFlagsView() {
+  if (state.currentView !== "flags") return;
+  renderFlagsStats();
+  renderFlagsTray();
+  renderFlagsFilters();
+  renderFlagsList();
+}
+
+function flagsSyncNoteCount() {
+  const el = $("#flag-note-count");
+  const note = $("#flag-form-note");
+  if (el && note) el.textContent = `${note.value.length}/200`;
+}
+
+function flagsOpenAdd() {
+  flagsUI.editingId = null;
+  const title = $("#flag-form-title");
+  if (title) title.innerHTML = '<span class="material-symbols-outlined text-[18px] text-primary">flag</span> Nhận cờ';
+  const submit = $("#btn-flag-submit");
+  if (submit) submit.textContent = "Thêm vào khay chờ";
+  const typeSel = $("#flag-form-type");
+  if (typeSel) typeSel.value = FLAG_TYPES[0]?.id || "";
+  const dateEl = $("#flag-form-date");
+  if (dateEl) dateEl.value = todayISO();
+  const noteEl = $("#flag-form-note");
+  if (noteEl) noteEl.value = "";
+  flagsSyncNoteCount();
+  setFlagsVisible($("#flag-form"), true);
+}
+
+function flagsOpenEdit(id) {
+  const flag = flagStore.flags.find((f) => f.id === id);
+  if (!flag) return;
+  flagsUI.editingId = id;
+  const title = $("#flag-form-title");
+  if (title) title.innerHTML = '<span class="material-symbols-outlined text-[18px] text-primary">edit</span> Sửa cờ';
+  const submit = $("#btn-flag-submit");
+  if (submit) submit.textContent = "Lưu thay đổi";
+  const typeSel = $("#flag-form-type");
+  if (typeSel) typeSel.value = flag.flag_type;
+  const dateEl = $("#flag-form-date");
+  if (dateEl) dateEl.value = flag.placed_date;
+  const noteEl = $("#flag-form-note");
+  if (noteEl) noteEl.value = flag.note || "";
+  flagsSyncNoteCount();
+  setFlagsVisible($("#flag-form"), true);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function flagsCloseForm() {
+  flagsUI.editingId = null;
+  setFlagsVisible($("#flag-form"), false);
+}
+
+async function flagsSubmitForm() {
+  const typeSel = $("#flag-form-type");
+  const dateEl = $("#flag-form-date");
+  const noteEl = $("#flag-form-note");
+  const payload = {
+    flagType: typeSel?.value || FLAG_TYPES[0]?.id,
+    placedDate: dateEl?.value || todayISO(),
+    note: String(noteEl?.value || "").slice(0, 200),
+  };
+  try {
+    if (flagsUI.editingId) {
+      await flagStore.updateFlag(flagsUI.editingId, { placedDate: payload.placedDate, note: payload.note });
+      showToast("Đã cập nhật lá cờ.", "check_circle");
+    } else {
+      // Cờ mới tạo vào KHAY CHỜ — chỉ lên bảng khi bấm "Đặt lên bảng" hoặc kéo thả vào bảng
+      flagsUI.pending.push({ pid: "p" + Date.now() + Math.random().toString(36).slice(2, 6), ...payload });
+      flagsSavePending();
+      renderFlagsTray();
+      showToast("Đã thêm cờ vào khay chờ — kéo hoặc bấm Đặt lên bảng để hoàn tất.", "inbox");
+    }
+    flagsCloseForm();
+  } catch (err) {
+    showToast(err?.message || "Không lưu được.", "error"); // lỗi store nguyên văn qua toast
+  }
+}
+
+function renderFlagsTray() {
+  const tray = $("#flags-tray");
+  const wrap = $("#flags-tray-list");
+  if (!tray || !wrap) return;
+  if (flagsUI.dragging) return; // đang kéo — giữ nguyên khay, render lại khi thả xong
+  // Khóa bảng → ẩn khay chờ (chỉ người mở khóa mới đặt được cờ)
+  if (!flagStore.isAuthenticated()) { setFlagsVisible(tray, false); return; }
+  const count = $("#flags-tray-count");
+  if (count) count.textContent = String(flagsUI.pending.length);
+  wrap.innerHTML = "";
+  for (const entry of flagsUI.pending) {
+    const type = FLAG_TYPE_BY_ID[entry.flagType];
+    const card = document.createElement("div");
+    card.className = "shrink-0 w-[150px] bg-surface-container-low rounded-xl p-2.5 flex flex-col items-center gap-1.5 text-center flag-draggable";
+    card.title = "Kéo nguyên lá cờ này thả vào bảng thành tích";
+
+    const img = document.createElement("img");
+    img.src = type?.image || "";
+    img.alt = type?.name || entry.flagType;
+    img.className = "w-[72px] h-[72px] rounded-xl bg-surface-container object-contain p-1.5 pointer-events-none";
+    img.draggable = false;
+    img.onerror = () => { img.style.visibility = "hidden"; };
+    card.appendChild(img);
+
+    const name = document.createElement("span");
+    name.className = "font-heading text-xs font-bold text-on-surface";
+    name.textContent = type?.name || entry.flagType;
+    card.appendChild(name);
+
+    const date = document.createElement("span");
+    date.className = "text-[10px] font-semibold text-primary tabular-nums px-1.5 py-0.5 rounded-full bg-primary/15";
+    date.textContent = flagsDateLabel(entry.placedDate);
+    card.appendChild(date);
+
+    if (entry.note) {
+      const note = document.createElement("p");
+      note.className = "text-[10px] text-on-surface-variant leading-tight";
+      note.style.display = "-webkit-box";
+      note.style.setProperty("-webkit-box-orient", "vertical");
+      note.style.setProperty("-webkit-line-clamp", "2");
+      note.style.overflow = "hidden";
+      note.textContent = entry.note; // textContent — không innerHTML với dữ liệu người dùng
+      card.appendChild(note);
+    }
+
+    const btnRow = document.createElement("div");
+    btnRow.className = "flex items-center gap-1.5 w-full mt-0.5";
+    const place = document.createElement("button");
+    place.type = "button";
+    place.className = "flex-1 h-8 rounded-lg bg-primary hover:bg-primary-container text-on-primary text-[11px] font-bold active:scale-[0.97] transition-all flex items-center justify-center gap-1";
+    place.innerHTML = '<span class="material-symbols-outlined text-[14px]">upload</span>Đặt lên bảng';
+    place.onclick = () => void flagsPlacePending(entry.pid);
+    const rm = document.createElement("button");
+    rm.type = "button";
+    rm.title = "Bỏ cờ khỏi khay";
+    rm.className = "w-8 h-8 shrink-0 rounded-lg bg-surface-container hover:bg-error-container text-on-surface-variant hover:text-error flex items-center justify-center transition-colors";
+    rm.innerHTML = '<span class="material-symbols-outlined text-[16px]">close</span>';
+    rm.onclick = () => flagsRemovePending(entry.pid);
+    btnRow.append(place, rm);
+    card.appendChild(btnRow);
+    makeFlagDraggable(card, entry);
+    wrap.appendChild(card);
+  }
+  setFlagsVisible(tray, flagsUI.pending.length > 0);
+}
+
+function flagsRemovePending(pid) {
+  flagsUI.pending = flagsUI.pending.filter((p) => p.pid !== pid);
+  flagsSavePending();
+  renderFlagsTray();
+}
+
+/* Khay chờ lưu vào localStorage — reload không mất cờ đang chờ */
+const FLAGS_PENDING_KEY = "a1-flag-pending-v1";
+function flagsSavePending() {
+  try { localStorage.setItem(FLAGS_PENDING_KEY, JSON.stringify(flagsUI.pending)); } catch (e) {}
+}
+function flagsLoadPending() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FLAGS_PENDING_KEY) || "[]");
+    if (Array.isArray(raw)) {
+      flagsUI.pending = raw.filter((p) => p && p.pid && FLAG_TYPE_BY_ID[p.flagType] && p.placedDate);
+    }
+  } catch (e) {}
+}
+
+async function flagsPlacePending(pid) {
+  const entry = flagsUI.pending.find((p) => p.pid === pid);
+  if (!entry || flagsUI.placing.has(pid)) return;
+  flagsUI.placing.add(pid);
+  try {
+    await flagStore.addFlag({ flagType: entry.flagType, placedDate: entry.placedDate, note: entry.note });
+    flagsUI.pending = flagsUI.pending.filter((p) => p.pid !== pid);
+    flagsSavePending();
+    showToast("Đã đặt cờ lên bảng thành tích.", "flag");
+  } catch (err) {
+    showToast(err?.message || "Không lưu được.", "error"); // lỗi store nguyên văn qua toast
+  } finally {
+    flagsUI.placing.delete(pid);
+    renderFlagsTray();
+  }
+}
+
+function flagsAskDelete(id) {
+  flagsUI.confirmId = id;
+  const m = $("#modal-flag-confirm-delete");
+  if (m) {
+    m.classList.remove("hidden");
+    m.classList.add("flex");
+  }
+}
+
+function flagsCloseConfirm() {
+  flagsUI.confirmId = null;
+  const m = $("#modal-flag-confirm-delete");
+  if (m) {
+    m.classList.add("hidden");
+    m.classList.remove("flex");
+  }
+}
+
+async function flagsConfirmDelete() {
+  const id = flagsUI.confirmId;
+  flagsCloseConfirm();
+  if (!id) return;
+  try {
+    await flagStore.deleteFlag(id);
+    showToast("Đã xóa lá cờ.", "delete");
+  } catch (err) {
+    showToast(err?.message || "Không xóa được.", "error");
+  }
+}
+
+function flagsTrySignIn() {
+  const input = $("#flag-pass-input");
+  try {
+    flagStore.signIn(input?.value || "");
+    if (input) input.value = "";
+    showToast("Đã mở khóa bảng cờ.", "lock_open");
+  } catch (err) {
+    showToast(err?.message || "Mật khẩu không đúng.", "error");
+  }
+}
+
+function flagsInitStaticSelects() {
+  const typeSel = $("#flag-form-type");
+  if (typeSel && !typeSel.options.length) {
+    for (const f of FLAG_TYPES) {
+      const o = document.createElement("option");
+      o.value = f.id;
+      o.textContent = f.name;
+      typeSel.appendChild(o);
+    }
+  }
+}
+
+// ——— Kéo thả cờ TỪ KHAY CHỜ vào bảng thành tích (pointer events: chuột + cảm ứng) ———
+function flagsRectHasPoint(r, x, y, pad) {
+  return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+}
+
+function makeFlagDraggable(el, entry) {
+  el.addEventListener("dragstart", (e) => e.preventDefault());
+  el.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return; // bấm nút Đặt/Xóa → không kéo
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const board = $("#flags-board-drop");
+    if (!board || flagsUI.dragging) return;
+    const startX = e.clientX, startY = e.clientY;
+    const rect = el.getBoundingClientRect();
+    let ghost = null, over = false, active = false;
+
+    const endDrag = () => {
+      flagsUI.dragging = false;
+      document.body.classList.remove("flag-dragging");
+      renderFlagsList();
+      renderFlagsTray();
+    };
+    const flyBack = () => {
+      board.classList.remove("drop-over");
+      if (ghost) {
+        // Buông ra ngoài bảng → lá cờ tự bay về đúng vị trí ban đầu
+        ghost.style.transition = "transform .45s cubic-bezier(.3,1.35,.5,1)";
+        ghost.style.transform = "translate(0px,0px) rotate(0deg) scale(1)";
+        setTimeout(() => { ghost.remove(); endDrag(); }, 470);
+      } else {
+        el.style.opacity = "";
+        endDrag();
+      }
+    };
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (!active) {
+        if (Math.abs(dx) + Math.abs(dy) < 8) return; // chạm thường, không kéo
+        active = true;
+        flagsUI.dragging = true;
+        ghost = el.cloneNode(true);
+        ghost.classList.add("flag-ghost");
+        ghost.style.left = rect.left + "px";
+        ghost.style.top = rect.top + "px";
+        ghost.style.width = rect.width + "px";
+        ghost.style.height = rect.height + "px";
+        document.body.appendChild(ghost);
+        el.style.opacity = "0.25";
+        document.body.classList.add("flag-dragging");
+      }
+      ev.preventDefault();
+      over = flagsRectHasPoint(board.getBoundingClientRect(), ev.clientX, ev.clientY, 14);
+      board.classList.toggle("drop-over", over);
+      ghost.style.transition = "none";
+      ghost.style.transform = `translate(${dx}px,${dy}px) rotate(6deg) scale(1.1)`;
+    };
+    const cleanupListeners = () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onCancel);
+    };
+    const onUp = (ev) => {
+      cleanupListeners();
+      if (!active) { flagsUI.dragging = false; return; }
+      if (!over) { flyBack(); return; }
+      // Thả trúng bảng → cờ thu nhỏ bay vào giữa bảng + pulse + toast
+      board.classList.remove("drop-over");
+      const b = board.getBoundingClientRect();
+      const tx = b.left + b.width / 2 - (rect.left + rect.width / 2);
+      const ty = b.top + b.height / 2 - (rect.top + rect.height / 2);
+      ghost.style.transition = "transform .3s ease-in, opacity .3s ease-in";
+      ghost.style.transform = `translate(${tx}px,${ty}px) scale(.28)`;
+      ghost.style.opacity = "0";
+      board.classList.add("drop-landed");
+      setTimeout(() => { board.classList.remove("drop-landed"); ghost.remove(); endDrag(); }, 480);
+      void flagsPlacePending(entry.pid); // thả trúng bảng → lưu cờ thật qua FlagStore
+    };
+    const onCancel = () => {
+      cleanupListeners();
+      if (active) flyBack(); else flagsUI.dragging = false;
+    };
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onCancel);
+  });
+}
+
+function wireFlagsEvents() {
+  flagsLoadPending();
+  flagsInitStaticSelects();
+  const dateEl = $("#flag-form-date");
+  if (dateEl) dateEl.value = todayISO();
+
+  const loginBtn = $("#btn-flag-login");
+  if (loginBtn) loginBtn.onclick = flagsTrySignIn;
+  const passInput = $("#flag-pass-input");
+  if (passInput) passInput.addEventListener("keydown", (e) => { if (e.key === "Enter") flagsTrySignIn(); });
+
+  const signoutBtn = $("#btn-flag-signout");
+  if (signoutBtn) signoutBtn.onclick = () => { flagStore.signOut(); flagsCloseForm(); };
+
+  const toggleBtn = $("#btn-flag-toggle-form");
+  if (toggleBtn) toggleBtn.onclick = () => {
+    const form = $("#flag-form");
+    const isOpen = form && !form.classList.contains("hidden");
+    if (isOpen && !flagsUI.editingId) flagsCloseForm();
+    else flagsOpenAdd();
+  };
+  const cancelBtn = $("#btn-flag-form-cancel");
+  if (cancelBtn) cancelBtn.onclick = flagsCloseForm;
+  const submitBtn = $("#btn-flag-submit");
+  if (submitBtn) submitBtn.onclick = () => void flagsSubmitForm();
+  const noteEl = $("#flag-form-note");
+  if (noteEl) noteEl.addEventListener("input", flagsSyncNoteCount);
+
+  const typeFilter = $("#flag-filter-type");
+  if (typeFilter) typeFilter.addEventListener("change", () => { flagsUI.type = typeFilter.value; renderFlagsList(); renderFlagsFilters(); });
+  const monthFilter = $("#flag-filter-month");
+  if (monthFilter) monthFilter.addEventListener("change", () => { flagsUI.month = monthFilter.value; renderFlagsList(); renderFlagsFilters(); });
+  const clearBtn = $("#btn-flag-clear-filters");
+  if (clearBtn) clearBtn.onclick = () => { flagsUI.type = ""; flagsUI.month = ""; renderFlagsList(); renderFlagsFilters(); };
+
+  const confirmDelete = $("#btn-flag-confirm-delete");
+  if (confirmDelete) confirmDelete.onclick = () => void flagsConfirmDelete();
+  const confirmCancel = $("#btn-flag-confirm-cancel");
+  if (confirmCancel) confirmCancel.onclick = flagsCloseConfirm;
+}
+// ——— END CỜ LUÂN LƯU ———
+
+// ===========================================================================
 // KHỞI CHẠY ỨNG DỤNG (INITIALIZE)
 // ===========================================================================
 async function initApp() {
   setupEventListeners();
+  wireFlagsEvents(); // CỜ LUÂN LƯU
   void refreshNotificationButton();
 
   // Đăng ký listener store
@@ -1936,6 +2508,7 @@ async function initApp() {
     if (state.currentView === "scoring") renderScoringWorkspace();
     else if (state.currentView === "profile") renderProfileView();
     else if (state.currentView === "admin") renderAdminPanel();
+    else if (state.currentView === "flags") renderFlagsView(); // CỜ LUÂN LƯU
   });
 
   // Tải dữ liệu và kích hoạt WebSocket
