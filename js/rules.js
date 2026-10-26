@@ -232,6 +232,7 @@ export const RULES = [
     points: -20,
     icon: "delete_sweep",
   },
+
   {
     id: "khac",
     group: "Khác",

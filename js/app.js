@@ -1499,7 +1499,7 @@ function openRulesCatalogModal() {
         ? "bg-secondary-fixed text-on-secondary-fixed"
         : isZero
         ? "bg-surface-container-high text-on-surface-variant"
-        : "bg-tertiary-fixed text-on-tertiary-fixed";
+        : "bg-tertiary/15 text-tertiary";
 
       return `
         <div class="rule-catalog-row p-3 rounded-xl bg-surface-container-low hover:bg-surface-container flex items-center justify-between gap-2 text-xs cursor-pointer transition-colors" data-rule-select="${r.id}">
