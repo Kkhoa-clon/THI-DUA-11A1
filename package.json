@@ -18,8 +18,5 @@
   "license": "MIT",
   "devDependencies": {
     "javascript-obfuscator": "^4.1.1"
-  },
-  "dependencies": {
-    "web-push": "^3.6.7"
   }
 }

@@ -1,19 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-const JavaScriptObfuscator = require('javascript-obfuscator');
 
 const dir = __dirname;
 const configSrc = fs.readFileSync(path.join(dir, 'js', 'config.js'), 'utf8');
 const rulesSrc = fs.readFileSync(path.join(dir, 'js', 'rules.js'), 'utf8');
 const storeSrc = fs.readFileSync(path.join(dir, 'js', 'store.js'), 'utf8');
-const flagsSrcRaw = fs.readFileSync(path.join(dir, 'js', 'flags.js'), 'utf8');
-// flags.js khai báo lại fetchWithTimeout y hệt store.js — bỏ bản trùng để khỏi lỗi
-// "redeclaration" khi gộp chung một scope (không sửa source flags.js).
-const flagsSrc = flagsSrcRaw.replace(
-  /async function fetchWithTimeout\(url, options = \{\}, ms = 10000\) \{[\s\S]*?\n\}\n/,
-  ''
-);
-const notificationsSrc = fs.readFileSync(path.join(dir, 'js', 'notifications.js'), 'utf8');
 const appSrc = fs.readFileSync(path.join(dir, 'js', 'app.js'), 'utf8');
 
 function stripModules(code) {
@@ -48,43 +39,35 @@ const bundled = [
   stripModules(storeSrc),
   '',
   '  // ========================================== ',
-  '  // 3b. BẢNG CỜ LUÂN LƯU (FlagStore)',
-  '  // ========================================== ',
-  stripModules(flagsSrc),
-  '',
-  '  // ========================================== ',
-  '  // 4. WEB PUSH NOTIFICATIONS',
-  '  // ========================================== ',
-  stripModules(notificationsSrc),
-  '',
-  '  // ========================================== ',
-  '  // 5. BỘ ĐIỀU PHỐI GIAO DIỆN & SỰ KIỆN (APP)',
+  '  // 4. BỘ ĐIỀU PHỐI GIAO DIỆN & SỰ KIỆN (APP)',
   '  // ========================================== ',
   stripModules(appSrc),
   '',
   '})();'
 ].join('\n');
 
-const obfuscated = JavaScriptObfuscator.obfuscate(bundled, {
-  compact: true,
-  controlFlowFlattening: false,
-  deadCodeInjection: false,
-  debugProtection: false,
-  identifierNamesGenerator: 'hexadecimal',
-  numbersToExpressions: false,
-  renameGlobals: false,
-  selfDefending: false,
-  simplify: true,
-  stringArray: true,
-  stringArrayEncoding: ['base64'],
-  stringArrayThreshold: 1,
-  target: 'browser',
-  unicodeEscapeSequence: false,
-}).getObfuscatedCode();
+let finalCode = bundled;
+try {
+  const JavaScriptObfuscator = require('javascript-obfuscator');
+  finalCode = JavaScriptObfuscator.obfuscate(bundled, {
+    compact: true,
+    controlFlowFlattening: false,
+    deadCodeInjection: false,
+    debugProtection: false,
+    identifierNamesGenerator: 'hexadecimal',
+    numbersToExpressions: false,
+    renameGlobals: false,
+    selfDefending: false,
+    simplify: true,
+    stringArray: true,
+    stringArrayEncoding: ['base64'],
+    stringArrayThreshold: 1,
+    target: 'browser',
+    unicodeEscapeSequence: false,
+  }).getObfuscatedCode();
+  console.log('Obfuscated bundle created successfully! Size:', finalCode.length, 'bytes');
+} catch (e) {
+  console.log('Created bundle (without obfuscator):', finalCode.length, 'bytes');
+}
 
-fs.writeFileSync(path.join(dir, 'js', 'app.bundle.js'), obfuscated, 'utf8');
-console.log(
-  'Obfuscated bundle created successfully! Size:',
-  obfuscated.length,
-  'bytes'
-);
+fs.writeFileSync(path.join(dir, 'js', 'app.bundle.js'), finalCode, 'utf8');

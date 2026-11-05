@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^npx serve \\. -l 3000$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

@@ -13,6 +13,7 @@ import {
   TEAM_BY_ID,
   MEMBER_BY_ID,
   teamsForWeek,
+  SEMESTERS,
   toNonAccentVietnamese,
 } from "./config.js";
 import { BASE_POINTS, RULE_BY_ID, gradeFor } from "./rules.js";
@@ -341,8 +342,7 @@ export class ScoreStore {
   }
 
   isCountingWeek(weekId = this.weekId) {
-    if (!isStudiedWeek(weekId)) return false;
-    return !this.isWeekLocked(weekId);
+    return isStudiedWeek(weekId);
   }
 
   countingWeekIds() {
@@ -358,19 +358,17 @@ export class ScoreStore {
   canEditWeek(weekId = this.weekId) {
     if (this.isAdmin()) return true; // Admin có mọi quyền trên mọi tuần
     if (!this.isLeader()) return false;
-    if (this.isLeadersPaused()) return false;
-    if (this.isWeekLocked(weekId)) return false;
-    // Tổ trưởng chỉ được tương tác với tuần hiện tại, các tuần đã học qua không được tương tác
+    // Tổ trưởng chỉ được ghi điểm tuần hiện tại
     return weekId === defaultWeekId();
   }
 
   leaderBlockReason(weekId = this.weekId) {
     if (this.isAdmin()) return null;
     if (!this.isLeader()) return "Chưa đăng nhập tổ trưởng.";
-    if (this.isLeadersPaused()) return "Admin đang tạm dừng quyền ghi điểm toàn lớp.";
-    if (this.isWeekLocked(weekId)) return `Tuần ${weekNumber(weekId)} đã bị khóa sổ.`;
     const cur = defaultWeekId();
-    if (weekId !== cur) return `Tuần ${weekNumber(weekId)} đã học qua — Tổ trưởng chỉ được tương tác ở Tuần hiện tại (${weekNumber(cur)}).`;
+    if (weekId !== cur) {
+      return `Tuần ${weekNumber(weekId)} đã học xong. Tổ trưởng chỉ ghi điểm Tuần ${weekNumber(cur)}.`;
+    }
     return null;
   }
 
@@ -713,34 +711,24 @@ export class ScoreStore {
       }
     }
 
-    // Tuần bị khóa sổ: Điểm xếp hạng = 0 (nhưng rawTotal vẫn lưu để xem)
-    const isLocked = this.isWeekLocked(weekId);
     for (const tId in teamScores) {
       const t = teamScores[tId];
-      t.total = isLocked ? 0 : t.rawTotal;
-      const displayedTotal = isLocked ? t.rawTotal : t.total;
+      t.total = t.rawTotal;
       t.avg = t.memberCount
-        ? Math.round((displayedTotal / t.memberCount) * 10) / 10
+        ? Math.round((t.total / t.memberCount) * 10) / 10
         : 0;
     }
 
     return { teamScores, memberScores };
   }
 
-  /** Điểm bằng nhau giữ đồng hạng; tên chỉ quyết định thứ tự hiển thị. */
+  /** Xếp hạng các tổ tuần hiện tại */
   getTeamRankings() {
     const { teamScores } = this.calculateScoresFast(this.events);
-    const isLocked = this.isWeekLocked(this.weekId);
     const sorted = Object.values(teamScores).sort(
-      (a, b) =>
-        (isLocked ? b.rawTotal - a.rawTotal : b.total - a.total) ||
-        compareNamesAlphabetically(a, b)
+      (a, b) => b.total - a.total || compareNamesAlphabetically(a, b)
     );
-
-    return assignCompetitionRanks(
-      sorted,
-      (team) => (isLocked ? team.rawTotal : team.total)
-    );
+    return assignCompetitionRanks(sorted, (team) => team.total);
   }
 
   /** Lấy danh sách thành viên trong tổ đã sắp xếp theo điểm */
@@ -999,6 +987,108 @@ export class ScoreStore {
     return assignCompetitionRanks(rankings, (member) => member.plusPoints);
   }
 
+  getMemberWeekBreakdown(memberId, weekId = this.weekId) {
+    const member = MEMBER_BY_ID[memberId];
+    if (!member) return null;
+    const events = this.allEvents
+      .filter((event) => event.memberId === memberId && event.weekId === weekId)
+      .sort((a, b) => b.createdAt - a.createdAt);
+    const plus = events.filter((event) => event.points > 0);
+    const minus = events.filter((event) => event.points < 0);
+    const notes = events.filter((event) => event.points === 0);
+    const points = BASE_POINTS + events.reduce((sum, event) => sum + event.points, 0);
+    return {
+      member,
+      teamName: TEAM_BY_ID[member.teamId]?.name || member.teamId,
+      weekId,
+      weekNumber: weekNumber(weekId),
+      points,
+      grade: gradeFor(points),
+      plus,
+      minus,
+      notes,
+      events,
+    };
+  }
+
+  getMemberGradeWeeks(memberId, fromWeek = 1, toWeek = studiedThroughWeek()) {
+    const through = studiedThroughWeek();
+    const start = Math.max(1, fromWeek);
+    const end = Math.min(toWeek, through);
+    const weeks = [];
+    for (let n = start; n <= end; n++) {
+      const row = this.getMemberWeekBreakdown(memberId, weekIdForNumber(n));
+      if (row) weeks.push(row);
+    }
+    const counts = { tot: 0, kha: 0, dat: 0, "chua-dat": 0 };
+    for (const week of weeks) {
+      if (counts[week.grade.key] !== undefined) counts[week.grade.key] += 1;
+    }
+    return { weeks, counts, fromWeek: start, toWeek: end };
+  }
+
+  getMemberRuleHistory(memberId, ruleId) {
+    return this.allEvents
+      .filter((event) => event.memberId === memberId && event.ruleId === ruleId)
+      .sort((a, b) => a.weekId.localeCompare(b.weekId) || a.createdAt - b.createdAt)
+      .map((event) => ({
+        ...event,
+        weekNumber: weekNumber(event.weekId),
+        label: event.label || RULE_BY_ID[event.ruleId]?.label || event.ruleId,
+      }));
+  }
+
+  getTeamPodiumStats() {
+    const through = studiedThroughWeek();
+    const stats = Object.fromEntries(
+      TEAMS.map((team) => [
+        team.id,
+        {
+          id: team.id,
+          name: team.name,
+          first: 0,
+          second: 0,
+          third: 0,
+          last: 0,
+          weeks: through,
+          firstWeeks: [],
+          secondWeeks: [],
+          thirdWeeks: [],
+          lastWeeks: [],
+        },
+      ])
+    );
+
+    for (let n = 1; n <= through; n++) {
+      const weekId = weekIdForNumber(n);
+      const weekEvents = this.allEvents.filter((event) => event.weekId === weekId);
+      const { teamScores } = this.calculateScoresFast(weekEvents, BASE_POINTS, weekId);
+      const ranked = assignCompetitionRanks(
+        Object.values(teamScores).sort(
+          (a, b) => b.rawTotal - a.rawTotal || compareNamesAlphabetically(a, b)
+        ),
+        (team) => team.rawTotal
+      );
+      const lastRank = ranked.reduce((max, team) => Math.max(max, team.rank), 1);
+      for (const team of ranked) {
+        const row = stats[team.id];
+        if (!row) continue;
+        if (team.rank === 1) { row.first += 1; row.firstWeeks.push(n); }
+        if (team.rank === 2) { row.second += 1; row.secondWeeks.push(n); }
+        if (team.rank === 3) { row.third += 1; row.thirdWeeks.push(n); }
+        if (team.rank === lastRank) { row.last += 1; row.lastWeeks.push(n); }
+      }
+    }
+
+    return Object.values(stats).sort(
+      (a, b) => b.first - a.first || b.second - a.second || b.third - a.third || a.last - b.last
+    );
+  }
+
+  getSemesterById(id) {
+    return SEMESTERS.find((item) => item.id === id) || SEMESTERS[0];
+  }
+
   // =========================================================================
   // THUẬT TOÁN 2: Chống Ghi Trùng Điểm Khi Bấm Liên Tục (Idempotency Key)
   // =========================================================================
@@ -1021,13 +1111,6 @@ export class ScoreStore {
         throw new Error(`Tuần ${weekNumber(this.weekId)} đã học qua — Tổ trưởng không được tương tác với các tuần trước.`);
       }
 
-      // 3. Khóa sổ hoặc tạm dừng
-      if (this.isWeekLocked(this.weekId)) {
-        throw new Error(`Tuần ${weekNumber(this.weekId)} đã bị khóa sổ.`);
-      }
-      if (this.isLeadersPaused()) {
-        throw new Error("Admin đang tạm dừng quyền ghi điểm toàn lớp.");
-      }
     }
 
     const rule = RULE_BY_ID[ruleId];
@@ -1118,20 +1201,25 @@ export class ScoreStore {
     return event;
   }
 
-  /** Ghi đồng thời cho nhiều học sinh (Multi-select 1 chạm) */
-  async addEventsBatch({ memberIds, ruleId, note = "", multiplier = 1 }) {
+  /** Ghi nhiều học sinh, có thể kèm nhiều nội quy mỗi cái một số lượng */
+  async addEventsBatch({ memberIds, ruleId, note = "", multiplier = 1, items }) {
     if (!Array.isArray(memberIds) || memberIds.length === 0) {
       throw new Error("Vui lòng chọn ít nhất một học sinh.");
     }
+    const jobs = Array.isArray(items) && items.length
+      ? items
+      : [{ ruleId, multiplier }];
     const results = [];
     for (const mId of memberIds) {
-      const ev = await this.addEvent({
-        memberId: mId,
-        ruleId,
-        note,
-        multiplier,
-      });
-      if (ev) results.push(ev);
+      for (const job of jobs) {
+        const ev = await this.addEvent({
+          memberId: mId,
+          ruleId: job.ruleId,
+          note,
+          multiplier: job.multiplier,
+        });
+        if (ev) results.push(ev);
+      }
     }
     return results;
   }

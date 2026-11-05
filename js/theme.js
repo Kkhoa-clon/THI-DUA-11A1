@@ -8,10 +8,9 @@
  *     "rgb(var(--a1-<token>) / <alpha-value>)" nên mọi utility token
  *     (bg-surface, text-primary, ring-primary/20 ...) tự đổi màu.
  *  2. Lưu lựa chọn trong localStorage("a1-theme-mode" = "light"|"dark");
- *     chưa lưu thì theo prefers-color-scheme và nghe hệ thống đổi.
+ *     Mặc định luôn là CHẾ ĐỘ SÁNG (light). Người dùng có thể bấm nút để đổi sang tối.
  *  3. Đồng bộ html.dark, color-scheme, meta theme-color.
- *  4. Nút toggling: bind #btn-theme-toggle (hoặc [data-a1-theme-toggle]);
- *     trang không có nút (mockup) được tự chèn nút nổi.
+ *  4. Nút toggling: bind #btn-theme-toggle (hoặc [data-a1-theme-toggle]).
  * window.__a1Theme = { get, set, toggle }
  * ============================================================ */
 (function () {
@@ -19,7 +18,14 @@
 
   var STORAGE_KEY = "a1-theme-mode";
 
-  /* ——— Light: giữ nguyên 100% màu hiện hành của app ——— */
+  /* Dọn dẹp cache cũ nếu có để đảm bảo Light Mode luôn là mặc định tuyệt đối */
+  try {
+    if (localStorage.getItem("a1-theme-pref")) {
+      localStorage.removeItem("a1-theme-pref");
+    }
+  } catch (e) {}
+
+  /* ——— Light: bảng màu sáng chuẩn hiện đại ——— */
   var LIGHT = {
     "background": "248 249 255",
     "on-background": "11 28 48",
@@ -129,8 +135,6 @@
     return lines.join("") + "}";
   }
 
-  /* Override các lớp Tailwind palette thô (amber/emerald/...) + glass
-   * chỉ trong dark; specificity 0-2-0 thắng class gốc mọi thứ tự. */
   var DARK_OVERRIDES = [
     "html.dark .glass-header{background:rgba(13,20,32,.88);border-bottom-color:rgba(148,163,184,.14)}",
     "html.dark .glass-nav{background:rgba(8,15,26,.92);border-top-color:rgba(148,163,184,.16)}",
@@ -175,29 +179,23 @@
     }
   }
 
-  function systemMode() {
-    try {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-    } catch (e) {
-      return "light";
-    }
-  }
-
   function current() {
     var m = readStored();
-    return m === "dark" || m === "light" ? m : systemMode();
+    // MẶC ĐỊNH LÀ LIGHT MODE (sáng)
+    return m === "dark" ? "dark" : "light";
   }
 
   function render(mode) {
-    document.documentElement.classList.toggle("dark", mode === "dark");
+    var isDark = mode === "dark";
+    document.documentElement.classList.toggle("dark", isDark);
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", mode === "dark" ? "#0d1420" : "#004ac6");
+    if (meta) meta.setAttribute("content", isDark ? "#0d1420" : "#004ac6");
     document.querySelectorAll("[data-a1-theme-toggle], #btn-theme-toggle").forEach(function (btn) {
       var icon = btn.querySelector(".material-symbols-outlined");
-      if (icon) icon.textContent = mode === "dark" ? "light_mode" : "dark_mode";
-      btn.setAttribute("aria-pressed", mode === "dark" ? "true" : "false");
+      if (icon) icon.textContent = isDark ? "light_mode" : "dark_mode";
+      btn.title = isDark ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối";
+      btn.setAttribute("aria-label", btn.title);
+      btn.setAttribute("aria-pressed", isDark ? "true" : "false");
     });
   }
 
@@ -214,25 +212,15 @@
 
   window.__a1Theme = { get: current, set: setTheme, toggle: toggle };
 
-  /* ——— Khởi động: chạy ngay khi <script> được đọc (đặt trong <head>) ——— */
+  /* Khởi động ngay khi script được nạp */
   injectStyles();
   render(current());
-  /* Nút #btn-theme-toggle nằm trong <body> → render() lúc ở head chưa thấy,
-   * cần đồng bộ lại icon sau khi DOM có thật. */
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       render(current());
     });
   }
-
-  try {
-    window
-      .matchMedia("(prefers-color-scheme: dark)")
-      .addEventListener("change", function () {
-        var m = readStored();
-        if (m !== "dark" && m !== "light") render(systemMode());
-      });
-  } catch (e) {}
 
   document.addEventListener("click", function (e) {
     var btn = e.target && e.target.closest
@@ -241,7 +229,7 @@
     if (btn) toggle();
   });
 
-  /* Mockup không có nút trên header → chèn một nút nổi góc phải, trên nav. */
+  /* Nút nổi hỗ trợ trang không có header */
   document.addEventListener("DOMContentLoaded", function () {
     if (document.getElementById("btn-theme-toggle")) return;
     if (!document.querySelector(".material-symbols-outlined") &&
@@ -249,8 +237,8 @@
     var btn = document.createElement("button");
     btn.id = "btn-theme-toggle";
     btn.type = "button";
-    btn.title = "Chuyển chế độ sáng/tối";
-    btn.setAttribute("aria-label", "Chuyển chế độ sáng/tối");
+    btn.title = current() === "dark" ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối";
+    btn.setAttribute("aria-label", btn.title);
     btn.className =
       "fixed right-4 z-50 w-11 h-11 rounded-full glass-floating flex items-center justify-center text-primary active:scale-95 transition-transform";
     btn.style.bottom = "calc(env(safe-area-inset-bottom, 0px) + 5.25rem)";

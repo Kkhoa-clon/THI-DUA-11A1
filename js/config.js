@@ -13,6 +13,14 @@ export const SCHOOL_YEAR = "2026–2027";
 export const COMPETITION_START = "2026-09-07";
 export const TOTAL_WEEKS = 35;
 
+/** Các mốc hạnh kiểm theo tuần thi đua */
+export const SEMESTERS = [
+  { id: "gk1", label: "Giữa kì 1", from: 1, to: 9 },
+  { id: "ck1", label: "Cuối kì 1", from: 10, to: 18 },
+  { id: "gk2", label: "Giữa kì 2", from: 19, to: 27 },
+  { id: "ck2", label: "Cuối kì 2", from: 28, to: 35 },
+];
+
 /** Supabase Project Credentials */
 export const SUPABASE_URL = "https://dgiqqwbdvtziulmkutkl.supabase.co";
 export const SUPABASE_ANON_KEY = "sb_publishable_CpSpqy_NyvPi4bvbJFdqcw_K_KL3O1B";
@@ -171,19 +179,6 @@ export const LEADER_CODES = {
  * - PIN nhanh: "2112" hoặc "1100"
  */
 export const ADMIN_CODES = ["khoa2112", "2112", "1100", "thaycan"];
-
-/** ——— BẢNG CỜ LUÂN LƯU (js/flags.js) ——— */
-/** Mật khẩu mở khóa bảng cờ (flags.js so sánh giá trị này). */
-export const ADMIN_CODE = "khoa2112";
-
-/** 3 loại cờ — id khớp ràng buộc CHECK cột flag_type trong supabase-flags.sql. */
-export const FLAG_TYPES = [
-  { id: "co-1", name: "Cờ Nhất", image: "image/luanluu1.png" },
-  { id: "co-2", name: "Cờ Nhì", image: "image/luanluu2.png" },
-  { id: "co-3", name: "Cờ Ba", image: "image/luanluu3.png" },
-];
-
-export const FLAG_TYPE_BY_ID = Object.fromEntries(FLAG_TYPES.map((f) => [f.id, f]));
 
 export const TEAM_BY_ID = Object.fromEntries(TEAMS.map((t) => [t.id, t]));
 

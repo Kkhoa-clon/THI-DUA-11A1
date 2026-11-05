@@ -1,16 +1,14 @@
 /**
  * Controller chính 11A1 Thi Đua App — Kiến trúc Modern Swiss Minimalist
- * Điều phối 4 Màn hình: Bảng điểm, Ghi điểm nhanh, Hồ sơ cá nhân, Quản trị GVCN
+ * Điều phối các Màn hình: Bảng điểm, Ghi điểm nhanh, Cá nhân, Tra cứu, Hạnh kiểm, Nội quy, Quản trị GVCN
  */
 
 import {
-  CLASS_NAME,
-  SCHOOL_YEAR,
   TEAMS,
   TEAM_BY_ID,
   MEMBER_BY_ID,
   ADMIN_MEMBER_IDS,
-  TOTAL_WEEKS,
+  SEMESTERS,
   resolveAuthCode,
   toNonAccentVietnamese,
 } from "./config.js";
@@ -21,6 +19,7 @@ import {
   QUICK_PENALTIES,
   formatPoints,
   gradeFor,
+  rulesGrouped,
 } from "./rules.js";
 import {
   ScoreStore,
@@ -31,60 +30,37 @@ import {
   competitionWeekIds,
   studiedThroughWeek,
 } from "./store.js";
-import {
-  authenticateNotificationSender,
-  clearNotificationToken,
-  disablePushNotifications,
-  enablePushNotifications,
-  getNotificationSubscription,
-  sendPushNotification,
-} from "./notifications.js";
-import { FlagStore, FLAG_TYPES, FLAG_TYPE_BY_ID, todayISO } from "./flags.js";
 
 // Khởi tạo Store trung tâm
 const store = new ScoreStore();
-// ——— START CỜ LUÂN LƯU ———
-const flagStore = new FlagStore();
-let flagsUnsub = null;
-const flagsUI = { type: "", month: "", editingId: null, confirmId: null, dragging: false, pending: [], placing: new Set() };
-// ——— END CỜ LUÂN LƯU ———
 
 // Trạng thái cục bộ của giao diện
+const MORE_VIEWS = new Set(["rules", "conduct", "admin"]);
+
 const state = {
-  currentView: "leaderboard", // leaderboard | scoring | profile | admin
-  currentBoard: "teams", // teams | year | minus | plus
+  currentView: "leaderboard",
+  currentBoard: "teams", // teams | year | minus | plus | history | podium
   selectedStudentIds: new Set(),
-  selectedRuleId: null,
-  scoringMultiplier: 1,
-  scoringTeamFilter: "my", // my | all | to1 | to2 | to3 | to4
-  profileMemberId: "to1-05", // Mặc định Đinh Quang Vinh
-  profileFilter: "all", // all | minus | plus
-  sessionLog: [], // Các lượt chấm trong phiên làm việc
+  selectedRules: new Map(), // ruleId => quantity (1..10)
+  scoringTeamFilter: "my",
+  profileMemberId: "to1-01",
+  profileFilter: "all",
+  profileGradeOpen: false,
+  profileWeekFocus: null,
+  lookupMemberId: "to1-01",
+  lookupWeekId: null,
+  lookupRuleId: RULES[0]?.id || "phat-bieu",
+  conductMemberId: "to1-01",
+  conductSemesterId: "gk1",
+  sessionLog: [],
+  rulesSearchQuery: "",
+  rulesCategoryFilter: "all",
+  podiumDetailOpen: false,
 };
 
 // DOM Helper
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
-// Utility Toast
-function showToast(msg, icon = "cloud_done", duration = 2400) {
-  const toast = $("#toast-sync");
-  const msgEl = $("#toast-msg");
-  const iconEl = $("#toast-icon");
-  if (!toast || !msgEl) return;
-
-  msgEl.textContent = msg;
-  if (iconEl) iconEl.textContent = icon;
-
-  toast.classList.remove("opacity-0", "pointer-events-none", "-translate-y-2");
-  toast.classList.add("opacity-100", "translate-y-0");
-
-  clearTimeout(showToast._timer);
-  showToast._timer = setTimeout(() => {
-    toast.classList.add("opacity-0", "pointer-events-none", "-translate-y-2");
-    toast.classList.remove("opacity-100", "translate-y-0");
-  }, duration);
-}
 
 function getInitials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -108,69 +84,14 @@ function escapeHtml(value) {
 
 function renderMemberName(member, nameClass = "") {
   const adminBadge = ADMIN_MEMBER_IDS.includes(member.id)
-    ? `<span class="member-admin-badge" title="Admin lớp"><span class="material-symbols-outlined">admin_panel_settings</span><span>ADMIN</span></span>`
+    ? `<span class="member-admin-badge" title="Ban cán sự lớp"><span class="material-symbols-outlined">admin_panel_settings</span><span>BCS</span></span>`
     : "";
 
-  return `<span class="member-name-display">${adminBadge}<span class="${nameClass}">${member.name}</span></span>`;
-}
-
-async function refreshNotificationButton() {
-  const button = $("#btn-notifications");
-  const icon = $("#notifications-icon");
-  if (!button || !icon) return;
-  const supported = "Notification" in window && "serviceWorker" in navigator;
-  let subscription = null;
-  if (supported) {
-    try {
-      subscription = await getNotificationSubscription();
-    } catch (error) {
-      console.warn("Không đọc được subscription thông báo:", error);
-    }
-  }
-  const permission = supported ? Notification.permission : "unsupported";
-  const enabled = permission === "granted" && Boolean(subscription);
-  icon.textContent = !supported
-    ? "notifications_off"
-    : enabled
-      ? "notifications_active"
-      : permission === "denied"
-        ? "notifications_off"
-        : "notifications";
-  button.title = enabled ? "Tắt thông báo" : "Bật thông báo cập nhật";
-  button.setAttribute("aria-label", button.title);
-}
-
-async function reportPushResult(action, details, successMessage) {
-  try {
-    const result = await sendPushNotification(action, details);
-    const message = result.sent
-      ? `${successMessage} (${result.sent} lượt gửi thành công)`
-      : result.failed
-        ? `Không gửi được đến ${result.failed} thiết bị.`
-        : "Chưa có thiết bị nào đăng ký nhận thông báo.";
-    showToast(message, result.sent ? "notifications_active" : "notifications_off");
-    return result;
-  } catch (error) {
-    console.error("Không gửi được thông báo đẩy:", error);
-    showToast(`Push lỗi: ${error.message}`, "notifications_off", 8000);
-    return null;
-  }
-}
-
-function getTopRankPayload(rankings) {
-  return rankings
-    .filter((entry) => entry.rank <= 3)
-    .slice(0, 6)
-    .map((entry) => ({
-      id: entry.id,
-      name: entry.name,
-      rank: entry.rank,
-      score: entry.minusPoints ?? entry.plusPoints ?? entry.yearTotal ?? 0,
-    }));
+  return `<span class="member-name-display">${adminBadge}<span class="${nameClass}">${escapeHtml(member.name)}</span></span>`;
 }
 
 function getRankLabel(item) {
-  return item.isTied ? `Đồng hạng ${item.rank}` : `Hạng ${item.rank}`;
+  return `Hạng ${item.rank}`;
 }
 
 function getRankMedal(rank) {
@@ -191,44 +112,49 @@ function formatRelativeTime(timestamp) {
 // ===========================================================================
 // ĐIỀU HƯỚNG VIEW (NAVIGATION)
 // ===========================================================================
+function closeMoreSheet() {
+  const sheet = $("#sheet-more");
+  sheet?.classList.add("hidden");
+  sheet?.classList.remove("flex");
+}
+
+function openMoreSheet() {
+  const sheet = $("#sheet-more");
+  sheet?.classList.remove("hidden");
+  sheet?.classList.add("flex");
+}
+
 function switchView(viewName) {
+  if (viewName === "more") {
+    openMoreSheet();
+    return;
+  }
+  closeMoreSheet();
   state.currentView = viewName;
 
-  // 1. Cập nhật View DOM
-  $$(".app-view").forEach((v) => {
-    v.classList.remove("active-view");
-  });
+  $$(".app-view").forEach((v) => v.classList.remove("active-view"));
   const target = $(`#view-${viewName}`);
   if (target) target.classList.add("active-view");
 
-  // 2. Cập nhật Bottom Nav Active State
   $$("#bottom-nav .nav-item").forEach((btn) => {
-    const isTarget = btn.dataset.view === viewName;
-    if (isTarget) {
-      btn.classList.add("text-primary", "font-bold");
-      btn.classList.remove("text-on-surface-variant", "font-medium");
-    } else {
-      btn.classList.remove("text-primary", "font-bold");
-      btn.classList.add("text-on-surface-variant", "font-medium");
-    }
+    const navView = btn.dataset.view;
+    const isTarget =
+      navView === viewName || (navView === "more" && MORE_VIEWS.has(viewName));
+    btn.classList.toggle("text-primary", isTarget);
+    btn.classList.toggle("font-bold", isTarget);
+    btn.classList.toggle("text-on-surface-variant", !isTarget);
+    btn.classList.toggle("font-medium", !isTarget);
   });
 
-  // 3. Cuộn lên đầu trang mượt mà
   window.scrollTo({ top: 0, behavior: "instant" });
 
-  // 4. Đồng bộ logic riêng theo view
-  if (viewName === "scoring") {
-    renderScoringWorkspace();
-  } else if (viewName === "profile") {
-    renderProfileView();
-  } else if (viewName === "admin") {
-    renderAdminPanel();
-  } else if (viewName === "flags") {
-    // ——— CỜ LUÂN LƯU ———
-    enterFlagsView();
-  } else {
-    exitFlagsView();
-  }
+  if (viewName === "leaderboard") renderLeaderboard();
+  else if (viewName === "scoring") renderScoringWorkspace();
+  else if (viewName === "profile") renderProfileView();
+  else if (viewName === "lookup") renderLookupView();
+  else if (viewName === "conduct") renderConductView();
+  else if (viewName === "rules") renderClassRulesView();
+  else if (viewName === "admin") renderAdminPanel();
 }
 
 // ===========================================================================
@@ -237,114 +163,92 @@ function switchView(viewName) {
 function renderLeaderboard() {
   const currentWeek = store.weekId;
   const curNum = weekNumber(currentWeek);
-  const isLocked = store.isWeekLocked(currentWeek);
 
-  // 1. Header & Trạng thái kết nối
-  $("#header-week-label").textContent = `Tuần ${curNum}`;
-  if ($("#realtime-status-text")) {
-    $("#realtime-status-text").textContent =
+  const weekLabel = $("#header-week-label");
+  if (weekLabel) weekLabel.textContent = `Tuần ${curNum}`;
+
+  const realtimeText = $("#realtime-status-text");
+  if (realtimeText) {
+    realtimeText.textContent =
       store.realtimeStatus === "SUBSCRIBED"
-        ? "Đã kết nối Supabase Realtime"
+        ? "Đã kết nối trực tiếp"
         : store.mode === "live"
-        ? "Đang kết nối Realtime..."
-        : "Chế độ ngoại tuyến (Local)";
+        ? "Đang kết nối..."
+        : "Đang lưu trên máy";
   }
 
   const liveDot = $("#live-indicator-dot");
   if (liveDot) {
     if (store.realtimeStatus === "SUBSCRIBED") {
       liveDot.className = "inline-block w-2 h-2 rounded-full bg-secondary animate-pulse";
-      liveDot.title = "Supabase Realtime Live";
+      liveDot.title = "Đang cập nhật trực tiếp";
     } else {
       liveDot.className = "inline-block w-2 h-2 rounded-full bg-outline";
-      liveDot.title = "Offline Cache";
+      liveDot.title = "Chưa kết nối trực tiếp";
     }
   }
 
-  const lockPill = $("#lock-badge-pill");
-  const lockText = $("#lock-badge-text");
-  if (isLocked) {
-    lockPill.className =
-      "text-xs text-error bg-error-container/60 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 ml-2 font-bold";
-    lockText.textContent = "Đã khóa sổ";
-  } else {
-    lockPill.className =
-      "text-xs text-on-surface-variant flex items-center gap-1 shrink-0 ml-2 font-medium";
-    lockText.textContent = "Đang mở";
-  }
-
-  // 2. Quick Snapshot
   const teamRanks = store.getTeamRankings();
   const leaderTeam = teamRanks[0] || { name: "Tổ 1", total: 400, rawTotal: 400 };
 
-  $("#snapshot-main-title").textContent = `Tuần ${curNum}`;
-  $("#snapshot-sub-title").textContent = `• ${weekRangeLabel(currentWeek)}`;
+  const snapshotTitle = $("#snapshot-main-title");
+  if (snapshotTitle) snapshotTitle.textContent = `Tuần ${curNum}`;
+
+  const snapshotSub = $("#snapshot-sub-title");
+  if (snapshotSub) snapshotSub.textContent = `• ${weekRangeLabel(currentWeek)}`;
 
   const tiedLeaders = teamRanks.filter((team) => team.rank === 1);
-  $("#snapshot-rank-lead").textContent =
-    tiedLeaders.length > 1
-      ? `Đồng hạng 1 • ${tiedLeaders.length} tổ`
-      : `${leaderTeam.name} Dẫn đầu`;
-  $("#snapshot-note").textContent =
-    tiedLeaders.length > 1
-      ? "Các tổ cùng điểm được đồng hạng; mỗi tổ hiển thị riêng"
-      : "Nếu bằng điểm, giữ đồng hạng và xếp tên A–Z";
+  const snapshotRankLead = $("#snapshot-rank-lead");
+  if (snapshotRankLead) {
+    snapshotRankLead.textContent =
+      tiedLeaders.length > 1
+        ? `${tiedLeaders.map((t) => t.name).join(" & ")} dẫn đầu`
+        : `${leaderTeam.name} dẫn đầu`;
+  }
 
-  $("#snapshot-top-score").textContent = isLocked ? leaderTeam.rawTotal : leaderTeam.total;
+  const snapshotTopScore = $("#snapshot-top-score");
+  if (snapshotTopScore) snapshotTopScore.textContent = leaderTeam.total;
 
   const plusTotal = leaderTeam.plusPoints || 0;
   const minusTotal = leaderTeam.minusPoints || 0;
   const netDelta = plusTotal + minusTotal;
-  $("#snapshot-delta").textContent = `${formatPoints(netDelta)} điểm`;
+  const snapshotDelta = $("#snapshot-delta");
+  if (snapshotDelta) snapshotDelta.textContent = `${formatPoints(netDelta)} điểm`;
 
-  // 3. Week selector: keeps every competition week reachable on mobile.
+  // Week selector
   const weekSelector = $("#week-selector");
-  const allWeekIds = competitionWeekIds();
-  const through = studiedThroughWeek();
+  if (weekSelector) {
+    const allWeekIds = competitionWeekIds();
+    const through = studiedThroughWeek();
+    weekSelector.innerHTML = allWeekIds
+      .map((wId) => {
+        const n = weekNumber(wId);
+        const isSelected = wId === currentWeek;
+        const isCurStudied = n === through;
+        const suffix = isCurStudied ? " (Hiện tại)" : "";
+        return `<option value="${wId}" ${isSelected ? "selected" : ""}>Tuần ${n}${suffix}</option>`;
+      })
+      .join("");
+  }
 
-  weekSelector.innerHTML = allWeekIds
-    .map((wId) => {
-      const n = weekNumber(wId);
-      const isSelected = wId === currentWeek;
-      const isCurStudied = n === through;
-      const wLocked = store.isWeekLocked(wId);
-      const suffix = [
-        isCurStudied ? "Hiện tại" : "",
-        wLocked ? "Đã khóa" : "",
-      ].filter(Boolean).join(" • ");
-      const label = `Tuần ${n}${suffix ? ` (${suffix})` : ""}`;
-
-      return `<option value="${wId}" ${isSelected ? "selected" : ""}>${label}</option>`;
-    })
-    .join("");
-
-  // 4. Podium chỉ dùng khi ba vị trí đầu không bị chia sẻ do đồng điểm.
+  // Podium Top 3 Teams
   const podiumGrid = $("#podium-grid");
-  const podiumHasTie = teamRanks.some(
-    (team) =>
-      team.rank <= 3 &&
-      teamRanks.some((other) => other.id !== team.id && other.rank === team.rank)
-  );
-  if (teamRanks.length >= 3 && state.currentBoard === "teams" && !podiumHasTie) {
-    $("#podium-section").classList.remove("hidden");
+  const podiumSection = $("#podium-section");
+  if (teamRanks.length >= 3 && state.currentBoard === "teams") {
+    podiumSection?.classList.remove("hidden");
+    if (podiumGrid) {
+      const t1 = teamRanks[0];
+      const t2 = teamRanks[1];
+      const t3 = teamRanks[2];
 
-    podiumGrid.className = "grid grid-cols-3 gap-2 items-end pt-5";
-    const t1 = teamRanks[0];
-    const t2 = teamRanks[1];
-    const t3 = teamRanks[2];
+      const getBadgeLabel = (t) => {
+        if (t.rank === 1) return "Quán Quân";
+        if (t.rank === 2) return "Hạng Nhì";
+        if (t.rank === 3) return "Hạng Ba";
+        return `Hạng ${t.rank}`;
+      };
 
-    const getBadgeLabel = (t) => {
-      if (t.rank === 1) return "Quán Quân";
-      if (t.rank === 2) return "Hạng Nhì";
-      if (t.rank === 3) return "Hạng Ba";
-      return `Hạng ${t.rank}`;
-    };
-
-    const t1Border = "border-amber-400";
-    const t2Border = "border-slate-300";
-    const t3Border = "border-amber-600";
-
-    podiumGrid.innerHTML = `
+      podiumGrid.innerHTML = `
         <!-- Hạng 2 -->
         <div class="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" data-podium-team="${t2.id}">
           <div class="relative mb-2">
@@ -353,19 +257,19 @@ function renderLeaderboard() {
             </div>
             <span class="absolute -top-1.5 -right-1 w-5 h-5 rounded-full bg-slate-300 text-slate-800 flex items-center justify-center text-[10px] font-bold shadow-xs">${t2.rank}</span>
           </div>
-          <div class="w-full bg-surface-container-lowest rounded-t-2xl p-2.5 flex flex-col items-center text-center shadow-xs h-28 justify-between border-t-2 ${t2Border}">
+          <div class="w-full bg-surface-container-lowest rounded-t-2xl p-2.5 flex flex-col items-center text-center shadow-xs h-28 justify-between border-t-2 border-slate-300">
             <div>
               <span class="font-heading font-bold text-xs text-on-surface block truncate">${t2.name}</span>
               <span class="text-[10px] text-secondary font-bold tabular-nums">${formatPoints(t2.plusPoints - Math.abs(t2.minusPoints))} đ</span>
             </div>
             <div class="w-full bg-surface-container-low rounded-lg py-1 px-1">
-              <span class="font-heading font-bold text-sm text-primary block tabular-nums">${isLocked ? t2.rawTotal : t2.total}</span>
+              <span class="font-heading font-bold text-sm text-primary block tabular-nums">${t2.total}</span>
               <span class="text-[9px] text-outline font-bold uppercase">${getBadgeLabel(t2)}</span>
             </div>
           </div>
         </div>
 
-        <!-- Hạng 1: Vàng (Quán Quân) -->
+        <!-- Hạng 1 -->
         <div class="flex flex-col items-center relative -top-3 cursor-pointer active:scale-95 transition-transform" data-podium-team="${t1.id}">
           <div class="relative mb-2">
             <span class="material-symbols-outlined text-[24px] text-amber-500 absolute -top-5 left-1/2 -translate-x-1/2 crown-bounce" style="font-variation-settings: 'FILL' 1;">crown</span>
@@ -374,13 +278,13 @@ function renderLeaderboard() {
             </div>
             <span class="absolute -top-1.5 -right-1 w-6 h-6 rounded-full bg-amber-400 text-stone-900 flex items-center justify-center text-xs font-bold shadow-xs">1</span>
           </div>
-          <div class="w-full bg-surface-container-lowest rounded-t-2xl p-2.5 flex flex-col items-center text-center shadow-md h-36 justify-between border-t-4 ${t1Border}">
+          <div class="w-full bg-surface-container-lowest rounded-t-2xl p-2.5 flex flex-col items-center text-center shadow-md h-36 justify-between border-t-4 border-amber-400">
             <div>
               <span class="font-heading font-bold text-sm text-primary block truncate">${t1.name}</span>
               <span class="text-[11px] text-secondary font-bold tabular-nums">${formatPoints(t1.plusPoints - Math.abs(t1.minusPoints))} đ</span>
             </div>
             <div class="w-full bg-primary-fixed/60 rounded-xl py-1.5 px-1">
-              <span class="font-heading font-bold text-lg text-primary block leading-none tabular-nums">${isLocked ? t1.rawTotal : t1.total}</span>
+              <span class="font-heading font-bold text-lg text-primary block leading-none tabular-nums">${t1.total}</span>
               <span class="text-[9px] text-primary font-bold uppercase tracking-wider">${getBadgeLabel(t1)}</span>
             </div>
           </div>
@@ -394,44 +298,44 @@ function renderLeaderboard() {
             </div>
             <span class="absolute -top-1.5 -right-1 w-5 h-5 rounded-full bg-amber-700 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">${t3.rank}</span>
           </div>
-          <div class="w-full bg-surface-container-lowest rounded-t-2xl p-2.5 flex flex-col items-center text-center shadow-xs h-24 justify-between border-t-2 ${t3Border}">
+          <div class="w-full bg-surface-container-lowest rounded-t-2xl p-2.5 flex flex-col items-center text-center shadow-xs h-24 justify-between border-t-2 border-amber-600">
             <div>
               <span class="font-heading font-bold text-xs text-on-surface block truncate">${t3.name}</span>
               <span class="text-[10px] text-secondary font-bold tabular-nums">${formatPoints(t3.plusPoints - Math.abs(t3.minusPoints))} đ</span>
             </div>
             <div class="w-full bg-surface-container-low rounded-lg py-1 px-1">
-              <span class="font-heading font-bold text-sm text-primary block tabular-nums">${isLocked ? t3.rawTotal : t3.total}</span>
+              <span class="font-heading font-bold text-sm text-primary block tabular-nums">${t3.total}</span>
               <span class="text-[9px] text-outline font-bold uppercase">${getBadgeLabel(t3)}</span>
             </div>
           </div>
         </div>
-    `;
+      `;
 
-    $$("[data-podium-team]").forEach((el) => {
-      el.onclick = () => openTeamDetailModal(el.dataset.podiumTeam);
-    });
+      $$("[data-podium-team]", podiumGrid).forEach((el) => {
+        el.onclick = () => openTeamDetailModal(el.dataset.podiumTeam);
+      });
+    }
   } else {
-    $("#podium-section").classList.add("hidden");
+    podiumSection?.classList.add("hidden");
   }
 
-  // 5. Ranking List (Tùy theo Board: teams | year | minus | plus)
+  // Ranking list
   renderRankingsList(teamRanks);
 
-  // 6. Realtime Activity Feed
-  $("#activity-feed-card")?.classList.toggle("hidden", state.currentBoard === "history");
+  // Realtime Activity Feed
+  $("#activity-feed-card")?.classList.toggle("hidden", state.currentBoard === "history" || state.currentBoard === "podium");
   renderRealtimeFeed();
 }
 
 function renderRankingsList(teamRanks) {
   const container = $("#ranking-list-container");
-  const isLocked = store.isWeekLocked(store.weekId);
+  if (!container) return;
 
   if (state.currentBoard === "teams") {
     container.innerHTML = teamRanks
       .map((t) => {
         const medal = getRankMedal(t.rank);
-        const score = isLocked ? t.rawTotal : t.total;
-        const rankBadge = `<span class="px-2 py-0.5 rounded-full ${t.isTied ? "bg-amber-500/10 text-amber-700" : "bg-surface-container text-on-surface-variant"} text-[10px] font-semibold">${getRankLabel(t)}</span>`;
+        const score = t.total;
         const rankClass = `rank-${Math.min(t.rank, 4)}`;
 
         return `
@@ -444,7 +348,7 @@ function renderRankingsList(teamRanks) {
                 <div class="flex flex-col">
                   <div class="flex items-center gap-1.5">
                     <span class="font-heading font-bold text-sm text-on-surface">${t.name}</span>
-                    ${rankBadge}
+                    <span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[10px] font-semibold">${getRankLabel(t)}</span>
                   </div>
                   <span class="text-[11px] text-on-surface-variant">Tổ trưởng: ${t.leaderName || "Chưa cập nhật"} • ${t.memberCount} học sinh</span>
                 </div>
@@ -462,7 +366,7 @@ function renderRankingsList(teamRanks) {
                 <span class="text-error font-bold tabular-nums">${t.minusPoints} phạt</span>
               </div>
               <button type="button" class="btn-view-team-modal px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container text-primary font-bold text-xs transition-colors flex items-center gap-1" data-team-id="${t.id}">
-                <span>Xem ${t.memberCount} bạn</span>
+                <span>Xem ${t.memberCount} thành viên</span>
                 <span class="material-symbols-outlined text-[14px]">chevron_right</span>
               </button>
             </div>
@@ -471,16 +375,14 @@ function renderRankingsList(teamRanks) {
       })
       .join("");
 
-    $$(".btn-view-team-modal").forEach((btn) => {
+    $$(".btn-view-team-modal", container).forEach((btn) => {
       btn.onclick = () => openTeamDetailModal(btn.dataset.teamId);
     });
   } else if (state.currentBoard === "year") {
-    // Cá nhân cả năm: bằng điểm được đồng hạng; tên chỉ quyết định thứ tự hiển thị.
     const yearRanks = store.getYearRankings();
     container.innerHTML = yearRanks
       .map((m) => {
         const medal = getRankMedal(m.rank);
-        const rankBadge = `<span class="px-1.5 py-0.5 rounded-full ${m.isTied ? "bg-amber-500/10 text-amber-700" : "bg-surface-container text-on-surface-variant"} text-[9px] font-semibold">${getRankLabel(m)}</span>`;
         return `
           <div class="ranking-member-card rank-${Math.min(m.rank, 3)} bg-surface-container-lowest rounded-xl p-3 shadow-xs flex items-center justify-between cursor-pointer hover:bg-surface-container-low transition-colors" data-view-member="${m.id}">
             <div class="flex items-center gap-2.5 min-w-0">
@@ -488,7 +390,7 @@ function renderRankingsList(teamRanks) {
               <div class="flex flex-col min-w-0">
                 <div class="flex items-center gap-1.5">
                   ${renderMemberName(m, "font-heading font-bold text-xs text-on-surface truncate")}
-                  ${rankBadge}
+                  <span class="px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[9px] font-semibold">${getRankLabel(m)}</span>
                 </div>
                 <span class="text-[10px] text-on-surface-variant">${m.teamName} • ${m.id}</span>
               </div>
@@ -504,7 +406,6 @@ function renderRankingsList(teamRanks) {
 
     bindMemberClickEvents(container);
   } else if (state.currentBoard === "minus") {
-    // Vi phạm nhiều nhất
     const violRanks = store.getViolationRankings();
     if (!violRanks.length) {
       container.innerHTML = `<div class="bg-surface-container-lowest p-6 rounded-2xl text-center text-xs text-outline">Không có học sinh nào bị trừ điểm!</div>`;
@@ -516,7 +417,6 @@ function renderRankingsList(teamRanks) {
               <span class="w-7 h-7 rounded-lg bg-error-container text-error flex items-center justify-center font-heading font-bold text-xs shrink-0">${getRankMedal(m.rank)}</span>
               <div class="flex flex-col min-w-0">
                 ${renderMemberName(m, "font-heading font-bold text-xs text-on-surface truncate")}
-                ${m.isTied ? `<span class="text-[9px] font-semibold text-amber-700">Đồng hạng ${m.rank}</span>` : ""}
                 <span class="text-[10px] text-on-surface-variant">${m.teamName}</span>
               </div>
             </div>
@@ -530,7 +430,6 @@ function renderRankingsList(teamRanks) {
       bindMemberClickEvents(container);
     }
   } else if (state.currentBoard === "plus") {
-    // Điểm cộng nhiều nhất
     const bonusRanks = store.getBonusRankings();
     container.innerHTML = bonusRanks
       .map((m) => `
@@ -539,7 +438,6 @@ function renderRankingsList(teamRanks) {
             <span class="w-7 h-7 rounded-lg bg-secondary-container text-on-secondary-container flex items-center justify-center font-heading font-bold text-xs shrink-0">${getRankMedal(m.rank)}</span>
             <div class="flex flex-col min-w-0">
               ${renderMemberName(m, "font-heading font-bold text-xs text-on-surface truncate")}
-              ${m.isTied ? `<span class="text-[9px] font-semibold text-amber-700">Đồng hạng ${m.rank}</span>` : ""}
               <span class="text-[10px] text-on-surface-variant">${m.teamName}</span>
             </div>
           </div>
@@ -553,73 +451,230 @@ function renderRankingsList(teamRanks) {
     bindMemberClickEvents(container);
   } else if (state.currentBoard === "history") {
     renderViolationHistory(container);
+  } else if (state.currentBoard === "podium") {
+    renderTeamPodiumStats(container);
   }
 }
 
+// ===========================================================================
+// YÊU CẦU 6: THIẾT KẾ LẠI GIAO DIỆN TIỀN ÁN TIỀN SỰ TRỰC QUAN HƠN
+// ===========================================================================
 function renderViolationHistory(container) {
   const teams = store.getViolationHistoryByTeam();
-  const teamSections = teams
+  const totalViolations = teams.reduce((sum, t) => sum + t.eventCount, 0);
+  const totalMinusPoints = teams.reduce(
+    (sum, t) => sum + t.members.reduce((mSum, m) => mSum + m.points, 0),
+    0
+  );
+
+  const teamCards = teams
     .map((team) => {
-      const memberRows = team.members.length
+      const hasViolations = team.members.length > 0;
+      const teamMinusPoints = team.members.reduce((acc, m) => acc + m.points, 0);
+
+      const memberList = hasViolations
         ? team.members
-            .map(
-              (member) => `
-                <article class="history-member-card">
+            .map((m) => {
+              const uniqueLabels = [...new Set(m.events.map((e) => e.label))];
+              return `
+                <div class="p-3 rounded-xl bg-surface-container-low flex flex-col gap-2">
                   <div class="flex items-center justify-between gap-2">
-                    <button type="button" class="history-member-link min-w-0 text-left" data-view-member="${member.id}">
-                      ${renderMemberName(member, "font-heading font-bold text-xs text-error truncate")}
-                    </button>
-                    <span class="history-count shrink-0">${member.events.length} lượt • ${member.points}đ</span>
+                    <div class="flex items-center gap-2 min-w-0">
+                      <div class="w-7 h-7 rounded-lg bg-error-container text-error flex items-center justify-center font-heading font-bold text-xs shrink-0">
+                        ${getInitials(m.name)}
+                      </div>
+                      <div class="flex flex-col min-w-0">
+                        <span class="font-heading font-bold text-xs text-on-surface truncate">${escapeHtml(m.name)}</span>
+                        <span class="text-[10px] text-outline">${m.id}</span>
+                      </div>
+                    </div>
+                    <span class="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-heading font-bold text-xs tabular-nums shrink-0">
+                      ${m.events.length} lần • ${m.points}đ
+                    </span>
                   </div>
-                  <details class="history-details">
-                    <summary>Xem toàn bộ vi phạm</summary>
-                    <ul class="mt-2 space-y-1.5">
-                      ${member.events
-                        .map(
-                          (event) => `
-                            <li class="flex items-start justify-between gap-2">
-                              <span class="min-w-0">${escapeHtml(event.label)}${event.note ? `<span class="block text-[10px] text-on-surface-variant">${escapeHtml(event.note)}</span>` : ""}<span class="block text-[10px] text-outline">Tuần ${event.weekNumber}</span></span>
-                              <span class="shrink-0 font-bold tabular-nums ${event.points < 0 ? "text-error" : "text-on-surface-variant"}">${formatPoints(event.points)}đ</span>
-                            </li>
-                          `
-                        )
-                        .join("")}
-                    </ul>
-                  </details>
-                </article>
-              `
-            )
+
+                  <!-- Chips tóm tắt các lỗi vi phạm -->
+                  <div class="flex flex-wrap gap-1">
+                    ${uniqueLabels
+                      .map((lbl) => `<span class="px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant text-[10px] font-medium">${escapeHtml(lbl)}</span>`)
+                      .join("")}
+                  </div>
+
+                  <!-- Chi tiết từng lần vi phạm -->
+                  <div class="space-y-1.5 pt-1 border-t border-surface-container">
+                    ${m.events
+                      .map(
+                        (e) => `
+                          <div class="flex items-start justify-between gap-2 text-[11px] py-0.5">
+                            <div class="flex flex-col min-w-0">
+                              <span class="text-on-surface font-medium">${escapeHtml(e.label)}${e.note ? ` <em class="text-on-surface-variant font-normal">("${escapeHtml(e.note)}")</em>` : ""}</span>
+                              <span class="text-[10px] text-outline">Tuần ${e.weekNumber} • ${formatRelativeTime(e.createdAt)}</span>
+                            </div>
+                            <span class="font-heading font-bold text-error tabular-nums shrink-0">${formatPoints(e.points)}đ</span>
+                          </div>
+                        `
+                      )
+                      .join("")}
+                  </div>
+                </div>
+              `;
+            })
             .join("")
-        : `<p class="rounded-xl bg-surface-container-low p-3 text-xs text-on-surface-variant">Chưa có lượt vi phạm được ghi nhận.</p>`;
+        : `
+          <div class="p-4 rounded-xl bg-surface-container-low text-center flex flex-col items-center gap-1.5 text-secondary">
+            <span class="material-symbols-outlined text-[24px]">verified</span>
+            <span class="text-xs font-bold">Tổ này chấp hành nề nếp rất tốt!</span>
+            <span class="text-[10px] text-on-surface-variant">Không có vi phạm nào được ghi nhận.</span>
+          </div>
+        `;
 
       return `
-        <section class="history-team-card">
-          <header class="flex items-center justify-between gap-2">
+        <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-xs flex flex-col gap-3">
+          <div class="flex items-center justify-between pb-2 border-b border-surface-container">
             <div class="flex items-center gap-2">
-              <span class="history-team-icon material-symbols-outlined">groups</span>
-              <h3 class="font-heading font-bold text-sm text-white">${team.name}</h3>
+              <span class="w-8 h-8 rounded-xl bg-primary-fixed text-primary font-heading font-bold text-xs flex items-center justify-center">
+                ${team.id.replace("to", "T")}
+              </span>
+              <div>
+                <h3 class="font-heading font-bold text-sm text-on-surface">${team.name}</h3>
+                <span class="text-[10px] text-on-surface-variant">${team.members.length} học sinh có vi phạm</span>
+              </div>
             </div>
-            <span class="text-[10px] font-semibold text-white/85">${team.members.length} học sinh vi phạm • ${team.eventCount} lượt</span>
-          </header>
-          <div class="mt-2 space-y-2">${memberRows}</div>
-        </section>
+            <div class="text-right">
+              <span class="font-heading font-bold text-xs text-error tabular-nums block">${teamMinusPoints} đ</span>
+              <span class="text-[10px] text-outline">${team.eventCount} lượt</span>
+            </div>
+          </div>
+          <div class="space-y-2.5">${memberList}</div>
+        </div>
       `;
     })
     .join("");
 
   container.innerHTML = `
-    <div class="history-backdrop">
-      <div class="history-intro">
-        <span class="material-symbols-outlined">history_edu</span>
-        <div>
-          <h2 class="font-heading font-bold text-base">Tiền Án Tiền Sự</h2>
-          <p class="text-xs opacity-80">Toàn bộ lượt vi phạm, nhóm theo tổ tại thời điểm ghi nhận.</p>
+    <div class="flex flex-col gap-3">
+      <!-- Banner Tổng quan -->
+      <div class="rounded-2xl bg-gradient-to-br from-tertiary-container via-tertiary to-tertiary-container p-4 text-on-tertiary shadow-xs flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[24px]">history_edu</span>
+          </div>
+          <div>
+            <h2 class="font-heading font-bold text-sm">Tiền Án Tiền Sự</h2>
+            <p class="text-xs opacity-90 mt-0.5">Tổng hợp toàn bộ các vi phạm nề nếp trong năm học</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <span class="font-heading font-bold text-xl tabular-nums leading-none block">${totalViolations}</span>
+          <span class="text-[10px] opacity-80 uppercase tracking-wider font-bold">Lượt vi phạm</span>
         </div>
       </div>
-      <div class="history-team-list">${teamSections}</div>
+
+      <!-- Danh sách từng tổ -->
+      <div class="space-y-3">${teamCards}</div>
     </div>
   `;
-  bindMemberClickEvents(container);
+}
+
+// ===========================================================================
+// YÊU CẦU 12: BẢNG XẾP HẠNG THÀNH TÍCH TỔ (NHẤT, NHÌ, BA, BÉT)
+// ===========================================================================
+function renderTeamPodiumStats(container) {
+  const rows = store.getTeamPodiumStats();
+  const through = studiedThroughWeek();
+
+  container.innerHTML = `
+    <div class="flex flex-col gap-3">
+      <div class="rounded-2xl bg-surface-container-lowest p-4 shadow-xs flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-[22px]">emoji_events</span>
+            <div>
+              <h3 class="font-heading font-bold text-sm">Bảng Thành Tích Xếp Hạng Các Tổ</h3>
+              <p class="text-[11px] text-on-surface-variant">Thống kê số lần về nhất, nhì, ba, bét từ Tuần 1 đến Tuần ${through}</p>
+            </div>
+          </div>
+          <button id="btn-toggle-podium-detail" type="button" class="px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container text-xs font-bold text-primary transition-colors">
+            ${state.podiumDetailOpen ? "Thu gọn" : "Xem tuần"}
+          </button>
+        </div>
+      </div>
+
+      <div class="space-y-2.5">
+        ${rows
+          .map((team, idx) => {
+            const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : "4️⃣";
+            return `
+              <div class="rounded-2xl bg-surface-container-lowest p-4 shadow-xs border border-surface-container/70 flex flex-col gap-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-xl bg-surface-container-high flex items-center justify-center font-heading font-bold text-sm">
+                      ${medal}
+                    </span>
+                    <div>
+                      <h4 class="font-heading font-bold text-sm text-on-surface">${team.name}</h4>
+                      <span class="text-[10px] text-outline">Đã tham gia ${team.weeks} tuần thi đua</span>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-heading font-bold text-xs tabular-nums">
+                      ${team.first} lần về nhất
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 4 Cột: Nhất, Nhì, Ba, Bét -->
+                <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                  <div class="rounded-xl bg-amber-50 border border-amber-200 p-2 flex flex-col">
+                    <span class="text-[10px] font-bold text-amber-800">Về Nhất 🥇</span>
+                    <span class="font-heading font-bold text-lg text-amber-900 mt-0.5 tabular-nums">${team.first}</span>
+                    <span class="text-[9px] text-amber-700 mt-0.5">tuần</span>
+                  </div>
+                  <div class="rounded-xl bg-slate-100 border border-slate-200 p-2 flex flex-col">
+                    <span class="text-[10px] font-bold text-slate-700">Về Nhì 🥈</span>
+                    <span class="font-heading font-bold text-lg text-slate-800 mt-0.5 tabular-nums">${team.second}</span>
+                    <span class="text-[9px] text-slate-600 mt-0.5">tuần</span>
+                  </div>
+                  <div class="rounded-xl bg-orange-50 border border-orange-200 p-2 flex flex-col">
+                    <span class="text-[10px] font-bold text-orange-800">Về Ba 🥉</span>
+                    <span class="font-heading font-bold text-lg text-orange-900 mt-0.5 tabular-nums">${team.third}</span>
+                    <span class="text-[9px] text-orange-700 mt-0.5">tuần</span>
+                  </div>
+                  <div class="rounded-xl bg-rose-50 border border-rose-200 p-2 flex flex-col">
+                    <span class="text-[10px] font-bold text-rose-800">Về Bét ⚠️</span>
+                    <span class="font-heading font-bold text-lg text-rose-900 mt-0.5 tabular-nums">${team.last}</span>
+                    <span class="text-[9px] text-rose-700 mt-0.5">tuần</span>
+                  </div>
+                </div>
+
+                <!-- Chi tiết cụ thể từng tuần khi bật xem -->
+                ${
+                  state.podiumDetailOpen
+                    ? `
+                      <div class="pt-2 border-t border-surface-container space-y-1.5 text-[11px]">
+                        ${team.firstWeeks.length ? `<div class="text-amber-800 font-medium">🥇 Về nhất ở các tuần: <strong>${team.firstWeeks.map((w) => `Tuần ${w}`).join(", ")}</strong></div>` : ""}
+                        ${team.secondWeeks.length ? `<div class="text-slate-700 font-medium">🥈 Về nhì ở các tuần: <strong>${team.secondWeeks.map((w) => `Tuần ${w}`).join(", ")}</strong></div>` : ""}
+                        ${team.thirdWeeks.length ? `<div class="text-orange-800 font-medium">🥉 Về ba ở các tuần: <strong>${team.thirdWeeks.map((w) => `Tuần ${w}`).join(", ")}</strong></div>` : ""}
+                        ${team.lastWeeks.length ? `<div class="text-rose-800 font-medium">⚠️ Về bét ở các tuần: <strong>${team.lastWeeks.map((w) => `Tuần ${w}`).join(", ")}</strong></div>` : ""}
+                      </div>
+                    `
+                    : ""
+                }
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
+
+  const btnToggle = $("#btn-toggle-podium-detail", container);
+  if (btnToggle) {
+    btnToggle.onclick = () => {
+      state.podiumDetailOpen = !state.podiumDetailOpen;
+      renderTeamPodiumStats(container);
+    };
+  }
 }
 
 function bindMemberClickEvents(root) {
@@ -637,6 +692,7 @@ function bindMemberClickEvents(root) {
 
 function renderRealtimeFeed() {
   const feed = $("#realtime-activity-feed");
+  if (!feed) return;
   const recentEvents = store.allEvents
     .filter((event) => event.createdByRole !== "admin")
     .slice(0, 5);
@@ -661,7 +717,7 @@ function renderRealtimeFeed() {
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-2 h-2 rounded-full ${dotColor} shrink-0"></span>
             <span class="text-on-surface truncate">
-              <strong class="text-primary font-bold">${teamName}:</strong> ${memberName} • ${ev.label}
+              <strong class="text-primary font-bold">${escapeHtml(teamName)}:</strong> ${escapeHtml(memberName)} • ${escapeHtml(ev.label)}
             </span>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
@@ -675,7 +731,7 @@ function renderRealtimeFeed() {
 }
 
 // ===========================================================================
-// MÀN HÌNH 2: GHI ĐIỂM NHANH (FAST SCORING WORKSPACE)
+// MÀN HÌNH 2: GHI ĐIỂM NHANH (YÊU CẦU 13: CHỌN NHIỀU NỘI QUY CÙNG LÚC VỚI SỐ LƯỢNG RIÊNG)
 // ===========================================================================
 function renderScoringWorkspace() {
   const isAuth = store.isLoggedIn();
@@ -683,184 +739,90 @@ function renderScoringWorkspace() {
   const workspace = $("#scoring-workspace");
 
   if (!isAuth) {
-    loginCard.classList.remove("hidden");
-    workspace.classList.add("hidden");
+    loginCard?.classList.remove("hidden");
+    workspace?.classList.add("hidden");
     return;
   }
 
-  loginCard.classList.add("hidden");
-  workspace.classList.remove("hidden");
+  loginCard?.classList.add("hidden");
+  workspace?.classList.remove("hidden");
 
-  // 1. Cập nhật header tổ trưởng / admin
   const leaderName = store.getLeaderName();
   const leaderTeam = store.getLeaderTeamId();
   const isAdmin = store.isAdmin();
-  $("#workspace-user-name").textContent = leaderName;
+
+  const userNameEl = $("#workspace-user-name");
+  if (userNameEl) userNameEl.textContent = leaderName;
+
+  const avatarEl = $("#workspace-avatar");
+  const rolePillEl = $("#workspace-role-pill");
 
   if (isAdmin) {
-    $("#workspace-avatar").textContent = "GV";
-    $("#workspace-role-pill").textContent = "Admin GVCN (Mọi quyền)";
-    $("#workspace-role-pill").className =
-      "px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold shrink-0";
+    if (avatarEl) avatarEl.textContent = "GV";
+    if (rolePillEl) {
+      rolePillEl.textContent = "Admin GVCN";
+      rolePillEl.className = "px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold shrink-0";
+    }
   } else {
-    $("#workspace-avatar").textContent = leaderTeam ? leaderTeam.replace("to", "T") : "TT";
-    $("#workspace-role-pill").textContent = leaderTeam ? TEAM_BY_ID[leaderTeam]?.name : "Tổ trưởng";
-    $("#workspace-role-pill").className =
-      "px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed text-[10px] font-bold shrink-0";
+    if (avatarEl) avatarEl.textContent = leaderTeam ? leaderTeam.replace("to", "T") : "TT";
+    if (rolePillEl) {
+      rolePillEl.textContent = leaderTeam ? TEAM_BY_ID[leaderTeam]?.name : "Tổ trưởng";
+      rolePillEl.className = "px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed text-[10px] font-bold shrink-0";
+    }
   }
 
-  // 2. Quyền hạn lọc tổ:
-  // Tổ trưởng CHỈ được tương tác với tổ của mình, không có quyền hạn với tổ khác!
+  // Lọc tổ
   const chipsContainer = $("#score-team-chips");
-  if (!isAdmin) {
-    state.scoringTeamFilter = leaderTeam || "my";
-    const teamObj = TEAM_BY_ID[leaderTeam];
-    chipsContainer.innerHTML = `
-      <div class="px-3 py-1 rounded-xl text-xs font-bold bg-primary text-on-primary shadow-xs flex items-center gap-1.5 shrink-0">
-        <span class="material-symbols-outlined text-[15px]">shield</span>
-        <span>${teamObj?.name || "Tổ của tôi"} (${teamObj?.members.length || 11} học sinh)</span>
-      </div>
-      <span class="text-[11px] text-on-surface-variant italic self-center ml-1">Chỉ được chấm điểm tổ mình</span>
-    `;
-  } else {
-    // Admin có mọi quyền trên mọi tổ
-    chipsContainer.innerHTML = `
-      <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "all" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="all">
-        Toàn lớp (44)
-      </button>
-      <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "to1" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="to1">
-        Tổ 1
-      </button>
-      <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "to2" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="to2">
-        Tổ 2
-      </button>
-      <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "to3" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="to3">
-        Tổ 3
-      </button>
-      <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "to4" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="to4">
-        Tổ 4
-      </button>
-    `;
-    $$(".score-filter-chip", chipsContainer).forEach((btn) => {
-      btn.onclick = () => {
-        state.scoringTeamFilter = btn.dataset.team;
-        renderScoringWorkspace();
-      };
-    });
-  }
-
-  // 3. Kiểm tra tuần: Các tuần đã học qua KHÔNG ĐƯỢC TƯƠNG TÁC (Chỉ Admin mới có quyền)
-  const curWeek = store.weekId;
-  const curNum = weekNumber(curWeek);
-  const curStudied = studiedThroughWeek();
-  const isPastWeek = curNum < curStudied || curWeek !== defaultWeekId();
-  const isWeekLocked = store.isWeekLocked(curWeek);
-  const isPaused = store.isLeadersPaused();
-
-  let blockBanner = $("#scoring-block-banner");
-  if (!blockBanner) {
-    blockBanner = document.createElement("div");
-    blockBanner.id = "scoring-block-banner";
-    const headerEl = workspace.firstElementChild;
-    headerEl.after(blockBanner);
-  }
-
-  const scoringControls = [
-    $("#student-select-grid"),
-    $("#quick-rewards-grid"),
-    $("#quick-penalties-grid"),
-    $("#btn-open-all-rules"),
-    $("#btn-select-all-team"),
-    $("#score-search-input"),
-    $("#btn-multiplier-minus"),
-    $("#btn-multiplier-plus"),
-    $("#score-note-input"),
-    $("#btn-submit-score"),
-  ];
-
-  if (!isAdmin && (isPastWeek || isWeekLocked || isPaused)) {
-    let reasonTitle = "";
-    let reasonDesc = "";
-    if (isPaused) {
-      reasonTitle = "Admin đang tạm dừng quyền ghi điểm";
-      reasonDesc = "Giáo viên chủ nhiệm đang tạm dừng để chốt số liệu hoặc kiểm tra.";
-    } else if (isWeekLocked) {
-      reasonTitle = `Tuần ${curNum} đã bị khóa sổ`;
-      reasonDesc = "Số liệu tuần này đã chốt công bố, không thể ghi hoặc chỉnh sửa thêm.";
-    } else if (isPastWeek) {
-      reasonTitle = `Tuần ${curNum} đã học qua (Chế độ chỉ đọc)`;
-      reasonDesc = `Tổ trưởng không được tương tác với các tuần đã học qua. Chỉ được ghi điểm cho Tuần hiện tại (Tuần ${curStudied}).`;
+  if (chipsContainer) {
+    if (!isAdmin) {
+      state.scoringTeamFilter = leaderTeam || "my";
+      const teamObj = TEAM_BY_ID[leaderTeam];
+      chipsContainer.innerHTML = `
+        <div class="px-3 py-1 rounded-xl text-xs font-bold bg-primary text-on-primary shadow-xs flex items-center gap-1.5 shrink-0">
+          <span class="material-symbols-outlined text-[15px]">shield</span>
+          <span>${teamObj?.name || "Tổ của tôi"} (${teamObj?.members.length || 11} học sinh)</span>
+        </div>
+        <span class="text-[11px] text-on-surface-variant italic self-center ml-1">Chỉ được chấm điểm tổ mình</span>
+      `;
+    } else {
+      chipsContainer.innerHTML = `
+        <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "all" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="all">Toàn lớp (44)</button>
+        <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "to1" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="to1">Tổ 1</button>
+        <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "to2" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="to2">Tổ 2</button>
+        <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "to3" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="to3">Tổ 3</button>
+        <button type="button" class="score-filter-chip px-3 py-1 rounded-xl text-xs font-semibold shrink-0 ${state.scoringTeamFilter === "to4" ? "bg-primary text-on-primary shadow-xs font-bold" : "bg-surface-container-low text-on-surface-variant"}" data-team="to4">Tổ 4</button>
+      `;
+      $$(".score-filter-chip", chipsContainer).forEach((btn) => {
+        btn.onclick = () => {
+          state.scoringTeamFilter = btn.dataset.team;
+          renderScoringWorkspace();
+        };
+      });
     }
-
-    blockBanner.className =
-      "bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col gap-2 text-amber-900 shadow-xs";
-    blockBanner.innerHTML = `
-      <div class="flex items-center gap-2">
-        <span class="material-symbols-outlined text-amber-700 text-[22px]">lock_clock</span>
-        <span class="font-heading font-bold text-xs uppercase tracking-wide text-amber-800">${reasonTitle}</span>
-      </div>
-      <p class="text-xs text-amber-800">${reasonDesc}</p>
-      ${
-        isPastWeek
-          ? `<button type="button" id="btn-goto-current-week" class="self-start px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors">
-              <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
-              <span>Chuyển sang Tuần ${curStudied} (Tuần hiện tại)</span>
-             </button>`
-          : ""
-      }
-    `;
-
-    const gotoBtn = $("#btn-goto-current-week");
-    if (gotoBtn) {
-      gotoBtn.onclick = () => {
-        store.setWeek(defaultWeekId());
-        renderScoringWorkspace();
-        renderLeaderboard();
-      };
-    }
-
-    scoringControls.forEach((el) => {
-      if (el) el.classList.add("pointer-events-none", "opacity-40");
-    });
-  } else {
-    blockBanner.className = "hidden";
-    blockBanner.innerHTML = "";
-    scoringControls.forEach((el) => {
-      if (el) el.classList.remove("pointer-events-none", "opacity-40");
-    });
   }
 
-  // 4. Render danh sách học sinh
+  // Render components
   renderStudentSelectGrid();
-
-  // 5. Render 1-Touch Quick Actions
   renderQuickActions();
-
-  // 6. Cập nhật thanh tổng kết điểm
+  renderSelectedRulesBasket();
   updateSubmitBar();
-
-  // 7. Render Lịch sử chấm trong phiên
   renderSessionLog();
 }
 
 function renderStudentSelectGrid() {
   const grid = $("#student-select-grid");
+  if (!grid) return;
   const query = toNonAccentVietnamese($("#score-search-input")?.value || "");
   const isAdmin = store.isAdmin();
   const leaderTeam = store.getLeaderTeamId();
 
   let members = [];
   if (!isAdmin) {
-    // Tổ trưởng CHỈ thấy thành viên tổ của mình
     members = leaderTeam ? TEAM_BY_ID[leaderTeam]?.members || [] : [];
   } else {
-    // Admin thấy theo bộ lọc
     const teamFilter = state.scoringTeamFilter;
-    if (teamFilter === "all") {
-      members = TEAMS.flatMap((t) => t.members);
-    } else {
-      members = TEAM_BY_ID[teamFilter]?.members || [];
-    }
+    if (teamFilter === "all") members = TEAMS.flatMap((t) => t.members);
+    else members = TEAM_BY_ID[teamFilter]?.members || [];
   }
 
   if (query) {
@@ -886,7 +848,7 @@ function renderStudentSelectGrid() {
             </div>
           </div>
           <div class="flex flex-col min-w-0 flex-1">
-            <span class="font-heading font-bold text-xs text-on-surface truncate ${isSelected ? "text-primary" : ""}">${m.name}</span>
+            <span class="font-heading font-bold text-xs text-on-surface truncate ${isSelected ? "text-primary" : ""}">${escapeHtml(m.name)}</span>
             <span class="text-[10px] text-on-surface-variant font-medium">${m.id}</span>
           </div>
         </button>
@@ -908,111 +870,232 @@ function renderStudentSelectGrid() {
     };
   });
 
-  $("#selected-students-count").textContent = `Đã chọn: ${state.selectedStudentIds.size}`;
+  const countEl = $("#selected-students-count");
+  if (countEl) countEl.textContent = `Đã chọn: ${state.selectedStudentIds.size}`;
 }
 
 function renderQuickActions() {
   const rewGrid = $("#quick-rewards-grid");
   const penGrid = $("#quick-penalties-grid");
 
-  rewGrid.innerHTML = QUICK_REWARDS.map((r) => {
-    const isSelected = state.selectedRuleId === r.id;
-    const activeClass = isSelected
-      ? "bg-secondary-fixed/40 ring-2 ring-secondary"
-      : "bg-surface-container-low hover:bg-secondary-fixed/20";
+  if (rewGrid) {
+    rewGrid.innerHTML = QUICK_REWARDS.map((r) => {
+      const qty = state.selectedRules.get(r.id) || 0;
+      const isSelected = qty > 0;
+      const activeClass = isSelected
+        ? "bg-secondary-fixed/50 ring-2 ring-secondary"
+        : "bg-surface-container-low hover:bg-secondary-fixed/20";
 
-    return `
-      <button type="button" class="rule-action-btn action-card text-left p-2.5 rounded-xl transition-all flex flex-col justify-between ${activeClass}" data-rule-id="${r.id}">
-        <div class="flex items-start justify-between gap-1 w-full">
-          <span class="material-symbols-outlined text-secondary text-[18px]">${r.icon || "star"}</span>
-          <span class="font-heading font-bold text-sm text-secondary tabular-nums">+${r.points}đ</span>
-        </div>
-        <span class="font-heading font-semibold text-xs text-on-surface mt-1.5 line-clamp-1">${r.label}</span>
-      </button>
-    `;
-  }).join("");
+      return `
+        <button type="button" class="rule-action-btn action-card text-left p-2.5 rounded-xl transition-all flex flex-col justify-between ${activeClass}" data-rule-id="${r.id}">
+          <div class="flex items-start justify-between gap-1 w-full">
+            <span class="material-symbols-outlined text-secondary text-[18px]">${r.icon || "star"}</span>
+            <div class="flex items-center gap-1">
+              ${isSelected ? `<span class="w-5 h-5 rounded-full bg-secondary text-white font-bold text-[10px] flex items-center justify-center">${qty}</span>` : ""}
+              <span class="font-heading font-bold text-sm text-secondary tabular-nums">+${r.points}đ</span>
+            </div>
+          </div>
+          <span class="font-heading font-semibold text-xs text-on-surface mt-1.5 line-clamp-1">${escapeHtml(r.label)}</span>
+        </button>
+      `;
+    }).join("");
+  }
 
-  penGrid.innerHTML = QUICK_PENALTIES.map((r) => {
-    const isSelected = state.selectedRuleId === r.id;
-    const activeClass = isSelected
-      ? "bg-tertiary-fixed/40 ring-2 ring-tertiary"
-      : "bg-surface-container-low hover:bg-tertiary-fixed/20";
+  if (penGrid) {
+    penGrid.innerHTML = QUICK_PENALTIES.map((r) => {
+      const qty = state.selectedRules.get(r.id) || 0;
+      const isSelected = qty > 0;
+      const activeClass = isSelected
+        ? "bg-tertiary-fixed/50 ring-2 ring-tertiary"
+        : "bg-surface-container-low hover:bg-tertiary-fixed/20";
 
-    return `
-      <button type="button" class="rule-action-btn action-card text-left p-2.5 rounded-xl transition-all flex flex-col justify-between ${activeClass}" data-rule-id="${r.id}">
-        <div class="flex items-start justify-between gap-1 w-full">
-          <span class="material-symbols-outlined text-tertiary text-[18px]">${r.icon || "warning"}</span>
-          <span class="font-heading font-bold text-sm text-tertiary tabular-nums">${r.points}đ</span>
-        </div>
-        <span class="font-heading font-semibold text-xs text-on-surface mt-1.5 line-clamp-1">${r.label}</span>
-      </button>
-    `;
-  }).join("");
+      return `
+        <button type="button" class="rule-action-btn action-card text-left p-2.5 rounded-xl transition-all flex flex-col justify-between ${activeClass}" data-rule-id="${r.id}">
+          <div class="flex items-start justify-between gap-1 w-full">
+            <span class="material-symbols-outlined text-tertiary text-[18px]">${r.icon || "warning"}</span>
+            <div class="flex items-center gap-1">
+              ${isSelected ? `<span class="w-5 h-5 rounded-full bg-tertiary text-white font-bold text-[10px] flex items-center justify-center">${qty}</span>` : ""}
+              <span class="font-heading font-bold text-sm text-tertiary tabular-nums">${r.points}đ</span>
+            </div>
+          </div>
+          <span class="font-heading font-semibold text-xs text-on-surface mt-1.5 line-clamp-1">${escapeHtml(r.label)}</span>
+        </button>
+      `;
+    }).join("");
+  }
 
   $$(".rule-action-btn").forEach((btn) => {
     btn.onclick = () => {
       const rId = btn.dataset.ruleId;
-      state.selectedRuleId = state.selectedRuleId === rId ? null : rId;
+      const cur = state.selectedRules.get(rId) || 0;
+      state.selectedRules.set(rId, cur + 1);
       renderQuickActions();
+      renderSelectedRulesBasket();
       checkRepeatInfractionAlert();
       updateSubmitBar();
     };
   });
 }
 
+function renderSelectedRulesBasket() {
+  const basketEl = $("#selected-rules-basket");
+  const clearBtn = $("#btn-clear-basket");
+  if (!basketEl) return;
+
+  const entries = Array.from(state.selectedRules.entries());
+
+  if (!entries.length) {
+    basketEl.innerHTML = `<p class="text-xs text-outline text-center py-2">Chưa chọn điểm cộng hoặc vi phạm nào.</p>`;
+    clearBtn?.classList.add("hidden");
+    return;
+  }
+
+  clearBtn?.classList.remove("hidden");
+
+  basketEl.innerHTML = entries
+    .map(([ruleId, qty]) => {
+      const rule = RULE_BY_ID[ruleId];
+      if (!rule) return "";
+      const isPlus = rule.points > 0;
+      const itemSubtotal = rule.points * qty;
+      const badgeBg = isPlus ? "bg-secondary-fixed text-on-secondary-fixed" : "bg-tertiary/15 text-tertiary";
+
+      return `
+        <div class="flex items-center justify-between p-2 rounded-xl bg-surface-container-low text-xs gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-2 h-2 rounded-full ${isPlus ? "bg-secondary" : "bg-error"} shrink-0"></span>
+            <div class="flex flex-col min-w-0">
+              <span class="font-heading font-bold text-on-surface truncate">${escapeHtml(rule.label)}</span>
+              <span class="text-[10px] text-outline">${formatPoints(rule.points)}đ / lần</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <!-- Stepper riêng cho từng mục -->
+            <div class="flex items-center bg-surface-container rounded-lg p-0.5">
+              <button type="button" class="btn-basket-minus w-6 h-6 rounded-md hover:bg-surface-container-highest flex items-center justify-center font-bold text-on-surface" data-rule-id="${ruleId}">-</button>
+              <span class="font-heading font-bold text-xs px-2 text-primary tabular-nums">${qty}</span>
+              <button type="button" class="btn-basket-plus w-6 h-6 rounded-md hover:bg-surface-container-highest flex items-center justify-center font-bold text-on-surface" data-rule-id="${ruleId}">+</button>
+            </div>
+            
+            <span class="font-heading font-bold ${isPlus ? "text-secondary" : "text-error"} tabular-nums min-w-[3rem] text-right">
+              ${formatPoints(itemSubtotal)}đ
+            </span>
+
+            <button type="button" class="btn-basket-remove w-6 h-6 rounded-lg text-outline hover:text-error flex items-center justify-center" data-rule-id="${ruleId}" title="Xóa mục này">
+              <span class="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  $$(".btn-basket-minus", basketEl).forEach((btn) => {
+    btn.onclick = () => {
+      const rId = btn.dataset.ruleId;
+      const cur = state.selectedRules.get(rId) || 0;
+      if (cur <= 1) state.selectedRules.delete(rId);
+      else state.selectedRules.set(rId, cur - 1);
+      renderQuickActions();
+      renderSelectedRulesBasket();
+      checkRepeatInfractionAlert();
+      updateSubmitBar();
+    };
+  });
+
+  $$(".btn-basket-plus", basketEl).forEach((btn) => {
+    btn.onclick = () => {
+      const rId = btn.dataset.ruleId;
+      const cur = state.selectedRules.get(rId) || 0;
+      if (cur < 10) state.selectedRules.set(rId, cur + 1);
+      renderQuickActions();
+      renderSelectedRulesBasket();
+      updateSubmitBar();
+    };
+  });
+
+  $$(".btn-basket-remove", basketEl).forEach((btn) => {
+    btn.onclick = () => {
+      const rId = btn.dataset.ruleId;
+      state.selectedRules.delete(rId);
+      renderQuickActions();
+      renderSelectedRulesBasket();
+      checkRepeatInfractionAlert();
+      updateSubmitBar();
+    };
+  });
+
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      state.selectedRules.clear();
+      renderQuickActions();
+      renderSelectedRulesBasket();
+      checkRepeatInfractionAlert();
+      updateSubmitBar();
+    };
+  }
+}
+
 function checkRepeatInfractionAlert() {
   const alertEl = $("#repeat-infraction-alert");
-  if (!state.selectedRuleId || state.selectedStudentIds.size === 0) {
+  if (!alertEl) return;
+  if (state.selectedRules.size === 0 || state.selectedStudentIds.size === 0) {
     alertEl.classList.add("hidden");
     return;
   }
 
-  const rule = RULE_BY_ID[state.selectedRuleId];
-  if (!rule || rule.points >= 0) {
-    alertEl.classList.add("hidden");
-    return;
-  }
-
-  // Kiểm tra xem có học sinh nào bị lỗi này tuần trước không (Thuật toán 3)
   let hasRepeat = false;
-  for (const mId of state.selectedStudentIds) {
-    if (store.checkRepeatInfraction(mId, rule.id, store.weekId)) {
-      hasRepeat = true;
-      break;
+  for (const [rId] of state.selectedRules) {
+    const rule = RULE_BY_ID[rId];
+    if (rule && rule.points < 0) {
+      for (const mId of state.selectedStudentIds) {
+        if (store.checkRepeatInfraction(mId, rule.id, store.weekId)) {
+          hasRepeat = true;
+          break;
+        }
+      }
     }
+    if (hasRepeat) break;
   }
 
-  if (hasRepeat) {
-    alertEl.classList.remove("hidden");
-  } else {
-    alertEl.classList.add("hidden");
-  }
+  alertEl.classList.toggle("hidden", !hasRepeat);
 }
 
 function updateSubmitBar() {
   const submitBtn = $("#btn-submit-score");
   const summaryEl = $("#submit-summary-text");
-  const count = state.selectedStudentIds.size;
-  const rule = RULE_BY_ID[state.selectedRuleId];
+  if (!submitBtn || !summaryEl) return;
 
-  if (count === 0 || !rule) {
+  const countStudents = state.selectedStudentIds.size;
+  const countRules = state.selectedRules.size;
+
+  if (countStudents === 0 || countRules === 0) {
     submitBtn.disabled = true;
-    summaryEl.textContent = count === 0 ? "Chọn học sinh..." : "Chọn loại điểm...";
+    summaryEl.textContent = countStudents === 0 ? "Chọn học sinh..." : "Chọn điểm/lỗi...";
     return;
   }
 
   submitBtn.disabled = false;
-  const totalPts = rule.points * state.scoringMultiplier * count;
-  summaryEl.textContent = `${count} bạn • ${formatPoints(totalPts)}đ`;
+  let netDeltaPerStudent = 0;
+  for (const [rId, qty] of state.selectedRules) {
+    const rule = RULE_BY_ID[rId];
+    if (rule) netDeltaPerStudent += rule.points * qty;
+  }
+
+  const grandTotal = netDeltaPerStudent * countStudents;
+  summaryEl.textContent = `${countStudents} bạn • ${countRules} mục • ${formatPoints(netDeltaPerStudent)}đ/bạn`;
 }
 
 async function handleScoreSubmit() {
-  const rule = RULE_BY_ID[state.selectedRuleId];
   const memberIds = Array.from(state.selectedStudentIds);
   const note = $("#score-note-input")?.value?.trim() || "";
-  const multiplier = state.scoringMultiplier;
+  const items = Array.from(state.selectedRules.entries()).map(([ruleId, multiplier]) => ({
+    ruleId,
+    multiplier,
+  }));
 
-  if (!memberIds.length || !rule) return;
+  if (!memberIds.length || !items.length) return;
 
   const btn = $("#btn-submit-score");
   btn.disabled = true;
@@ -1021,53 +1104,22 @@ async function handleScoreSubmit() {
   try {
     const saved = await store.addEventsBatch({
       memberIds,
-      ruleId: rule.id,
+      items,
       note,
-      multiplier,
     });
 
     if (saved && saved.length > 0) {
-      // Thêm vào session log để cho phép xóa trong 15p
       state.sessionLog = [...saved, ...state.sessionLog];
-      const failedSyncs = saved.filter((event) => event.syncError);
-      const syncedEvents = saved.filter((event) => !event.syncError);
-      if (store.mode === "live" && syncedEvents.length) {
-        void reportPushResult(
-          "score",
-          {
-            events: syncedEvents.map((event) => ({
-              name: MEMBER_BY_ID[event.memberId]?.name || event.memberId,
-              label: event.label,
-              points: event.points,
-            })),
-            rankings: {
-              plus: getTopRankPayload(store.getBonusRankings()),
-              minus: getTopRankPayload(store.getViolationRankings()),
-            },
-          },
-          "Đã gửi thông báo cập nhật"
-        );
-      }
-      if (failedSyncs.length) {
-        showToast(`${failedSyncs.length} lượt chưa đồng bộ`, "cloud_off");
-        alert(
-          `Đã ghi ${saved.length} lượt vào bộ nhớ trên thiết bị, nhưng ${failedSyncs.length} lượt chưa đồng bộ lên Supabase.\n\n${failedSyncs[0].syncError}\n\nDữ liệu này chưa được chia sẻ với thiết bị khác.`
-        );
-      } else if (store.mode === "live") {
-        showToast(`Đã ghi và đồng bộ cho ${saved.length} học sinh!`, "check_circle");
-      } else {
-        showToast(`Đã lưu trên thiết bị cho ${saved.length} học sinh (ngoại tuyến).`, "cloud_off");
-      }
-
+      
       // Reset form
       state.selectedStudentIds.clear();
-      state.selectedRuleId = null;
-      state.scoringMultiplier = 1;
-      $("#multiplier-display").textContent = "x1";
-      if ($("#score-note-input")) $("#score-note-input").value = "";
+      state.selectedRules.clear();
+      const noteInput = $("#score-note-input");
+      if (noteInput) noteInput.value = "";
 
       renderStudentSelectGrid();
       renderQuickActions();
+      renderSelectedRulesBasket();
       checkRepeatInfractionAlert();
       updateSubmitBar();
       renderSessionLog();
@@ -1082,6 +1134,7 @@ async function handleScoreSubmit() {
 
 function renderSessionLog() {
   const list = $("#session-log-list");
+  if (!list) return;
   if (!state.sessionLog.length) {
     list.innerHTML = `<p class="text-xs text-outline py-2 text-center font-medium">Chưa có lượt chấm nào trong phiên này.</p>`;
     return;
@@ -1099,8 +1152,8 @@ function renderSessionLog() {
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-1.5 h-1.5 rounded-full ${isPlus ? "bg-secondary" : "bg-error"} shrink-0"></span>
             <div class="flex flex-col min-w-0">
-              <span class="font-heading font-bold text-on-surface truncate">${name} • ${ev.label}</span>
-              <span class="text-[10px] text-outline">${formatRelativeTime(ev.createdAt)}${ev.note ? ` — "${ev.note}"` : ""}</span>
+              <span class="font-heading font-bold text-on-surface truncate">${escapeHtml(name)} • ${escapeHtml(ev.label)}</span>
+              <span class="text-[10px] text-outline">${formatRelativeTime(ev.createdAt)}${ev.note ? ` — "${escapeHtml(ev.note)}"` : ""}</span>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -1126,7 +1179,6 @@ function renderSessionLog() {
           await store.deleteEvent(id);
           state.sessionLog = state.sessionLog.filter((e) => e.id !== id);
           renderSessionLog();
-          showToast("Đã xóa bản ghi thành công!", "delete");
         } catch (err) {
           alert(err.message || "Không thể xóa bản ghi.");
         }
@@ -1136,7 +1188,7 @@ function renderSessionLog() {
 }
 
 // ===========================================================================
-// MÀN HÌNH 3: HỒ SƠ & TIỂU SỬ HỌC SINH (STUDENT PROFILE)
+// MÀN HÌNH 3: HỒ SƠ CÁ NHÂN (YÊU CẦU 7: THỐNG KÊ XẾP LOẠI TỪ TUẦN 1 ĐẾN NAY)
 // ===========================================================================
 function getFilteredProfileStudents() {
   const query = toNonAccentVietnamese($("#profile-search-input")?.value || "");
@@ -1156,7 +1208,6 @@ function renderProfileStudentPicker() {
   }
 
   const filtered = getFilteredProfileStudents();
-
   if (!filtered.length) {
     listEl.innerHTML = `<span class="text-xs text-outline py-2 px-1 italic">Không tìm thấy học sinh nào phù hợp.</span>`;
     return;
@@ -1181,6 +1232,7 @@ function renderProfileStudentPicker() {
   $$(".profile-student-btn", listEl).forEach((btn) => {
     btn.onclick = () => {
       state.profileMemberId = btn.dataset.memberId;
+      state.profileWeekFocus = null;
       const searchInput = $("#profile-search-input");
       if (searchInput) searchInput.value = "";
       $("#btn-clear-profile-search")?.classList.add("hidden");
@@ -1214,13 +1266,17 @@ function renderProfileView() {
   } = profile;
 
   // 1. Hero Card
-  $("#profile-hero-avatar").textContent = getInitials(member.name);
-  $("#profile-hero-name").innerHTML = renderMemberName(
-    member,
-    "font-heading font-bold text-base text-on-surface truncate"
-  );
-  $("#profile-hero-team").textContent = TEAM_BY_ID[member.teamId]?.name || member.teamId;
-  $("#profile-hero-id").textContent = member.id;
+  const heroAvatar = $("#profile-hero-avatar");
+  if (heroAvatar) heroAvatar.textContent = getInitials(member.name);
+
+  const heroName = $("#profile-hero-name");
+  if (heroName) heroName.innerHTML = renderMemberName(member, "font-heading font-bold text-base text-on-surface truncate");
+
+  const heroTeam = $("#profile-hero-team");
+  if (heroTeam) heroTeam.textContent = TEAM_BY_ID[member.teamId]?.name || member.teamId;
+
+  const heroId = $("#profile-hero-id");
+  if (heroId) heroId.textContent = member.id;
 
   const trendEl = $("#profile-hero-trend");
   if (trendEl) {
@@ -1236,71 +1292,159 @@ function renderProfileView() {
     }
   }
 
-  $("#profile-rank-badge").textContent = `#${classRank}`;
-  $("#profile-rank-sub").textContent = `${isClassRankTied ? "Đồng hạng • " : ""}Tuần ${weekNumber(store.weekId)}`;
-  $("#profile-week-points").textContent = currentWeekPoints;
-  $("#profile-year-points").textContent = yearTotal;
+  const rankBadge = $("#profile-rank-badge");
+  if (rankBadge) rankBadge.textContent = `#${classRank}`;
 
-  // 2. Thống kê chi tiết tuần (Backend 100%, không dữ liệu ảo)
-  if ($("#profile-stat-plus")) $("#profile-stat-plus").textContent = `+${profile.plusPoints || 0} đ`;
-  if ($("#profile-stat-minus")) $("#profile-stat-minus").textContent = `${profile.minusPoints || 0} đ`;
+  const rankSub = $("#profile-rank-sub");
+  if (rankSub) rankSub.textContent = `Tuần ${weekNumber(store.weekId)}`;
 
-  const grade = gradeFor(currentWeekPoints);
+  const weekPointsEl = $("#profile-week-points");
+  if (weekPointsEl) weekPointsEl.textContent = currentWeekPoints;
+
+  const yearPointsEl = $("#profile-year-points");
+  if (yearPointsEl) yearPointsEl.textContent = yearTotal;
+
+  // 2. YÊU CẦU 7: THỐNG KÊ XẾP LOẠI TỪ TUẦN 1 ĐẾN NAY
+  const throughWeek = studiedThroughWeek();
+  const gradeData = store.getMemberGradeWeeks(member.id, 1, throughWeek);
+
+  const weekCountEl = $("#profile-grade-week-count");
+  if (weekCountEl) weekCountEl.textContent = `${throughWeek} tuần (Tuần 1–${throughWeek})`;
+
+  const gradeCountsContainer = $("#profile-grade-counts");
+  if (gradeCountsContainer) {
+    gradeCountsContainer.innerHTML = `
+      <div class="bg-surface-container-low rounded-xl p-2.5 flex items-center justify-between border-l-4 border-emerald-500">
+        <div>
+          <span class="text-[10px] text-emerald-800 font-bold block">Loại Tốt (90–100đ)</span>
+          <span class="text-[9px] text-outline">Chuẩn nề nếp tốt</span>
+        </div>
+        <span class="font-heading font-bold text-xl text-emerald-700 tabular-nums">${gradeData.counts.tot} <span class="text-xs font-normal">tuần</span></span>
+      </div>
+
+      <div class="bg-surface-container-low rounded-xl p-2.5 flex items-center justify-between border-l-4 border-blue-500">
+        <div>
+          <span class="text-[10px] text-blue-800 font-bold block">Loại Khá (80–89đ)</span>
+          <span class="text-[9px] text-outline">Đạt mức khá</span>
+        </div>
+        <span class="font-heading font-bold text-xl text-blue-700 tabular-nums">${gradeData.counts.kha} <span class="text-xs font-normal">tuần</span></span>
+      </div>
+
+      <div class="bg-surface-container-low rounded-xl p-2.5 flex items-center justify-between border-l-4 border-amber-500">
+        <div>
+          <span class="text-[10px] text-amber-800 font-bold block">Loại Đạt (60–79đ)</span>
+          <span class="text-[9px] text-outline">Cần cố gắng thêm</span>
+        </div>
+        <span class="font-heading font-bold text-xl text-amber-700 tabular-nums">${gradeData.counts.dat} <span class="text-xs font-normal">tuần</span></span>
+      </div>
+
+      <div class="bg-surface-container-low rounded-xl p-2.5 flex items-center justify-between border-l-4 border-rose-500">
+        <div>
+          <span class="text-[10px] text-rose-800 font-bold block">Chưa đạt (≤59đ)</span>
+          <span class="text-[9px] text-outline">Vi phạm nhiều</span>
+        </div>
+        <span class="font-heading font-bold text-xl text-rose-700 tabular-nums">${gradeData.counts["chua-dat"]} <span class="text-xs font-normal">tuần</span></span>
+      </div>
+    `;
+  }
+
+  const detailContainer = $("#profile-grade-detail");
+  const btnToggleDetail = $("#btn-profile-grade-detail");
+  if (detailContainer && btnToggleDetail) {
+    detailContainer.classList.toggle("hidden", !state.profileGradeOpen);
+    btnToggleDetail.innerHTML = `
+      <span>${state.profileGradeOpen ? "Thu gọn chi tiết" : "Xem chi tiết từng tuần"}</span>
+      <span class="material-symbols-outlined text-[16px]">${state.profileGradeOpen ? "expand_less" : "expand_more"}</span>
+    `;
+
+    if (state.profileGradeOpen) {
+      detailContainer.innerHTML = gradeData.weeks
+        .map((w) => {
+          const badgeClass =
+            w.grade.key === "tot"
+              ? "bg-emerald-100 text-emerald-800"
+              : w.grade.key === "kha"
+              ? "bg-blue-100 text-blue-800"
+              : w.grade.key === "dat"
+              ? "bg-amber-100 text-amber-800"
+              : "bg-rose-100 text-rose-800";
+
+          return `
+            <div class="flex items-center justify-between p-2 rounded-xl bg-surface-container-low text-xs">
+              <div class="flex items-center gap-2">
+                <span class="font-heading font-bold text-primary min-w-[3.5rem]">Tuần ${w.weekNumber}</span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}">Loại ${w.grade.label}</span>
+              </div>
+              <div class="flex items-center gap-2 text-right">
+                <span class="text-[10px] text-outline">+${w.plus.length} khen • ${w.minus.length} lỗi</span>
+                <span class="font-heading font-bold text-sm text-on-surface tabular-nums">${w.points} đ</span>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    }
+
+    btnToggleDetail.onclick = () => {
+      state.profileGradeOpen = !state.profileGradeOpen;
+      renderProfileView();
+    };
+  }
+
+  // 3. Chi tiết tuần hiện tại
+  const statPlus = $("#profile-stat-plus");
+  if (statPlus) statPlus.textContent = `+${profile.plusPoints || 0} đ`;
+
+  const statMinus = $("#profile-stat-minus");
+  if (statMinus) statMinus.textContent = `${profile.minusPoints || 0} đ`;
+
+  const currentGrade = gradeFor(currentWeekPoints);
   const gradePill = $("#profile-grade-pill");
   if (gradePill) {
-    gradePill.textContent = grade;
-    if (grade === "Tốt") {
-      gradePill.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800";
-    } else if (grade === "Khá") {
-      gradePill.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800";
-    } else if (grade === "Đạt") {
-      gradePill.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800";
-    } else {
-      gradePill.className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800";
-    }
+    gradePill.textContent = currentGrade.label;
+    gradePill.className = `text-[10px] font-bold px-2 py-0.5 rounded-full ${currentGrade.badge}`;
   }
 
   const scorePct = Math.max(0, Math.min(100, Math.round(currentWeekPoints)));
-  if ($("#profile-score-pct")) $("#profile-score-pct").textContent = `${scorePct}%`;
-  if ($("#profile-score-bar")) $("#profile-score-bar").style.width = `${scorePct}%`;
+  const scorePctEl = $("#profile-score-pct");
+  if (scorePctEl) scorePctEl.textContent = `${scorePct}%`;
+  const scoreBar = $("#profile-score-bar");
+  if (scoreBar) scoreBar.style.width = `${scorePct}%`;
 
-  // 3. Badges thực tế sinh từ dữ liệu thật
+  // 4. Badges
   const badgesRow = $("#profile-badges-row");
   if (badgesRow) {
     const badges = [];
     if (profile.minusPoints === 0) {
-      badges.push(
-        `<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">verified</span> 0 Vi Phạm</span>`
-      );
+      badges.push(`<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">verified</span> 0 Vi Phạm</span>`);
     } else {
-      badges.push(
-        `<span class="px-2.5 py-1 rounded-full bg-error-container text-error text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">warning</span> ${profile.minusCount} lần vi phạm</span>`
-      );
+      badges.push(`<span class="px-2.5 py-1 rounded-full bg-error-container text-error text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">warning</span> ${profile.minusCount} lần vi phạm</span>`);
     }
     if (profile.plusPoints > 0) {
-      badges.push(
-        `<span class="px-2.5 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">stars</span> +${profile.plusPoints}đ thưởng</span>`
-      );
+      badges.push(`<span class="px-2.5 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">stars</span> +${profile.plusPoints}đ khen</span>`);
     }
     if (currentWeekPoints >= 100) {
-      badges.push(
-        `<span class="px-2.5 py-1 rounded-full bg-primary-fixed text-primary text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">military_tech</span> Đạt chuẩn thi đua</span>`
-      );
+      badges.push(`<span class="px-2.5 py-1 rounded-full bg-primary-fixed text-primary text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">military_tech</span> Đạt chuẩn thi đua</span>`);
     }
     badgesRow.innerHTML = badges.join("");
   }
 
-  // 4. Lịch sử chi tiết
+  // 5. Timeline sự kiện
   const histList = $("#profile-history-list");
-  let targetEvents = allEvents;
+  if (!histList) return;
+
+  const focusWeekId = state.profileWeekFocus || store.weekId;
+  const focusWeekNumber = weekNumber(focusWeekId);
+
+  let targetEvents = allEvents.filter((e) => e.weekId === focusWeekId);
   if (state.profileFilter === "minus") {
-    targetEvents = allEvents.filter((e) => e.points < 0);
+    targetEvents = targetEvents.filter((e) => e.points < 0);
   } else if (state.profileFilter === "plus") {
-    targetEvents = allEvents.filter((e) => e.points > 0);
+    targetEvents = targetEvents.filter((e) => e.points > 0);
   }
 
   if (!targetEvents.length) {
-    histList.innerHTML = `<p class="text-xs text-outline py-4 text-center">Không có bản ghi điểm nào.</p>`;
+    histList.innerHTML = `<p class="text-xs text-outline py-4 text-center">Không có bản ghi điểm nào trong Tuần ${focusWeekNumber}.</p>`;
     return;
   }
 
@@ -1314,8 +1458,8 @@ function renderProfileView() {
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-2 h-2 rounded-full ${isPlus ? "bg-secondary" : "bg-error"} shrink-0"></span>
             <div class="flex flex-col min-w-0">
-              <span class="font-heading font-bold text-on-surface truncate">${ev.label}</span>
-              <span class="text-[10px] text-outline">Tuần ${weekNumber(ev.weekId)} • ${formatRelativeTime(ev.createdAt)}${ev.note ? ` • "${ev.note}"` : ""}</span>
+              <span class="font-heading font-bold text-on-surface truncate">${escapeHtml(ev.label)}</span>
+              <span class="text-[10px] text-outline">Tuần ${weekNumber(ev.weekId)} • ${formatRelativeTime(ev.createdAt)}${ev.note ? ` • "${escapeHtml(ev.note)}"` : ""}</span>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -1340,7 +1484,6 @@ function renderProfileView() {
           await store.deleteEvent(btn.dataset.delId);
           renderProfileView();
           renderLeaderboard();
-          showToast("Đã xóa bản ghi thành công!", "delete");
         } catch (err) {
           alert(err.message || "Lỗi khi xóa.");
         }
@@ -1350,7 +1493,545 @@ function renderProfileView() {
 }
 
 // ===========================================================================
-// MÀN HÌNH 4: QUẢN TRỊ GVCN (ADMIN DASHBOARD)
+// MÀN HÌNH 4: TRA CỨU ĐIỂM (YÊU CẦU 9: TÁCH RIÊNG 2 BẢNG + TRA CỨU CHUYÊN SÂU)
+// ===========================================================================
+function renderLookupView() {
+  const memberId = state.lookupMemberId || TEAMS[0].members[0].id;
+  const member = MEMBER_BY_ID[memberId];
+  if (!member) return;
+
+  const weekId = state.lookupWeekId || store.weekId;
+  const curWeekNum = weekNumber(weekId);
+
+  // 1. Render student picker suggestions
+  const searchInput = $("#lookup-search-input");
+  const clearBtn = $("#btn-clear-lookup-search");
+  const quickList = $("#lookup-students-list");
+  const selectedNameEl = $("#lookup-selected-name");
+
+  if (selectedNameEl) {
+    selectedNameEl.innerHTML = `
+      <div class="flex items-center gap-2 p-2 rounded-xl bg-surface-container-low mt-1">
+        <div class="w-7 h-7 rounded-lg bg-primary-fixed text-primary flex items-center justify-center font-heading font-bold text-xs shrink-0">
+          ${getInitials(member.name)}
+        </div>
+        <div class="flex flex-col min-w-0">
+          <span class="font-heading font-bold text-xs text-on-surface truncate">${escapeHtml(member.name)}</span>
+          <span class="text-[10px] text-outline">${TEAM_BY_ID[member.teamId]?.name || member.teamId} • ${member.id}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  const query = toNonAccentVietnamese(searchInput?.value || "");
+  if (quickList) {
+    quickList.classList.toggle("hidden", !query);
+    if (query) {
+      const filtered = TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, teamId: t.id }))).filter(
+        (m) => toNonAccentVietnamese(m.name).includes(query) || m.id.toLowerCase().includes(query)
+      );
+
+      quickList.innerHTML = filtered.length
+        ? filtered
+            .map((m) => {
+              const isSelected = m.id === memberId;
+              const bgClass = isSelected ? "bg-primary text-on-primary font-bold shadow-xs" : "bg-surface-container-low text-on-surface hover:bg-surface-container";
+              return `
+                <button type="button" class="lookup-student-btn px-2.5 py-1 rounded-xl text-xs flex items-center gap-1.5 shrink-0 ${bgClass}" data-member-id="${m.id}">
+                  <span>${escapeHtml(m.name)}</span>
+                  <span class="text-[10px] opacity-75">${m.id}</span>
+                </button>
+              `;
+            })
+            .join("")
+        : `<span class="text-xs text-outline py-1">Không tìm thấy học sinh.</span>`;
+
+      $$(".lookup-student-btn", quickList).forEach((btn) => {
+        btn.onclick = () => {
+          state.lookupMemberId = btn.dataset.memberId;
+          if (searchInput) searchInput.value = "";
+          clearBtn?.classList.add("hidden");
+          renderLookupView();
+        };
+      });
+    }
+  }
+
+  if (searchInput) {
+    searchInput.oninput = () => {
+      clearBtn?.classList.toggle("hidden", !searchInput.value);
+      renderLookupView();
+    };
+  }
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      if (searchInput) searchInput.value = "";
+      clearBtn.classList.add("hidden");
+      renderLookupView();
+    };
+  }
+
+  // 2. Week dropdown
+  const weekSelector = $("#lookup-week-selector");
+  if (weekSelector) {
+    const allWeekIds = competitionWeekIds();
+    const through = studiedThroughWeek();
+    weekSelector.innerHTML = allWeekIds
+      .map((wId) => {
+        const n = weekNumber(wId);
+        const isSelected = wId === weekId;
+        const suffix = n === through ? " (Hiện tại)" : "";
+        return `<option value="${wId}" ${isSelected ? "selected" : ""}>Tuần ${n}${suffix} • ${weekRangeLabel(wId)}</option>`;
+      })
+      .join("");
+
+    weekSelector.onchange = (e) => {
+      state.lookupWeekId = e.target.value;
+      renderLookupView();
+    };
+  }
+
+  // 3. Week breakdown data
+  const breakdown = store.getMemberWeekBreakdown(member.id, weekId);
+  const weekSummaryEl = $("#lookup-week-summary");
+  if (weekSummaryEl && breakdown) {
+    const badgeClass = breakdown.grade.badge;
+    weekSummaryEl.innerHTML = `
+      <div class="flex items-center gap-2">
+        <div class="flex flex-col">
+          <span class="font-heading font-bold text-sm text-on-surface">Tuần ${curWeekNum} — ${breakdown.points} điểm</span>
+          <span class="text-[10px] text-on-surface-variant">Điểm nền 100đ + ${breakdown.plus.length} khen - ${breakdown.minus.length} lỗi</span>
+        </div>
+      </div>
+      <span class="px-2.5 py-1 rounded-full text-xs font-bold ${badgeClass}">
+        Loại ${breakdown.grade.label}
+      </span>
+    `;
+  }
+
+  // 4. BẢNG VI PHẠM TUẦN NÀY
+  const minusList = $("#lookup-minus-list");
+  const minusTotalEl = $("#lookup-minus-total");
+  if (minusList && breakdown) {
+    const totalMinus = breakdown.minus.reduce((acc, e) => acc + e.points, 0);
+    if (minusTotalEl) minusTotalEl.textContent = `${breakdown.minus.length} lỗi (${totalMinus}đ)`;
+
+    minusList.innerHTML = breakdown.minus.length
+      ? breakdown.minus
+          .map(
+            (e) => `
+              <div class="p-2.5 rounded-xl bg-surface-container-low flex items-start justify-between gap-2 text-xs">
+                <div class="flex flex-col min-w-0">
+                  <span class="font-heading font-bold text-on-surface">${escapeHtml(e.label)}</span>
+                  <span class="text-[10px] text-outline">${formatRelativeTime(e.createdAt)}${e.note ? ` • "${escapeHtml(e.note)}"` : ""}</span>
+                </div>
+                <span class="font-heading font-bold text-error tabular-nums shrink-0">${formatPoints(e.points)}đ</span>
+              </div>
+            `
+          )
+          .join("")
+      : `<p class="text-xs text-outline py-4 text-center">Không có vi phạm nào trong tuần này.</p>`;
+  }
+
+  // 5. BẢNG ĐIỂM CỘNG TUẦN NÀY
+  const plusList = $("#lookup-plus-list");
+  const plusTotalEl = $("#lookup-plus-total");
+  if (plusList && breakdown) {
+    const totalPlus = breakdown.plus.reduce((acc, e) => acc + e.points, 0);
+    if (plusTotalEl) plusTotalEl.textContent = `${breakdown.plus.length} khen (+${totalPlus}đ)`;
+
+    plusList.innerHTML = breakdown.plus.length
+      ? breakdown.plus
+          .map(
+            (e) => `
+              <div class="p-2.5 rounded-xl bg-surface-container-low flex items-start justify-between gap-2 text-xs">
+                <div class="flex flex-col min-w-0">
+                  <span class="font-heading font-bold text-on-surface">${escapeHtml(e.label)}</span>
+                  <span class="text-[10px] text-outline">${formatRelativeTime(e.createdAt)}${e.note ? ` • "${escapeHtml(e.note)}"` : ""}</span>
+                </div>
+                <span class="font-heading font-bold text-secondary tabular-nums shrink-0">${formatPoints(e.points)}đ</span>
+              </div>
+            `
+          )
+          .join("")
+      : `<p class="text-xs text-outline py-4 text-center">Chưa có điểm cộng trong tuần này.</p>`;
+  }
+
+  // 6. TRA CỨU CHUYÊN SÂU THEO NỘI QUY CỤ THỂ
+  const ruleSelector = $("#lookup-rule-selector");
+  const ruleWeeksList = $("#lookup-rule-weeks");
+  if (ruleSelector) {
+    const rewards = RULES.filter((r) => r.points > 0);
+    const penalties = RULES.filter((r) => r.points < 0);
+    const notes = RULES.filter((r) => r.points === 0);
+
+    ruleSelector.innerHTML = `
+      <optgroup label="Điểm cộng (Khen thưởng)">
+        ${rewards.map((r) => `<option value="${r.id}" ${r.id === state.lookupRuleId ? "selected" : ""}>+${r.points}đ — ${r.label}</option>`).join("")}
+      </optgroup>
+      <optgroup label="Vi phạm (Điểm trừ)">
+        ${penalties.map((r) => `<option value="${r.id}" ${r.id === state.lookupRuleId ? "selected" : ""}>${r.points}đ — ${r.label}</option>`).join("")}
+      </optgroup>
+      ${
+        notes.length
+          ? `<optgroup label="Ghi nhận nề nếp">
+              ${notes.map((r) => `<option value="${r.id}" ${r.id === state.lookupRuleId ? "selected" : ""}>0đ — ${r.label}</option>`).join("")}
+            </optgroup>`
+          : ""
+      }
+    `;
+
+    ruleSelector.onchange = (e) => {
+      state.lookupRuleId = e.target.value;
+      renderLookupDeepHistory();
+    };
+  }
+
+  renderLookupDeepHistory();
+}
+
+function renderLookupDeepHistory() {
+  const memberId = state.lookupMemberId;
+  const ruleId = state.lookupRuleId;
+  const ruleWeeksList = $("#lookup-rule-weeks");
+  if (!ruleWeeksList || !memberId || !ruleId) return;
+
+  const history = store.getMemberRuleHistory(memberId, ruleId);
+  const rule = RULE_BY_ID[ruleId];
+  if (!rule) return;
+
+  const totalPoints = history.reduce((sum, e) => sum + e.points, 0);
+
+  if (!history.length) {
+    ruleWeeksList.innerHTML = `
+      <div class="p-4 rounded-xl bg-surface-container-low text-center text-xs text-outline">
+        Học sinh chưa từng có lượt ghi nhận nội quy này trong năm học.
+      </div>
+    `;
+    return;
+  }
+
+  ruleWeeksList.innerHTML = `
+    <div class="p-2.5 rounded-xl bg-surface-container-low flex items-center justify-between text-xs mb-1">
+      <span class="font-medium text-on-surface-variant">Tổng cộng: <strong>${history.length} lần</strong></span>
+      <span class="font-heading font-bold ${rule.points > 0 ? "text-secondary" : "text-error"} tabular-nums">${formatPoints(totalPoints)}đ</span>
+    </div>
+    <div class="space-y-1.5">
+      ${history
+        .map(
+          (e) => `
+            <div class="p-2.5 rounded-xl bg-surface-container-low flex items-center justify-between gap-2 text-xs">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="px-2 py-0.5 rounded-md bg-surface-container font-heading font-bold text-[10px] text-primary shrink-0">Tuần ${e.weekNumber}</span>
+                <span class="text-on-surface truncate">${e.note ? `"${escapeHtml(e.note)}"` : "Không có ghi chú"} • ${formatRelativeTime(e.createdAt)}</span>
+              </div>
+              <span class="font-heading font-bold ${e.points > 0 ? "text-secondary" : "text-error"} tabular-nums shrink-0">${formatPoints(e.points)}đ</span>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+// ===========================================================================
+// MÀN HÌNH 5: THỐNG KÊ HẠNH KIỂM (YÊU CẦU 11: 4 MỐC HỌC KÌ)
+// ===========================================================================
+function renderConductView() {
+  const memberId = state.conductMemberId || TEAMS[0].members[0].id;
+  const member = MEMBER_BY_ID[memberId];
+  if (!member) return;
+
+  const semesterId = state.conductSemesterId || "gk1";
+  const sem = store.getSemesterById(semesterId);
+
+  // 1. Search student
+  const searchInput = $("#conduct-search-input");
+  const clearBtn = $("#btn-clear-conduct-search");
+  const quickList = $("#conduct-students-list");
+  const selectedNameEl = $("#conduct-selected-name");
+
+  if (selectedNameEl) {
+    selectedNameEl.innerHTML = `
+      <div class="flex items-center gap-2 p-2 rounded-xl bg-surface-container-low mt-1">
+        <div class="w-7 h-7 rounded-lg bg-primary-fixed text-primary flex items-center justify-center font-heading font-bold text-xs shrink-0">
+          ${getInitials(member.name)}
+        </div>
+        <div class="flex flex-col min-w-0">
+          <span class="font-heading font-bold text-xs text-on-surface truncate">${escapeHtml(member.name)}</span>
+          <span class="text-[10px] text-outline">${TEAM_BY_ID[member.teamId]?.name || member.teamId} • ${member.id}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  const query = toNonAccentVietnamese(searchInput?.value || "");
+  if (quickList) {
+    quickList.classList.toggle("hidden", !query);
+    if (query) {
+      const filtered = TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, teamId: t.id }))).filter(
+        (m) => toNonAccentVietnamese(m.name).includes(query) || m.id.toLowerCase().includes(query)
+      );
+
+      quickList.innerHTML = filtered.length
+        ? filtered
+            .map((m) => {
+              const isSelected = m.id === memberId;
+              const bgClass = isSelected ? "bg-primary text-on-primary font-bold shadow-xs" : "bg-surface-container-low text-on-surface hover:bg-surface-container";
+              return `
+                <button type="button" class="conduct-student-btn px-2.5 py-1 rounded-xl text-xs flex items-center gap-1.5 shrink-0 ${bgClass}" data-member-id="${m.id}">
+                  <span>${escapeHtml(m.name)}</span>
+                  <span class="text-[10px] opacity-75">${m.id}</span>
+                </button>
+              `;
+            })
+            .join("")
+        : `<span class="text-xs text-outline py-1">Không tìm thấy học sinh.</span>`;
+
+      $$(".conduct-student-btn", quickList).forEach((btn) => {
+        btn.onclick = () => {
+          state.conductMemberId = btn.dataset.memberId;
+          if (searchInput) searchInput.value = "";
+          clearBtn?.classList.add("hidden");
+          renderConductView();
+        };
+      });
+    }
+  }
+
+  if (searchInput) {
+    searchInput.oninput = () => {
+      clearBtn?.classList.toggle("hidden", !searchInput.value);
+      renderConductView();
+    };
+  }
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      if (searchInput) searchInput.value = "";
+      clearBtn.classList.add("hidden");
+      renderConductView();
+    };
+  }
+
+  // 2. 4 Semester Chips:
+  // Giữa kì 1: Tuần 1-9
+  // Cuối kì 1: Tuần 10-18
+  // Giữa kì 2: Tuần 19-27
+  // Cuối kì 2: Tuần 28-35
+  const semChipsContainer = $("#conduct-semester-chips");
+  if (semChipsContainer) {
+    semChipsContainer.innerHTML = SEMESTERS.map((s) => {
+      const isSelected = s.id === semesterId;
+      const activeClass = isSelected
+        ? "bg-primary text-on-primary font-bold shadow-xs"
+        : "bg-surface-container-low text-on-surface hover:bg-surface-container";
+
+      return `
+        <button type="button" class="conduct-sem-btn p-2.5 rounded-xl text-xs text-left transition-all flex flex-col ${activeClass}" data-sem-id="${s.id}">
+          <span class="font-heading font-bold text-xs">${s.label}</span>
+          <span class="text-[10px] opacity-80 mt-0.5">Tuần ${s.from} – ${s.to}</span>
+        </button>
+      `;
+    }).join("");
+
+    $$(".conduct-sem-btn", semChipsContainer).forEach((btn) => {
+      btn.onclick = () => {
+        state.conductSemesterId = btn.dataset.semId;
+        renderConductView();
+      };
+    });
+  }
+
+  // 3. Tính toán hạnh kiểm trong kì đã chọn
+  const data = store.getMemberGradeWeeks(member.id, sem.from, sem.to);
+  const countsContainer = $("#conduct-counts");
+  if (countsContainer) {
+    countsContainer.innerHTML = `
+      <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex items-center justify-between border-l-4 border-emerald-500">
+        <div>
+          <span class="text-[10px] text-emerald-800 font-bold block">Loại Tốt (90–100đ)</span>
+          <span class="text-[9px] text-outline">${sem.label}</span>
+        </div>
+        <span class="font-heading font-bold text-xl text-emerald-700 tabular-nums">${data.counts.tot} <span class="text-xs font-normal">tuần</span></span>
+      </div>
+
+      <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex items-center justify-between border-l-4 border-blue-500">
+        <div>
+          <span class="text-[10px] text-blue-800 font-bold block">Loại Khá (80–89đ)</span>
+          <span class="text-[9px] text-outline">${sem.label}</span>
+        </div>
+        <span class="font-heading font-bold text-xl text-blue-700 tabular-nums">${data.counts.kha} <span class="text-xs font-normal">tuần</span></span>
+      </div>
+
+      <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex items-center justify-between border-l-4 border-amber-500">
+        <div>
+          <span class="text-[10px] text-amber-800 font-bold block">Loại Đạt (60–79đ)</span>
+          <span class="text-[9px] text-outline">${sem.label}</span>
+        </div>
+        <span class="font-heading font-bold text-xl text-amber-700 tabular-nums">${data.counts.dat} <span class="text-xs font-normal">tuần</span></span>
+      </div>
+
+      <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex items-center justify-between border-l-4 border-rose-500">
+        <div>
+          <span class="text-[10px] text-rose-800 font-bold block">Chưa đạt (≤59đ)</span>
+          <span class="text-[9px] text-outline">${sem.label}</span>
+        </div>
+        <span class="font-heading font-bold text-xl text-rose-700 tabular-nums">${data.counts["chua-dat"]} <span class="text-xs font-normal">tuần</span></span>
+      </div>
+    `;
+  }
+
+  // 4. Danh sách các tuần trong kì
+  const weekList = $("#conduct-week-list");
+  if (weekList) {
+    if (!data.weeks.length) {
+      weekList.innerHTML = `<p class="text-xs text-outline py-4 text-center">Chưa có dữ liệu tuần thi đua trong học kì này.</p>`;
+      return;
+    }
+
+    weekList.innerHTML = data.weeks
+      .map((w) => {
+        const badgeClass =
+          w.grade.key === "tot"
+            ? "bg-emerald-100 text-emerald-800"
+            : w.grade.key === "kha"
+            ? "bg-blue-100 text-blue-800"
+            : w.grade.key === "dat"
+            ? "bg-amber-100 text-amber-800"
+            : "bg-rose-100 text-rose-800";
+
+        return `
+          <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low text-xs">
+            <div class="flex items-center gap-2.5">
+              <span class="font-heading font-bold text-primary min-w-[3.5rem]">Tuần ${w.weekNumber}</span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}">Loại ${w.grade.label}</span>
+            </div>
+            <div class="flex items-center gap-2 text-right">
+              <span class="text-[10px] text-outline">+${w.plus.length} khen • ${w.minus.length} lỗi</span>
+              <span class="font-heading font-bold text-sm text-on-surface tabular-nums">${w.points} đ</span>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  }
+}
+
+// ===========================================================================
+// MÀN HÌNH 6: NỘI QUY LỚP (YÊU CẦU 14: TOÀN BỘ BIỂU ĐIỂM TRỰC QUAN)
+// ===========================================================================
+function renderClassRulesView() {
+  const container = $("#class-rules-list");
+  const searchInput = $("#rules-view-search");
+  const categoriesContainer = $("#rules-view-categories");
+  if (!container) return;
+
+  const categories = [
+    { id: "all", label: "Tất cả" },
+    { id: "rewards", label: "Điểm cộng (+)" },
+    { id: "penalties", label: "Điểm trừ (-)" },
+    { id: "Chuyên cần", label: "Chuyên cần" },
+    { id: "Đồng phục", label: "Đồng phục" },
+    { id: "Nề nếp", label: "Nề nếp" },
+    { id: "Kỷ luật", label: "Kỷ luật" },
+    { id: "Vệ sinh", label: "Vệ sinh" },
+    { id: "Phong trào", label: "Phong trào" },
+  ];
+
+  if (categoriesContainer) {
+    categoriesContainer.innerHTML = categories
+      .map((c) => {
+        const isSelected = c.id === state.rulesCategoryFilter;
+        const bgClass = isSelected ? "bg-primary text-on-primary font-bold shadow-xs" : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container";
+        return `<button type="button" class="rules-cat-btn px-3 py-1 rounded-xl text-xs whitespace-nowrap shrink-0 transition-colors ${bgClass}" data-cat-id="${c.id}">${c.label}</button>`;
+      })
+      .join("");
+
+    $$(".rules-cat-btn", categoriesContainer).forEach((btn) => {
+      btn.onclick = () => {
+        state.rulesCategoryFilter = btn.dataset.catId;
+        renderClassRulesView();
+      };
+    });
+  }
+
+  if (searchInput) {
+    searchInput.value = state.rulesSearchQuery;
+    searchInput.oninput = () => {
+      state.rulesSearchQuery = searchInput.value;
+      renderClassRulesView();
+    };
+  }
+
+  const query = toNonAccentVietnamese(state.rulesSearchQuery || "");
+  let filtered = RULES;
+
+  if (state.rulesCategoryFilter === "rewards") {
+    filtered = filtered.filter((r) => r.points > 0);
+  } else if (state.rulesCategoryFilter === "penalties") {
+    filtered = filtered.filter((r) => r.points < 0);
+  } else if (state.rulesCategoryFilter !== "all") {
+    filtered = filtered.filter((r) => r.group.toLowerCase().includes(state.rulesCategoryFilter.toLowerCase()));
+  }
+
+  if (query) {
+    filtered = filtered.filter(
+      (r) => toNonAccentVietnamese(r.label).includes(query) || toNonAccentVietnamese(r.group).includes(query)
+    );
+  }
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="p-6 rounded-2xl bg-surface-container-lowest text-center text-xs text-outline">Không tìm thấy nội quy phù hợp.</div>`;
+    return;
+  }
+
+  // Nhóm theo group
+  const grouped = new Map();
+  for (const r of filtered) {
+    if (!grouped.has(r.group)) grouped.set(r.group, []);
+    grouped.get(r.group).push(r);
+  }
+
+  container.innerHTML = Array.from(grouped.entries())
+    .map(([groupName, items]) => `
+      <div class="rounded-2xl bg-surface-container-lowest p-4 shadow-xs flex flex-col gap-2.5">
+        <div class="flex items-center justify-between pb-1 border-b border-surface-container">
+          <h3 class="font-heading font-bold text-xs uppercase tracking-wide text-primary">${groupName}</h3>
+          <span class="text-[10px] text-outline font-medium">${items.length} mục</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          ${items
+            .map((r) => {
+              const isPlus = r.points > 0;
+              const isZero = r.points === 0;
+              const badgeClass = isPlus
+                ? "bg-secondary-fixed text-on-secondary-fixed"
+                : isZero
+                ? "bg-surface-container-high text-on-surface-variant"
+                : "bg-tertiary-fixed text-on-tertiary-fixed";
+              const iconColor = isPlus ? "text-secondary" : isZero ? "text-outline" : "text-tertiary";
+
+              return `
+                <div class="p-3 rounded-xl bg-surface-container-low flex items-center justify-between gap-2 text-xs">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="material-symbols-outlined text-[20px] ${iconColor} shrink-0">${r.icon || "info"}</span>
+                    <span class="font-heading font-semibold text-on-surface">${escapeHtml(r.label)}</span>
+                  </div>
+                  <span class="px-2.5 py-1 rounded-full font-heading font-bold text-xs ${badgeClass} tabular-nums shrink-0">
+                    ${isZero ? "Ghi nhận" : formatPoints(r.points) + "đ"}
+                  </span>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+      </div>
+    `)
+    .join("");
+}
+
+// ===========================================================================
+// MÀN HÌNH 7: QUẢN LÝ LỚP GVCN (YÊU CẦU 10: DASHBOARD XEM ĐƯỢC TRÊN ĐT & MÁY TÍNH)
 // ===========================================================================
 function renderAdminPanel() {
   const isAdmin = store.isAdmin();
@@ -1358,85 +2039,246 @@ function renderAdminPanel() {
   const panel = $("#admin-panel");
 
   if (!isAdmin) {
-    loginCard.classList.remove("hidden");
-    panel.classList.add("hidden");
+    loginCard?.classList.remove("hidden");
+    panel?.classList.add("hidden");
     return;
   }
 
-  loginCard.classList.add("hidden");
-  panel.classList.remove("hidden");
+  loginCard?.classList.add("hidden");
+  panel?.classList.remove("hidden");
 
-  // 0. Cập nhật số liệu thực tế
+  // Summary
   const eventsSummary = $("#admin-summary-events");
   if (eventsSummary) {
-    eventsSummary.textContent = `${store.events.length} Lượt chấm tuần này`;
+    eventsSummary.textContent = `${store.events.length} lượt ghi tuần này`;
   }
 
-  // 1. Cập nhật nút khóa sổ
-  const isLocked = store.isWeekLocked(store.weekId);
-  const lockIcon = $("#lock-cta-icon");
-  const lockTitle = $("#lock-cta-title");
-  const lockDesc = $("#lock-cta-desc");
-  const lockBtn = $("#btn-lock-week-cta");
+  // 1. 4 Metric Cards
+  const metricCards = $("#admin-metric-cards");
+  if (metricCards) {
+    const teamRanks = store.getTeamRankings();
+    const totalScore = teamRanks.reduce((sum, t) => sum + t.total, 0);
+    const avgScore = teamRanks.length ? Math.round((totalScore / 44) * 10) / 10 : 100;
+    const plusCount = teamRanks.reduce((sum, t) => sum + (t.plusCount || 0), 0);
+    const minusCount = teamRanks.reduce((sum, t) => sum + (t.minusCount || 0), 0);
 
-  if (isLocked) {
-    lockBtn.className =
-      "group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 p-4 text-white shadow-sm active:scale-[0.98] transition-all flex items-center justify-between";
-    lockIcon.textContent = "lock_open";
-    lockTitle.textContent = "MỞ KHÓA SỔ TUẦN NÀY";
-    lockDesc.textContent = `Tuần ${weekNumber(store.weekId)} đang bị khóa (Chỉ đọc)`;
-  } else {
-    lockBtn.className =
-      "group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 p-4 text-stone-900 shadow-sm active:scale-[0.98] transition-all flex items-center justify-between";
-    lockIcon.textContent = "lock";
-    lockTitle.textContent = "KHÓA SỔ & CÔNG BỐ KẾT QUẢ";
-    lockDesc.textContent = `Chốt toàn bộ điểm thi đua Tuần ${weekNumber(store.weekId)}`;
-  }
-
-  // 2. Toggle tổ trưởng
-  const toggle = $("#toggle-leaders-paused");
-  if (toggle) toggle.checked = store.isLeadersPaused();
-
-  // 3. Tiến độ thi đua 4 tổ
-  const progressList = $("#admin-teams-progress");
-  const teamRanks = store.getTeamRankings();
-  const displayScore = (team) =>
-    store.isWeekLocked(store.weekId) ? team.rawTotal : team.total;
-  progressList.innerHTML = teamRanks
-    .map((t) => {
-      const score = displayScore(t);
-      const pct = Math.min(100, Math.max(30, Math.round((score / 500) * 100)));
-      return `
-        <div class="flex flex-col gap-1 text-xs">
-          <div class="flex items-center justify-between">
-            <span class="font-heading font-bold text-on-surface">${t.name} • ${getRankLabel(t)}</span>
-            <span class="font-heading font-bold text-primary tabular-nums">${score} đ</span>
-          </div>
-          <div class="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-            <div class="bg-primary h-full rounded-full transition-all duration-300" style="width: ${pct}%;"></div>
+    metricCards.innerHTML = `
+      <div class="rounded-2xl bg-primary-fixed/50 border border-primary/10 p-3.5 shadow-xs flex flex-col gap-2">
+        <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-xs">
+          <span class="material-symbols-outlined text-on-primary text-[20px]">groups</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-on-surface-variant font-medium uppercase tracking-wide">Sĩ số lớp</span>
+          <div class="flex items-baseline gap-1 mt-0.5">
+            <span class="font-heading font-bold text-2xl text-primary tabular-nums">44</span>
+            <span class="text-[10px] text-outline font-medium">HS</span>
           </div>
         </div>
-      `;
-    })
-    .join("");
+      </div>
+
+      <div class="rounded-2xl bg-secondary-container/40 border border-secondary/10 p-3.5 shadow-xs flex flex-col gap-2">
+        <div class="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center shadow-xs">
+          <span class="material-symbols-outlined text-on-secondary text-[20px]">trending_up</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-on-surface-variant font-medium uppercase tracking-wide">Điểm TB</span>
+          <div class="flex items-baseline gap-1 mt-0.5">
+            <span class="font-heading font-bold text-2xl text-secondary tabular-nums">${avgScore}</span>
+            <span class="text-[10px] text-outline font-medium">đ/HS</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl bg-emerald-50 border border-emerald-200 p-3.5 shadow-xs flex flex-col gap-2">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shadow-xs">
+          <span class="material-symbols-outlined text-white text-[20px]">stars</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-emerald-700 font-medium uppercase tracking-wide">Khen thưởng</span>
+          <div class="flex items-baseline gap-1 mt-0.5">
+            <span class="font-heading font-bold text-2xl text-emerald-700 tabular-nums">+${plusCount}</span>
+            <span class="text-[10px] text-emerald-600 font-medium">lượt</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl bg-error-container/40 border border-error/15 p-3.5 shadow-xs flex flex-col gap-2">
+        <div class="w-9 h-9 rounded-xl bg-error flex items-center justify-center shadow-xs">
+          <span class="material-symbols-outlined text-on-error text-[20px]">warning</span>
+        </div>
+        <div>
+          <span class="text-[10px] text-error font-medium uppercase tracking-wide">Vi phạm</span>
+          <div class="flex items-baseline gap-1 mt-0.5">
+            <span class="font-heading font-bold text-2xl text-error tabular-nums">${minusCount}</span>
+            <span class="text-[10px] text-error/70 font-medium">lỗi</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // 2. Teams Progress
+  const progressList = $("#admin-teams-progress");
+  if (progressList) {
+    const teamRanks = store.getTeamRankings();
+    progressList.innerHTML = teamRanks
+      .map((t) => {
+        const pct = Math.min(100, Math.max(10, Math.round((t.total / 500) * 100)));
+        const rankMedals = ['🥇', '🥈', '🥉', '4️⃣'];
+        const barColors = ['bg-amber-400', 'bg-slate-400', 'bg-amber-700', 'bg-primary'];
+        const rankIdx = Math.min(t.rank - 1, 3);
+        const barColor = barColors[rankIdx];
+        return `
+          <div class="flex flex-col gap-1.5 p-3 rounded-xl bg-surface-container-low">
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="text-base">${rankMedals[rankIdx]}</span>
+                <span class="font-heading font-bold text-on-surface">${t.name}</span>
+                <span class="text-[10px] text-outline">${t.memberCount} bạn</span>
+              </div>
+              <div class="text-right">
+                <span class="font-heading font-bold text-sm text-primary tabular-nums">${t.total}đ</span>
+                <span class="text-[10px] text-outline block">TB: ${t.avg}đ</span>
+              </div>
+            </div>
+            <div class="w-full bg-surface-container h-2.5 rounded-full overflow-hidden">
+              <div class="${barColor} h-full rounded-full transition-all duration-500" style="width: ${pct}%;"></div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  // 3. Grade Mix
+  const gradeMixEl = $("#admin-grade-mix");
+  if (gradeMixEl) {
+    const { memberScores } = store.calculateScoresFast(store.events);
+    const members = Object.values(memberScores);
+    const counts = { tot: 0, kha: 0, dat: 0, "chua-dat": 0 };
+    for (const m of members) {
+      const g = gradeFor(m.points);
+      if (counts[g.key] !== undefined) counts[g.key]++;
+    }
+
+    gradeMixEl.innerHTML = `
+      <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex flex-col gap-1">
+        <div class="flex items-center gap-1.5">
+          <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+          <span class="text-[10px] font-bold text-emerald-800 uppercase tracking-wide">Loại Tốt</span>
+        </div>
+        <span class="font-heading font-black text-2xl text-emerald-700 tabular-nums">${counts.tot}</span>
+        <span class="text-[10px] text-emerald-600">HS đạt 90–100đ</span>
+      </div>
+      <div class="p-3 rounded-xl bg-blue-50 border border-blue-200 flex flex-col gap-1">
+        <div class="flex items-center gap-1.5">
+          <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+          <span class="text-[10px] font-bold text-blue-800 uppercase tracking-wide">Loại Khá</span>
+        </div>
+        <span class="font-heading font-black text-2xl text-blue-700 tabular-nums">${counts.kha}</span>
+        <span class="text-[10px] text-blue-600">HS đạt 80–89đ</span>
+      </div>
+      <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 flex flex-col gap-1">
+        <div class="flex items-center gap-1.5">
+          <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+          <span class="text-[10px] font-bold text-amber-800 uppercase tracking-wide">Loại Đạt</span>
+        </div>
+        <span class="font-heading font-black text-2xl text-amber-700 tabular-nums">${counts.dat}</span>
+        <span class="text-[10px] text-amber-600">HS đạt 60–79đ</span>
+      </div>
+      <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 flex flex-col gap-1">
+        <div class="flex items-center gap-1.5">
+          <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+          <span class="text-[10px] font-bold text-rose-800 uppercase tracking-wide">Chưa đạt</span>
+        </div>
+        <span class="font-heading font-black text-2xl text-rose-700 tabular-nums">${counts["chua-dat"]}</span>
+        <span class="text-[10px] text-rose-600">HS dưới 60đ</span>
+      </div>
+    `;
+  }
+
+  // 4. Recent Events
+  const recentList = $("#admin-recent-events");
+  if (recentList) {
+    const recent = store.allEvents.slice(0, 6);
+    recentList.innerHTML = recent.length
+      ? recent
+          .map((e) => {
+            const isPlus = e.points > 0;
+            const m = MEMBER_BY_ID[e.memberId];
+            const name = m ? m.name : e.memberId;
+            return `
+              <div class="flex items-center gap-2 p-2 rounded-xl bg-surface-container-low text-xs">
+                <div class="w-7 h-7 rounded-lg ${isPlus ? "bg-secondary-container" : "bg-error-container"} flex items-center justify-center shrink-0">
+                  <span class="material-symbols-outlined text-[14px] ${isPlus ? "text-on-secondary-container" : "text-error"}">${isPlus ? "star" : "warning"}</span>
+                </div>
+                <div class="flex flex-col min-w-0 flex-1">
+                  <span class="font-heading font-bold text-on-surface truncate">${escapeHtml(name)}</span>
+                  <span class="text-[10px] text-outline truncate">${escapeHtml(e.label)} • ${formatRelativeTime(e.createdAt)}</span>
+                </div>
+                <span class="font-heading font-bold ${isPlus ? "text-secondary" : "text-error"} tabular-nums shrink-0">${formatPoints(e.points)}đ</span>
+              </div>
+            `;
+          })
+          .join("")
+      : `<p class="text-xs text-outline py-2 text-center">Chưa có lượt ghi nhận nào.</p>`;
+  }
+
+  // 5. Học sinh cần lưu ý tuần này
+  const topViolations = $("#admin-top-violations");
+  if (topViolations) {
+    const { memberScores } = store.calculateScoresFast(store.events);
+    const attentionStudents = Object.values(memberScores)
+      .filter((m) => m.minusCount > 0 || m.points < 80)
+      .sort((a, b) => a.points - b.points);
+
+    topViolations.innerHTML = attentionStudents.length
+      ? attentionStudents
+          .slice(0, 6)
+          .map(
+            (m) => `
+              <div class="flex items-center gap-2 p-2.5 rounded-xl bg-error-container/20 border border-error/10 text-xs">
+                <div class="w-8 h-8 rounded-xl bg-error flex items-center justify-center font-heading font-bold text-on-error text-[11px] shrink-0">
+                  ${getInitials(m.name)}
+                </div>
+                <div class="flex flex-col min-w-0 flex-1">
+                  <span class="font-heading font-bold text-on-surface truncate">${escapeHtml(m.name)}</span>
+                  <span class="text-[10px] text-error">${m.teamName} • ${m.minusCount} lần vi phạm</span>
+                </div>
+                <div class="text-right shrink-0">
+                  <span class="font-heading font-bold text-error tabular-nums block">${m.points}đ</span>
+                  <span class="text-[9px] text-outline">${gradeFor(m.points).label}</span>
+                </div>
+              </div>
+            `
+          )
+          .join("")
+      : `<div class="flex flex-col items-center gap-1.5 py-4 text-secondary">
+           <span class="material-symbols-outlined text-[28px]">verified</span>
+           <p class="text-xs font-bold text-center">Tuần này cả lớp chấp hành tốt! 🎉</p>
+         </div>`;
+  }
 }
 
 // ===========================================================================
-// MODALS & EVENT HANDLERS
+// MODALS: CHI TIẾT TỔ & CHI TIẾT TUẦN CỦA 1 THÀNH VIÊN (YÊU CẦU 5)
 // ===========================================================================
 function openTeamDetailModal(teamId) {
   const team = TEAM_BY_ID[teamId];
   if (!team) return;
 
   const modal = $("#modal-team-detail");
-  $("#team-modal-badge").textContent = team.id.replace("to", "T");
-  $("#team-modal-title").textContent = `Chi Tiết ${team.name} • Tuần ${weekNumber(store.weekId)}`;
+  const badgeEl = $("#team-modal-badge");
+  if (badgeEl) badgeEl.textContent = team.id.replace("to", "T");
+
+  const titleEl = $("#team-modal-title");
+  if (titleEl) titleEl.textContent = `Chi Tiết ${team.name} • Tuần ${weekNumber(store.weekId)}`;
 
   const membersList = $("#team-modal-members-list");
+  if (!membersList) return;
+
   const weekActivity = new Map(
-    store
-      .getTeamMemberWeekActivity(teamId)
-      .map((member) => [member.id, member])
+    store.getTeamMemberWeekActivity(teamId).map((member) => [member.id, member])
   );
   const sortedMembers = store.getTeamMembersSorted(teamId);
 
@@ -1449,15 +2291,17 @@ function openTeamDetailModal(teamId) {
             .map((group) => `${group.label}${group.count > 1 ? ` ×${group.count}` : ""}`)
             .join(" • ")
         : "Không có vi phạm tuần này";
+
       return `
-        <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer" data-view-member="${m.id}">
+        <div class="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer" data-week-member="${m.id}">
           <div class="flex items-center gap-2.5 min-w-0">
             <span class="w-6 h-6 rounded-md bg-surface-container-high flex items-center justify-center font-heading font-bold text-xs shrink-0">${medal}</span>
             <div class="flex flex-col min-w-0">
               ${renderMemberName(m, "font-heading font-bold text-xs text-on-surface truncate")}
-              ${m.isTied ? `<span class="text-[9px] font-semibold text-amber-700">Đồng hạng ${m.rank}</span>` : ""}
-              <span class="text-[10px] ${activity?.violationCount ? "text-error" : "text-on-surface-variant"}">${activity?.violationCount || 0} lần vi phạm • ${activity?.bonusCount || 0} lần được cộng điểm</span>
-              <span class="text-[10px] text-on-surface-variant">${activityDetails}</span>
+              <span class="text-[10px] ${activity?.violationCount ? "text-error" : "text-on-surface-variant"}">
+                ${activity?.violationCount || 0} vi phạm • ${activity?.bonusCount || 0} khen
+              </span>
+              <span class="text-[10px] text-on-surface-variant truncate">${escapeHtml(activityDetails)}</span>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -1469,13 +2313,146 @@ function openTeamDetailModal(teamId) {
     })
     .join("");
 
-  bindMemberClickEvents(membersList);
-  modal.classList.remove("hidden");
-  modal.classList.add("flex");
+  // YÊU CẦU 5: Bấm vào 1 thành viên hiện ra tuần đó thành viên vi phạm và cộng điểm gì!
+  $$("[data-week-member]", membersList).forEach((el) => {
+    el.onclick = () => {
+      const mid = el.dataset.weekMember;
+      openMemberWeekModal(mid, store.weekId);
+    };
+  });
+
+  modal?.classList.remove("hidden");
+  modal?.classList.add("flex");
 }
 
 function closeTeamDetailModal() {
   const modal = $("#modal-team-detail");
+  modal?.classList.add("hidden");
+  modal?.classList.remove("flex");
+}
+
+// YÊU CẦU 5: MODAL CHI TIẾT ĐIỂM TUẦN CỦA 1 THÀNH VIÊN
+function openMemberWeekModal(memberId, weekId) {
+  const member = MEMBER_BY_ID[memberId];
+  if (!member) return;
+
+  const breakdown = store.getMemberWeekBreakdown(memberId, weekId);
+  if (!breakdown) return;
+
+  const modal = $("#modal-member-week");
+  const titleEl = $("#member-week-title");
+  const subEl = $("#member-week-sub");
+  const bodyEl = $("#member-week-body");
+
+  if (titleEl) titleEl.textContent = `${member.name} • Tuần ${breakdown.weekNumber}`;
+  if (subEl) subEl.textContent = `${breakdown.teamName} • ${weekRangeLabel(weekId)}`;
+
+  if (bodyEl) {
+    const badgeClass = breakdown.grade.badge;
+
+    bodyEl.innerHTML = `
+      <!-- Tóm tắt điểm -->
+      <div class="p-3.5 rounded-xl bg-surface-container-low flex items-center justify-between">
+        <div class="flex flex-col">
+          <span class="text-[11px] text-on-surface-variant font-medium">Tổng điểm Tuần ${breakdown.weekNumber}</span>
+          <div class="flex items-baseline gap-1 mt-0.5">
+            <span class="font-heading font-bold text-2xl text-primary leading-none tabular-nums">${breakdown.points}</span>
+            <span class="text-xs text-primary font-bold">điểm</span>
+          </div>
+          <span class="text-[10px] text-outline mt-1">100đ nền + ${breakdown.plus.length} khen - ${breakdown.minus.length} lỗi</span>
+        </div>
+        <span class="px-3 py-1 rounded-full text-xs font-bold ${badgeClass}">
+          Loại ${breakdown.grade.label}
+        </span>
+      </div>
+
+      <!-- Danh sách Vi phạm trong tuần -->
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between px-1">
+          <span class="font-heading font-bold text-xs text-error flex items-center gap-1">
+            <span class="material-symbols-outlined text-[16px]">warning</span>
+            <span>Vi phạm trong tuần (${breakdown.minus.length})</span>
+          </span>
+          <span class="font-heading font-bold text-xs text-error tabular-nums">
+            ${breakdown.minus.reduce((sum, e) => sum + e.points, 0)}đ
+          </span>
+        </div>
+        <div class="space-y-1.5">
+          ${
+            breakdown.minus.length
+              ? breakdown.minus
+                  .map(
+                    (e) => `
+                      <div class="p-2.5 rounded-xl bg-surface-container-low flex items-start justify-between gap-2 text-xs">
+                        <div class="flex flex-col min-w-0">
+                          <span class="font-heading font-bold text-on-surface">${escapeHtml(e.label)}</span>
+                          <span class="text-[10px] text-outline">${formatRelativeTime(e.createdAt)}${e.note ? ` • "${escapeHtml(e.note)}"` : ""}</span>
+                        </div>
+                        <span class="font-heading font-bold text-error tabular-nums shrink-0">${formatPoints(e.points)}đ</span>
+                      </div>
+                    `
+                  )
+                  .join("")
+              : `<div class="p-3 rounded-xl bg-surface-container-low text-center text-xs text-secondary font-medium">Không có vi phạm nào trong tuần này.</div>`
+          }
+        </div>
+      </div>
+
+      <!-- Danh sách Điểm cộng trong tuần -->
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between px-1">
+          <span class="font-heading font-bold text-xs text-secondary flex items-center gap-1">
+            <span class="material-symbols-outlined text-[16px]">star</span>
+            <span>Điểm cộng trong tuần (${breakdown.plus.length})</span>
+          </span>
+          <span class="font-heading font-bold text-xs text-secondary tabular-nums">
+            +${breakdown.plus.reduce((sum, e) => sum + e.points, 0)}đ
+          </span>
+        </div>
+        <div class="space-y-1.5">
+          ${
+            breakdown.plus.length
+              ? breakdown.plus
+                  .map(
+                    (e) => `
+                      <div class="p-2.5 rounded-xl bg-surface-container-low flex items-start justify-between gap-2 text-xs">
+                        <div class="flex flex-col min-w-0">
+                          <span class="font-heading font-bold text-on-surface">${escapeHtml(e.label)}</span>
+                          <span class="text-[10px] text-outline">${formatRelativeTime(e.createdAt)}${e.note ? ` • "${escapeHtml(e.note)}"` : ""}</span>
+                        </div>
+                        <span class="font-heading font-bold text-secondary tabular-nums shrink-0">${formatPoints(e.points)}đ</span>
+                      </div>
+                    `
+                  )
+                  .join("")
+              : `<div class="p-3 rounded-xl bg-surface-container-low text-center text-xs text-outline">Chưa có điểm cộng trong tuần này.</div>`
+          }
+        </div>
+      </div>
+
+      <button type="button" id="btn-goto-full-profile" class="w-full py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-xs font-bold text-primary flex items-center justify-center gap-1.5 transition-colors mt-1">
+        <span>Xem toàn bộ hồ sơ trang cá nhân</span>
+        <span class="material-symbols-outlined text-[16px]">person</span>
+      </button>
+    `;
+
+    const gotoProfileBtn = $("#btn-goto-full-profile", bodyEl);
+    if (gotoProfileBtn) {
+      gotoProfileBtn.onclick = () => {
+        closeMemberWeekModal();
+        closeTeamDetailModal();
+        state.profileMemberId = memberId;
+        switchView("profile");
+      };
+    }
+  }
+
+  modal?.classList.remove("hidden");
+  modal?.classList.add("flex");
+}
+
+function closeMemberWeekModal() {
+  const modal = $("#modal-member-week");
   modal?.classList.add("hidden");
   modal?.classList.remove("flex");
 }
@@ -1499,17 +2476,22 @@ function openRulesCatalogModal() {
         ? "bg-secondary-fixed text-on-secondary-fixed"
         : isZero
         ? "bg-surface-container-high text-on-surface-variant"
-        : "bg-tertiary/15 text-tertiary";
+        : "bg-tertiary-fixed text-on-tertiary-fixed";
+
+      const qty = state.selectedRules.get(r.id) || 0;
 
       return `
         <div class="rule-catalog-row p-3 rounded-xl bg-surface-container-low hover:bg-surface-container flex items-center justify-between gap-2 text-xs cursor-pointer transition-colors" data-rule-select="${r.id}">
           <div class="flex flex-col min-w-0">
-            <span class="font-heading font-bold text-on-surface truncate">${r.label}</span>
+            <span class="font-heading font-bold text-on-surface truncate">${escapeHtml(r.label)}</span>
             <span class="text-[10px] text-outline">${r.group}</span>
           </div>
-          <span class="px-2.5 py-1 rounded-full font-heading font-bold text-xs ${badgeColor} tabular-nums shrink-0">
-            ${isZero ? "Ghi nhận" : formatPoints(r.points) + "đ"}
-          </span>
+          <div class="flex items-center gap-1.5 shrink-0">
+            ${qty > 0 ? `<span class="px-2 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold">x${qty}</span>` : ""}
+            <span class="px-2.5 py-1 rounded-full font-heading font-bold text-xs ${badgeColor} tabular-nums">
+              ${isZero ? "Ghi nhận" : formatPoints(r.points) + "đ"}
+            </span>
+          </div>
         </div>
       `;
     }).join("");
@@ -1517,13 +2499,13 @@ function openRulesCatalogModal() {
     $$(".rule-catalog-row", list).forEach((row) => {
       row.onclick = () => {
         const rid = row.dataset.ruleSelect;
-        state.selectedRuleId = rid;
+        const cur = state.selectedRules.get(rid) || 0;
+        state.selectedRules.set(rid, cur + 1);
         renderQuickActions();
+        renderSelectedRulesBasket();
         checkRepeatInfractionAlert();
         updateSubmitBar();
-        modal.classList.add("hidden");
-        modal.classList.remove("flex");
-        showToast(`Đã chọn: ${RULE_BY_ID[rid]?.label}`, "check");
+        renderList(searchInput?.value || "");
       };
     });
   };
@@ -1533,13 +2515,18 @@ function openRulesCatalogModal() {
   }
 
   renderList();
-  modal.classList.remove("hidden");
-  modal.classList.add("flex");
+  modal?.classList.remove("hidden");
+  modal?.classList.add("flex");
 }
 
 function setupEventListeners() {
   // 1. Bottom Nav Switching
   $$("#bottom-nav .nav-item").forEach((btn) => {
+    btn.onclick = () => switchView(btn.dataset.view);
+  });
+
+  // More menu links
+  $$(".more-link").forEach((btn) => {
     btn.onclick = () => switchView(btn.dataset.view);
   });
 
@@ -1558,168 +2545,139 @@ function setupEventListeners() {
     };
   });
 
-  $("#week-selector").onchange = (event) => {
-    store.setWeek(event.currentTarget.value);
-  };
+  const weekSelector = $("#week-selector");
+  if (weekSelector) {
+    weekSelector.onchange = (event) => {
+      store.setWeek(event.currentTarget.value);
+    };
+  }
 
   // 3. User Avatar Top Right
-  $("#btn-user-profile").onclick = () => {
-    if (!store.isLoggedIn()) {
-      switchView("scoring");
-    } else {
-      if (confirm(`Bạn đang đăng nhập với tư cách: ${store.getLeaderName()}.\nBạn có muốn đăng xuất không?`)) {
-        store.logout();
-        clearNotificationToken();
-        switchView("leaderboard");
-        showToast("Đã đăng xuất!", "logout");
-      }
-    }
-  };
-
-  $("#btn-notifications").onclick = async () => {
-    try {
-      const subscription = await getNotificationSubscription();
-      if (subscription) {
-        if (!confirm("Tắt thông báo đẩy trên thiết bị này?")) return;
-        await disablePushNotifications();
-        showToast("Đã tắt thông báo trên thiết bị này.", "notifications_off");
+  const userProfileBtn = $("#btn-user-profile");
+  if (userProfileBtn) {
+    userProfileBtn.onclick = () => {
+      if (!store.isLoggedIn()) {
+        switchView("scoring");
       } else {
-        await enablePushNotifications();
-        showToast("Đã bật thông báo cập nhật cho thiết bị này.", "notifications_active");
+        if (confirm(`Bạn đang đăng nhập: ${store.getLeaderName()}.\nBạn có muốn đăng xuất không?`)) {
+          store.logout();
+          switchView("leaderboard");
+        }
       }
-      await refreshNotificationButton();
-    } catch (error) {
-      alert(error.message || "Không thể thay đổi cài đặt thông báo.");
-    }
-  };
+    };
+  }
 
-  // 4. Scoring: Login
+  // 4. Scoring Login
   const doLogin = async (code) => {
     const auth = resolveAuthCode(code);
     if (!auth) {
       alert("Mã hoặc PIN không chính xác! Vui lòng thử lại.");
       return;
     }
-    try {
-      await authenticateNotificationSender(code, auth.role, auth.teamId);
-    } catch (error) {
-      clearNotificationToken();
-      console.error("Không xác thực được quyền gửi push:", error);
-      showToast("Đăng nhập được; chưa xác thực được quyền gửi push.", "notifications_off");
-    }
     store.setAuth(auth.role, auth.teamId, auth.leaderName);
-    showToast(`Xin chào ${store.getLeaderName()}!`, "verified");
     renderScoringWorkspace();
   };
 
-  $("#btn-do-login").onclick = () => {
-    const val = $("#login-code-input").value;
-    doLogin(val);
-  };
+  const btnDoLogin = $("#btn-do-login");
+  const loginInput = $("#login-code-input");
+  if (btnDoLogin && loginInput) {
+    btnDoLogin.onclick = () => doLogin(loginInput.value);
+    loginInput.onkeydown = (e) => {
+      if (e.key === "Enter") doLogin(e.target.value);
+    };
+  }
 
-  $("#login-code-input").onkeydown = (e) => {
-    if (e.key === "Enter") doLogin(e.target.value);
-  };
+  const btnLogout = $("#btn-workspace-logout");
+  if (btnLogout) {
+    btnLogout.onclick = () => {
+      store.logout();
+      renderScoringWorkspace();
+    };
+  }
 
-  $("#btn-workspace-logout").onclick = () => {
-    store.logout();
-    clearNotificationToken();
-    renderScoringWorkspace();
-    showToast("Đã thoát tài khoản tổ trưởng.", "logout");
-  };
+  // 5. Select All Team
+  const btnSelectAll = $("#btn-select-all-team");
+  if (btnSelectAll) {
+    btnSelectAll.onclick = () => {
+      const isAdmin = store.isAdmin();
+      const myTeam = store.getLeaderTeamId();
+      let members = [];
+      if (!isAdmin) {
+        members = myTeam ? TEAM_BY_ID[myTeam]?.members || [] : [];
+      } else {
+        const teamFilter = state.scoringTeamFilter;
+        if (teamFilter === "all") members = TEAMS.flatMap((t) => t.members);
+        else members = TEAM_BY_ID[teamFilter]?.members || [];
+      }
 
-  // 5. Scoring: Select All Team (Tổ trưởng chỉ chọn tổ mình)
-  $("#btn-select-all-team").onclick = () => {
-    const isAdmin = store.isAdmin();
-    const myTeam = store.getLeaderTeamId();
-    let members = [];
-    if (!isAdmin) {
-      members = myTeam ? TEAM_BY_ID[myTeam]?.members || [] : [];
-    } else {
-      const teamFilter = state.scoringTeamFilter;
-      if (teamFilter === "all") members = TEAMS.flatMap((t) => t.members);
-      else members = TEAM_BY_ID[teamFilter]?.members || [];
-    }
+      const allSelected = members.length > 0 && members.every((m) => state.selectedStudentIds.has(m.id));
+      if (allSelected) {
+        members.forEach((m) => state.selectedStudentIds.delete(m.id));
+      } else {
+        members.forEach((m) => state.selectedStudentIds.add(m.id));
+      }
+      renderStudentSelectGrid();
+      checkRepeatInfractionAlert();
+      updateSubmitBar();
+    };
+  }
 
-    const allSelected = members.length > 0 && members.every((m) => state.selectedStudentIds.has(m.id));
-    if (allSelected) {
-      members.forEach((m) => state.selectedStudentIds.delete(m.id));
-    } else {
-      members.forEach((m) => state.selectedStudentIds.add(m.id));
-    }
-    renderStudentSelectGrid();
-    checkRepeatInfractionAlert();
-    updateSubmitBar();
-  };
-
-  // Scoring: Student Search
-  const searchInput = $("#score-search-input");
-  const clearSearchBtn = $("#btn-clear-score-search");
-  if (searchInput) {
-    searchInput.oninput = () => {
-      if (clearSearchBtn) clearSearchBtn.classList.toggle("hidden", !searchInput.value);
+  // Scoring Search
+  const scoreSearchInput = $("#score-search-input");
+  const clearScoreSearchBtn = $("#btn-clear-score-search");
+  if (scoreSearchInput) {
+    scoreSearchInput.oninput = () => {
+      clearScoreSearchBtn?.classList.toggle("hidden", !scoreSearchInput.value);
       renderStudentSelectGrid();
     };
   }
-  if (clearSearchBtn) {
-    clearSearchBtn.onclick = () => {
-      if (searchInput) searchInput.value = "";
-      clearSearchBtn.classList.add("hidden");
+  if (clearScoreSearchBtn) {
+    clearScoreSearchBtn.onclick = () => {
+      if (scoreSearchInput) scoreSearchInput.value = "";
+      clearScoreSearchBtn.classList.add("hidden");
       renderStudentSelectGrid();
     };
   }
 
-  // 6. Profile: Student Search & Team Filter
-  const profSearchInput = $("#profile-search-input");
-  const profClearBtn = $("#btn-clear-profile-search");
-  if (profSearchInput) {
-    profSearchInput.oninput = () => {
-      if (profClearBtn) profClearBtn.classList.toggle("hidden", !profSearchInput.value);
-      renderProfileStudentPicker();
-    };
-  }
-  if (profClearBtn) {
-    profClearBtn.onclick = () => {
-      if (profSearchInput) profSearchInput.value = "";
-      profClearBtn.classList.add("hidden");
-      renderProfileStudentPicker();
-    };
+  // Submit scoring button
+  const submitScoreBtn = $("#btn-submit-score");
+  if (submitScoreBtn) {
+    submitScoreBtn.onclick = handleScoreSubmit;
   }
 
-  // 8. Scoring: Stepper Multiplier
-  $("#btn-multiplier-plus").onclick = () => {
-    if (state.scoringMultiplier < 10) state.scoringMultiplier++;
-    $("#multiplier-display").textContent = `x${state.scoringMultiplier}`;
-    updateSubmitBar();
-  };
-  $("#btn-multiplier-minus").onclick = () => {
-    if (state.scoringMultiplier > 1) state.scoringMultiplier--;
-    $("#multiplier-display").textContent = `x${state.scoringMultiplier}`;
-    updateSubmitBar();
-  };
+  // Repeat penalty button
+  const repeatBtn = $("#btn-apply-repeat-penalty");
+  if (repeatBtn) {
+    repeatBtn.onclick = () => {
+      const cur = state.selectedRules.get("lap-lai-2tuan") || 0;
+      state.selectedRules.set("lap-lai-2tuan", cur + 1);
+      renderQuickActions();
+      renderSelectedRulesBasket();
+      $("#repeat-infraction-alert")?.classList.add("hidden");
+      updateSubmitBar();
+    };
+  }
 
-  // 9. Scoring: Submit Button
-  $("#btn-submit-score").onclick = handleScoreSubmit;
+  // Rules Catalog Modal
+  const openRulesBtn = $("#btn-open-all-rules");
+  const closeRulesBtn = $("#btn-close-rules-modal");
+  if (openRulesBtn) openRulesBtn.onclick = openRulesCatalogModal;
+  if (closeRulesBtn) {
+    closeRulesBtn.onclick = () => {
+      $("#modal-rules-catalog")?.classList.add("hidden");
+      $("#modal-rules-catalog")?.classList.remove("flex");
+    };
+  }
 
-  // 10. Repeat Penalty 1-Click Button
-  $("#btn-apply-repeat-penalty").onclick = () => {
-    state.selectedRuleId = "lap-lai-2tuan";
-    renderQuickActions();
-    $("#repeat-infraction-alert").classList.add("hidden");
-    updateSubmitBar();
-  };
+  // Team detail modal close
+  const closeTeamBtn = $("#btn-close-team-modal");
+  if (closeTeamBtn) closeTeamBtn.onclick = closeTeamDetailModal;
 
-  // 11. All Rules Modal Trigger
-  $("#btn-open-all-rules").onclick = openRulesCatalogModal;
-  $("#btn-close-rules-modal").onclick = () => {
-    $("#modal-rules-catalog").classList.add("hidden");
-    $("#modal-rules-catalog").classList.remove("flex");
-  };
+  // Member week modal close
+  const closeMemberWeekBtn = $("#btn-close-member-week");
+  if (closeMemberWeekBtn) closeMemberWeekBtn.onclick = closeMemberWeekModal;
 
-  // 12. Team Detail Modal Close
-  $("#btn-close-team-modal").onclick = closeTeamDetailModal;
-
-  // 13. Profile Filter Buttons
+  // Profile filter buttons
   $$(".prof-filter-btn").forEach((btn) => {
     btn.onclick = () => {
       state.profileFilter = btn.dataset.pfilter;
@@ -1733,191 +2691,35 @@ function setupEventListeners() {
     };
   });
 
-  // 14. Admin: Login
-  $("#btn-admin-login").onclick = async () => {
-    const pass = $("#admin-pass-input").value;
-    const auth = resolveAuthCode(pass);
-    if (auth && auth.role === "admin") {
-      try {
-        await authenticateNotificationSender(pass, "admin");
-      } catch (error) {
-        clearNotificationToken();
-        console.error("Không xác thực được quyền gửi push:", error);
-        showToast("Đăng nhập Admin được; chưa xác thực được quyền gửi push.", "notifications_off");
+  // Admin login
+  const adminLoginBtn = $("#btn-admin-login");
+  const adminPassInput = $("#admin-pass-input");
+  if (adminLoginBtn && adminPassInput) {
+    const doAdminLogin = () => {
+      const pass = adminPassInput.value;
+      const auth = resolveAuthCode(pass);
+      if (auth && auth.role === "admin") {
+        store.setAuth("admin");
+        renderAdminPanel();
+      } else {
+        alert("Mật khẩu Admin GVCN không chính xác!");
       }
-      store.setAuth("admin");
+    };
+    adminLoginBtn.onclick = doAdminLogin;
+    adminPassInput.onkeydown = (e) => {
+      if (e.key === "Enter") doAdminLogin();
+    };
+  }
+
+  const adminLogoutBtn = $("#btn-admin-logout");
+  if (adminLogoutBtn) {
+    adminLogoutBtn.onclick = () => {
+      store.logout();
       renderAdminPanel();
-      showToast("Xác thực quyền Admin GVCN thành công!", "shield");
-    } else {
-      alert("Mật khẩu Admin không đúng!");
-    }
-  };
+    };
+  }
 
-  $("#btn-admin-logout").onclick = () => {
-    store.logout();
-    clearNotificationToken();
-    renderAdminPanel();
-    showToast("Đã thoát tài khoản Admin.", "logout");
-  };
-
-  // 15. Admin: Lock Week CTA Modal
-  $("#btn-lock-week-cta").onclick = () => {
-    const isLocked = store.isWeekLocked(store.weekId);
-    const modal = $("#modal-lock-confirm");
-    $("#lock-modal-title").textContent = isLocked ? "Mở Khóa Tuần Này?" : "Khóa Sổ Tuần Này?";
-    $("#lock-modal-desc").textContent = isLocked
-      ? "Khi mở khóa, các tổ trưởng sẽ có thể tiếp tục cập nhật và chỉnh sửa điểm."
-      : "Khi khóa sổ, điểm của tuần này sẽ trở thành dữ liệu chỉ đọc. 4 Tổ trưởng sẽ không thể ghi hoặc sửa đổi điểm nữa.";
-    modal.classList.remove("hidden");
-    modal.classList.add("flex");
-  };
-
-  $("#btn-cancel-lock").onclick = () => {
-    $("#modal-lock-confirm").classList.add("hidden");
-    $("#modal-lock-confirm").classList.remove("flex");
-  };
-
-  $("#btn-confirm-lock").onclick = async () => {
-    const isLocked = store.isWeekLocked(store.weekId);
-    try {
-      await store.setWeekLocked(store.weekId, !isLocked);
-      $("#modal-lock-confirm").classList.add("hidden");
-      $("#modal-lock-confirm").classList.remove("flex");
-      renderAdminPanel();
-      renderLeaderboard();
-      showToast(!isLocked ? "Đã khóa sổ tuần thành công!" : "Đã mở khóa tuần!", "lock");
-      if (!isLocked) {
-        void reportPushResult(
-          "week-closed",
-          { week: store.weekId },
-          `Đã gửi thông báo chốt tuần ${weekNumber(store.weekId)}`
-        );
-      }
-    } catch (err) {
-      alert(err.message || "Lỗi khi khóa tuần.");
-    }
-  };
-
-  // 16. Admin: Toggle Leaders Paused
-  $("#toggle-leaders-paused").onchange = async (e) => {
-    try {
-      await store.setLeadersPaused(e.target.checked);
-      showToast(e.target.checked ? "Đã tạm dừng quyền tổ trưởng!" : "Đã mở lại quyền tổ trưởng!", "tune");
-    } catch (err) {
-      alert(err.message || "Lỗi cập nhật cấu hình.");
-    }
-  };
-
-  // 17. Admin: Export Report
-  $("#btn-admin-export").onclick = () => {
-    window.print();
-  };
-
-  // 18. Admin: Rules Catalog
-  $("#btn-admin-rules").onclick = openRulesCatalogModal;
-
-  $("#btn-send-custom-notification").onclick = async () => {
-    const title = $("#custom-notification-title").value.trim();
-    const message = $("#custom-notification-message").value.trim();
-    if (!title || !message) {
-      alert("Vui lòng nhập tiêu đề và nội dung thông báo.");
-      return;
-    }
-    const result = await reportPushResult("custom", { title, message }, "Đã gửi thông báo tùy chỉnh");
-    if (result) {
-      $("#custom-notification-title").value = "";
-      $("#custom-notification-message").value = "";
-    }
-  };
-
-  $("#btn-send-current-infractions").onclick = async () => {
-    const week = defaultWeekId();
-    const teamOrder = new Map(TEAMS.map((team, index) => [team.id, index]));
-    const weekEvents = store.allEvents
-      .filter((event) => event.weekId === week && event.points < 0)
-      .sort((a, b) =>
-        (teamOrder.get(a.teamId) ?? Number.MAX_SAFE_INTEGER) -
-          (teamOrder.get(b.teamId) ?? Number.MAX_SAFE_INTEGER) ||
-        (MEMBER_BY_ID[a.memberId]?.name || "").localeCompare(
-          MEMBER_BY_ID[b.memberId]?.name || "",
-          "vi",
-          { sensitivity: "base" }
-        ) ||
-        a.createdAt - b.createdAt
-      );
-    const entries = weekEvents
-      .map((event) => ({
-        team: TEAM_BY_ID[event.teamId]?.name || event.teamId,
-        name: MEMBER_BY_ID[event.memberId]?.name || event.memberId,
-        label: event.label,
-        points: event.points,
-      }));
-    const confirmed = confirm(
-      entries.length
-        ? `Gửi danh sách ${entries.length} lượt vi phạm của Tuần ${weekNumber(week)} đến tất cả thiết bị đã đăng ký? Nội dung có thể hiện trên màn hình khóa.`
-        : `Tuần ${weekNumber(week)} chưa có vi phạm. Gửi thông báo trạng thái này đến tất cả thiết bị?`
-    );
-    if (!confirmed) return;
-    await reportPushResult(
-      "infractions",
-      { week, entries },
-      `Đã gửi bảng vi phạm tuần ${weekNumber(week)}`
-    );
-  };
-
-  // 19. Admin: Download Backup
-  $("#btn-download-backup").onclick = () => {
-    const backup = store.exportBackup();
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `backup-11a1-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast("Đã tải file sao lưu JSON!", "download");
-  };
-
-  // 20. Admin: Wipe Week Confirm Modal (Yêu cầu gõ XACNHAN)
-  const wipeModal = $("#modal-wipe-confirm");
-  const wipeInput = $("#wipe-confirm-input");
-  const wipeConfirmBtn = $("#btn-confirm-wipe");
-
-  $("#btn-open-wipe-modal").onclick = () => {
-    wipeInput.value = "";
-    wipeConfirmBtn.disabled = true;
-    wipeConfirmBtn.classList.add("opacity-40", "pointer-events-none");
-    wipeModal.classList.remove("hidden");
-    wipeModal.classList.add("flex");
-  };
-
-  $("#btn-cancel-wipe").onclick = () => {
-    wipeModal.classList.add("hidden");
-    wipeModal.classList.remove("flex");
-  };
-
-  wipeInput.oninput = () => {
-    const clean = wipeInput.value.replace(/\s+/g, "").toUpperCase();
-    const isValid = clean === "XACNHAN";
-    wipeConfirmBtn.disabled = !isValid;
-    wipeConfirmBtn.classList.toggle("opacity-40", !isValid);
-    wipeConfirmBtn.classList.toggle("pointer-events-none", !isValid);
-  };
-
-  wipeConfirmBtn.onclick = async () => {
-    try {
-      const count = await store.wipeWeekEvents(store.weekId);
-      wipeModal.classList.add("hidden");
-      wipeModal.classList.remove("flex");
-      renderLeaderboard();
-      renderAdminPanel();
-      showToast(`Đã xóa sạch ${count} lượt điểm của tuần này!`, "delete_forever");
-    } catch (err) {
-      alert(err.message || "Lỗi khi xóa tuần.");
-    }
-  };
-
-  // Đóng modal khi bấm ra ngoài scrim
+  // Scrim click close
   $$(".modal-scrim").forEach((modal) => {
     modal.onclick = (e) => {
       if (e.target === modal) {
@@ -1929,589 +2731,29 @@ function setupEventListeners() {
 }
 
 // ===========================================================================
-// ——— START CỜ LUÂN LƯU (tab 5 — chỉ giao diện, logic dùng FlagStore có sẵn) ———
-// ===========================================================================
-function flagsDateLabel(iso) {
-  const p = String(iso || "").slice(0, 10).split("-");
-  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(iso || "");
-}
-
-function flagsMonthLabel(ym) {
-  const p = String(ym || "").split("-");
-  return p.length === 2 ? `Tháng ${Number(p[1])}/${p[0]}` : String(ym || "");
-}
-
-function setFlagsVisible(el, visible) {
-  if (!el) return;
-  el.classList.toggle("hidden", !visible);
-  el.classList.toggle("flex", visible);
-}
-
-function enterFlagsView() {
-  if (!flagsUnsub) {
-    flagsUnsub = flagStore.subscribe(() => renderFlagsView());
-    void flagStore.init();
-  }
-}
-
-function exitFlagsView() {
-  if (flagsUnsub) {
-    flagsUnsub();
-    flagsUnsub = null;
-  }
-  flagsCloseForm();
-}
-
-function renderFlagsStats() {
-  const s = flagStore.stats();
-  const totalEl = $("#flags-stat-total");
-  if (totalEl) totalEl.textContent = String(s.total);
-  const wrap = $("#flags-stat-pills");
-  if (!wrap) return;
-  wrap.innerHTML = "";
-  for (const f of FLAG_TYPES) {
-    const cell = document.createElement("div");
-    cell.className = "bg-surface-container-low rounded-xl p-2.5 flex flex-col items-center gap-1";
-    const img = document.createElement("img");
-    img.src = f.image;
-    img.alt = f.name;
-    img.className = "w-8 h-8 object-contain rounded";
-    img.onerror = () => { img.style.visibility = "hidden"; };
-    const num = document.createElement("span");
-    num.className = "font-heading text-lg font-bold text-on-surface tabular-nums leading-none";
-    num.textContent = String(s.byType[f.id] ?? 0);
-    const nm = document.createElement("span");
-    nm.className = "text-[10px] text-on-surface-variant font-semibold";
-    nm.textContent = f.name;
-    cell.append(img, num, nm);
-    wrap.appendChild(cell);
-  }
-}
-
-function renderFlagsFilters() {
-  const typeSel = $("#flag-filter-type");
-  const monthSel = $("#flag-filter-month");
-  if (!typeSel || !monthSel) return;
-  if (typeSel.options.length <= 1) {
-    for (const f of FLAG_TYPES) {
-      const o = document.createElement("option");
-      o.value = f.id;
-      o.textContent = f.name;
-      typeSel.appendChild(o);
-    }
-  }
-  const prevMonth = flagsUI.month;
-  monthSel.innerHTML = "";
-  const all = document.createElement("option");
-  all.value = "";
-  all.textContent = "Tất cả tháng";
-  monthSel.appendChild(all);
-  for (const m of flagStore.months()) {
-    const o = document.createElement("option");
-    o.value = m;
-    o.textContent = flagsMonthLabel(m);
-    monthSel.appendChild(o);
-  }
-  typeSel.value = flagsUI.type;
-  monthSel.value = flagsUI.month = monthSel.querySelector(`option[value="${CSS.escape(prevMonth)}"]`) ? prevMonth : "";
-  setFlagsVisible($("#btn-flag-clear-filters"), Boolean(flagsUI.type || flagsUI.month));
-}
-
-function makeFlagRow(flag) {
-  const type = FLAG_TYPE_BY_ID[flag.flag_type];
-  const card = document.createElement("div");
-  card.className = "bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex flex-col items-center gap-1.5 text-center";
-
-  const img = document.createElement("img");
-  img.src = type?.image || "";
-  img.alt = type?.name || flag.flag_type;
-  img.className = "w-24 h-24 rounded-xl bg-surface-container object-contain p-1.5";
-  img.onerror = () => { img.style.visibility = "hidden"; };
-  card.appendChild(img);
-
-  const name = document.createElement("span");
-  name.className = "font-heading text-sm font-bold text-on-surface";
-  name.textContent = type?.name || flag.flag_type;
-  card.appendChild(name);
-
-  const date = document.createElement("span");
-  date.className = "text-[11px] font-semibold text-primary tabular-nums px-2 py-0.5 rounded-full bg-primary/15";
-  date.textContent = flagsDateLabel(flag.placed_date);
-  card.appendChild(date);
-
-  if (flag.note) {
-    const note = document.createElement("p");
-    note.className = "text-[11px] text-on-surface-variant leading-tight w-full";
-    note.style.display = "-webkit-box";
-    note.style.setProperty("-webkit-box-orient", "vertical");
-    note.style.setProperty("-webkit-line-clamp", "2");
-    note.style.overflow = "hidden";
-    note.textContent = flag.note; // textContent — không innerHTML với dữ liệu người dùng
-    card.appendChild(note);
-  }
-
-  if (flagStore.isAuthenticated()) {
-    const actions = document.createElement("div");
-    actions.className = "flex items-center gap-1.5 w-full mt-0.5";
-    const edit = document.createElement("button");
-    edit.type = "button";
-    edit.className = "flex-1 h-8 rounded-lg bg-surface-container-low hover:bg-surface-container-high text-primary text-[11px] font-bold flex items-center justify-center gap-1 transition-colors";
-    edit.innerHTML = '<span class="material-symbols-outlined text-[15px]">edit</span>Sửa';
-    edit.onclick = () => flagsOpenEdit(flag.id);
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "flex-1 h-8 rounded-lg bg-surface-container-low hover:bg-error-container text-on-surface-variant hover:text-error text-[11px] font-bold flex items-center justify-center gap-1 transition-colors";
-    del.innerHTML = '<span class="material-symbols-outlined text-[15px]">delete</span>Xóa';
-    del.onclick = () => flagsAskDelete(flag.id);
-    actions.append(edit, del);
-    card.appendChild(actions);
-  }
-  return card;
-}
-
-function renderFlagsList() {
-  const authed = flagStore.isAuthenticated();
-  // Bảng thành tích LUÔN hiển thị (kể cả khi khóa). Khóa chỉ chặn đặt/sửa/xóa.
-  setFlagsVisible($("#flags-login-card"), !authed);
-  setFlagsVisible($("#flags-content"), true);
-  setFlagsVisible($("#flag-place-zone"), authed);
-  setFlagsVisible($("#btn-flag-signout"), flagStore.mode === "live" && authed);
-
-  const icon = $("#flags-mode-icon");
-  const badge = $("#flags-mode-badge");
-  const badgeText = $("#flags-mode-badge-text");
-  if (icon) icon.textContent = flagStore.mode === "live" ? "bolt" : "cloud_off";
-  if (badge && badgeText) {
-    if (flagStore.mode === "live") {
-      badge.className = "text-[11px] text-secondary flex items-center gap-1 shrink-0 ml-2 font-bold px-2 py-0.5 rounded-full bg-secondary/15";
-      badgeText.textContent = "Realtime";
-    } else {
-      badge.className = "text-[11px] text-on-surface-variant flex items-center gap-1 shrink-0 ml-2 font-bold px-2 py-0.5 rounded-full bg-surface-container";
-      badgeText.textContent = "Offline · máy này";
-    }
-  }
-  const badgeDot = badge?.querySelector("span:not(#flags-mode-badge-text)");
-  if (badgeDot) badgeDot.className = `w-1.5 h-1.5 rounded-full ${flagStore.mode === "live" ? "bg-secondary" : "bg-outline"}`;
-
-  if (flagStore.loading) {
-    setFlagsVisible($("#flags-loading"), true);
-    setFlagsVisible($("#flags-empty"), false);
-    const list = $("#flags-list");
-    if (list) list.innerHTML = "";
-    const count = $("#flags-list-count");
-    if (count) count.textContent = "";
-    return;
-  }
-  setFlagsVisible($("#flags-loading"), false);
-
-  if (flagsUI.dragging) return; // đang kéo cờ — giữ nguyên row, render lại khi thả xong
-
-  const list = flagStore.filtered({ type: flagsUI.type, month: flagsUI.month });
-  const wrap = $("#flags-list");
-  if (wrap) {
-    wrap.innerHTML = "";
-    for (const f of list) wrap.appendChild(makeFlagRow(f));
-  }
-  const count = $("#flags-list-count");
-  if (count) count.textContent = list.length ? `${list.length} cờ` : "";
-  const emptyDesc = $("#flags-empty-desc");
-  if (emptyDesc) {
-    emptyDesc.textContent = flagsUI.type || flagsUI.month
-      ? "Không có cờ khớp bộ lọc hiện tại."
-      : "Mỗi lần lớp đạt thành tích, GVCN mở khóa rồi nhận cờ đặt lên bảng.";
-  }
-  setFlagsVisible($("#flags-empty"), list.length === 0);
-}
-
-function renderFlagsView() {
-  if (state.currentView !== "flags") return;
-  renderFlagsStats();
-  renderFlagsTray();
-  renderFlagsFilters();
-  renderFlagsList();
-}
-
-function flagsSyncNoteCount() {
-  const el = $("#flag-note-count");
-  const note = $("#flag-form-note");
-  if (el && note) el.textContent = `${note.value.length}/200`;
-}
-
-function flagsOpenAdd() {
-  flagsUI.editingId = null;
-  const title = $("#flag-form-title");
-  if (title) title.innerHTML = '<span class="material-symbols-outlined text-[18px] text-primary">flag</span> Nhận cờ';
-  const submit = $("#btn-flag-submit");
-  if (submit) submit.textContent = "Thêm vào khay chờ";
-  const typeSel = $("#flag-form-type");
-  if (typeSel) typeSel.value = FLAG_TYPES[0]?.id || "";
-  const dateEl = $("#flag-form-date");
-  if (dateEl) dateEl.value = todayISO();
-  const noteEl = $("#flag-form-note");
-  if (noteEl) noteEl.value = "";
-  flagsSyncNoteCount();
-  setFlagsVisible($("#flag-form"), true);
-}
-
-function flagsOpenEdit(id) {
-  const flag = flagStore.flags.find((f) => f.id === id);
-  if (!flag) return;
-  flagsUI.editingId = id;
-  const title = $("#flag-form-title");
-  if (title) title.innerHTML = '<span class="material-symbols-outlined text-[18px] text-primary">edit</span> Sửa cờ';
-  const submit = $("#btn-flag-submit");
-  if (submit) submit.textContent = "Lưu thay đổi";
-  const typeSel = $("#flag-form-type");
-  if (typeSel) typeSel.value = flag.flag_type;
-  const dateEl = $("#flag-form-date");
-  if (dateEl) dateEl.value = flag.placed_date;
-  const noteEl = $("#flag-form-note");
-  if (noteEl) noteEl.value = flag.note || "";
-  flagsSyncNoteCount();
-  setFlagsVisible($("#flag-form"), true);
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function flagsCloseForm() {
-  flagsUI.editingId = null;
-  setFlagsVisible($("#flag-form"), false);
-}
-
-async function flagsSubmitForm() {
-  const typeSel = $("#flag-form-type");
-  const dateEl = $("#flag-form-date");
-  const noteEl = $("#flag-form-note");
-  const payload = {
-    flagType: typeSel?.value || FLAG_TYPES[0]?.id,
-    placedDate: dateEl?.value || todayISO(),
-    note: String(noteEl?.value || "").slice(0, 200),
-  };
-  try {
-    if (flagsUI.editingId) {
-      await flagStore.updateFlag(flagsUI.editingId, { placedDate: payload.placedDate, note: payload.note });
-      showToast("Đã cập nhật lá cờ.", "check_circle");
-    } else {
-      // Cờ mới tạo vào KHAY CHỜ — chỉ lên bảng khi bấm "Đặt lên bảng" hoặc kéo thả vào bảng
-      flagsUI.pending.push({ pid: "p" + Date.now() + Math.random().toString(36).slice(2, 6), ...payload });
-      flagsSavePending();
-      renderFlagsTray();
-      showToast("Đã thêm cờ vào khay chờ — kéo hoặc bấm Đặt lên bảng để hoàn tất.", "inbox");
-    }
-    flagsCloseForm();
-  } catch (err) {
-    showToast(err?.message || "Không lưu được.", "error"); // lỗi store nguyên văn qua toast
-  }
-}
-
-function renderFlagsTray() {
-  const tray = $("#flags-tray");
-  const wrap = $("#flags-tray-list");
-  if (!tray || !wrap) return;
-  if (flagsUI.dragging) return; // đang kéo — giữ nguyên khay, render lại khi thả xong
-  // Khóa bảng → ẩn khay chờ (chỉ người mở khóa mới đặt được cờ)
-  if (!flagStore.isAuthenticated()) { setFlagsVisible(tray, false); return; }
-  const count = $("#flags-tray-count");
-  if (count) count.textContent = String(flagsUI.pending.length);
-  wrap.innerHTML = "";
-  for (const entry of flagsUI.pending) {
-    const type = FLAG_TYPE_BY_ID[entry.flagType];
-    const card = document.createElement("div");
-    card.className = "shrink-0 w-[150px] bg-surface-container-low rounded-xl p-2.5 flex flex-col items-center gap-1.5 text-center flag-draggable";
-    card.title = "Kéo nguyên lá cờ này thả vào bảng thành tích";
-
-    const img = document.createElement("img");
-    img.src = type?.image || "";
-    img.alt = type?.name || entry.flagType;
-    img.className = "w-[72px] h-[72px] rounded-xl bg-surface-container object-contain p-1.5 pointer-events-none";
-    img.draggable = false;
-    img.onerror = () => { img.style.visibility = "hidden"; };
-    card.appendChild(img);
-
-    const name = document.createElement("span");
-    name.className = "font-heading text-xs font-bold text-on-surface";
-    name.textContent = type?.name || entry.flagType;
-    card.appendChild(name);
-
-    const date = document.createElement("span");
-    date.className = "text-[10px] font-semibold text-primary tabular-nums px-1.5 py-0.5 rounded-full bg-primary/15";
-    date.textContent = flagsDateLabel(entry.placedDate);
-    card.appendChild(date);
-
-    if (entry.note) {
-      const note = document.createElement("p");
-      note.className = "text-[10px] text-on-surface-variant leading-tight";
-      note.style.display = "-webkit-box";
-      note.style.setProperty("-webkit-box-orient", "vertical");
-      note.style.setProperty("-webkit-line-clamp", "2");
-      note.style.overflow = "hidden";
-      note.textContent = entry.note; // textContent — không innerHTML với dữ liệu người dùng
-      card.appendChild(note);
-    }
-
-    const btnRow = document.createElement("div");
-    btnRow.className = "flex items-center gap-1.5 w-full mt-0.5";
-    const place = document.createElement("button");
-    place.type = "button";
-    place.className = "flex-1 h-8 rounded-lg bg-primary hover:bg-primary-container text-on-primary text-[11px] font-bold active:scale-[0.97] transition-all flex items-center justify-center gap-1";
-    place.innerHTML = '<span class="material-symbols-outlined text-[14px]">upload</span>Đặt lên bảng';
-    place.onclick = () => void flagsPlacePending(entry.pid);
-    const rm = document.createElement("button");
-    rm.type = "button";
-    rm.title = "Bỏ cờ khỏi khay";
-    rm.className = "w-8 h-8 shrink-0 rounded-lg bg-surface-container hover:bg-error-container text-on-surface-variant hover:text-error flex items-center justify-center transition-colors";
-    rm.innerHTML = '<span class="material-symbols-outlined text-[16px]">close</span>';
-    rm.onclick = () => flagsRemovePending(entry.pid);
-    btnRow.append(place, rm);
-    card.appendChild(btnRow);
-    makeFlagDraggable(card, entry);
-    wrap.appendChild(card);
-  }
-  setFlagsVisible(tray, flagsUI.pending.length > 0);
-}
-
-function flagsRemovePending(pid) {
-  flagsUI.pending = flagsUI.pending.filter((p) => p.pid !== pid);
-  flagsSavePending();
-  renderFlagsTray();
-}
-
-/* Khay chờ lưu vào localStorage — reload không mất cờ đang chờ */
-const FLAGS_PENDING_KEY = "a1-flag-pending-v1";
-function flagsSavePending() {
-  try { localStorage.setItem(FLAGS_PENDING_KEY, JSON.stringify(flagsUI.pending)); } catch (e) {}
-}
-function flagsLoadPending() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(FLAGS_PENDING_KEY) || "[]");
-    if (Array.isArray(raw)) {
-      flagsUI.pending = raw.filter((p) => p && p.pid && FLAG_TYPE_BY_ID[p.flagType] && p.placedDate);
-    }
-  } catch (e) {}
-}
-
-async function flagsPlacePending(pid) {
-  const entry = flagsUI.pending.find((p) => p.pid === pid);
-  if (!entry || flagsUI.placing.has(pid)) return;
-  flagsUI.placing.add(pid);
-  try {
-    await flagStore.addFlag({ flagType: entry.flagType, placedDate: entry.placedDate, note: entry.note });
-    flagsUI.pending = flagsUI.pending.filter((p) => p.pid !== pid);
-    flagsSavePending();
-    showToast("Đã đặt cờ lên bảng thành tích.", "flag");
-  } catch (err) {
-    showToast(err?.message || "Không lưu được.", "error"); // lỗi store nguyên văn qua toast
-  } finally {
-    flagsUI.placing.delete(pid);
-    renderFlagsTray();
-  }
-}
-
-function flagsAskDelete(id) {
-  flagsUI.confirmId = id;
-  const m = $("#modal-flag-confirm-delete");
-  if (m) {
-    m.classList.remove("hidden");
-    m.classList.add("flex");
-  }
-}
-
-function flagsCloseConfirm() {
-  flagsUI.confirmId = null;
-  const m = $("#modal-flag-confirm-delete");
-  if (m) {
-    m.classList.add("hidden");
-    m.classList.remove("flex");
-  }
-}
-
-async function flagsConfirmDelete() {
-  const id = flagsUI.confirmId;
-  flagsCloseConfirm();
-  if (!id) return;
-  try {
-    await flagStore.deleteFlag(id);
-    showToast("Đã xóa lá cờ.", "delete");
-  } catch (err) {
-    showToast(err?.message || "Không xóa được.", "error");
-  }
-}
-
-function flagsTrySignIn() {
-  const input = $("#flag-pass-input");
-  try {
-    flagStore.signIn(input?.value || "");
-    if (input) input.value = "";
-    showToast("Đã mở khóa bảng cờ.", "lock_open");
-  } catch (err) {
-    showToast(err?.message || "Mật khẩu không đúng.", "error");
-  }
-}
-
-function flagsInitStaticSelects() {
-  const typeSel = $("#flag-form-type");
-  if (typeSel && !typeSel.options.length) {
-    for (const f of FLAG_TYPES) {
-      const o = document.createElement("option");
-      o.value = f.id;
-      o.textContent = f.name;
-      typeSel.appendChild(o);
-    }
-  }
-}
-
-// ——— Kéo thả cờ TỪ KHAY CHỜ vào bảng thành tích (pointer events: chuột + cảm ứng) ———
-function flagsRectHasPoint(r, x, y, pad) {
-  return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
-}
-
-function makeFlagDraggable(el, entry) {
-  el.addEventListener("dragstart", (e) => e.preventDefault());
-  el.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("button")) return; // bấm nút Đặt/Xóa → không kéo
-    if (e.pointerType === "mouse" && e.button !== 0) return;
-    const board = $("#flags-board-drop");
-    if (!board || flagsUI.dragging) return;
-    const startX = e.clientX, startY = e.clientY;
-    const rect = el.getBoundingClientRect();
-    let ghost = null, over = false, active = false;
-
-    const endDrag = () => {
-      flagsUI.dragging = false;
-      document.body.classList.remove("flag-dragging");
-      renderFlagsList();
-      renderFlagsTray();
-    };
-    const flyBack = () => {
-      board.classList.remove("drop-over");
-      if (ghost) {
-        // Buông ra ngoài bảng → lá cờ tự bay về đúng vị trí ban đầu
-        ghost.style.transition = "transform .45s cubic-bezier(.3,1.35,.5,1)";
-        ghost.style.transform = "translate(0px,0px) rotate(0deg) scale(1)";
-        setTimeout(() => { ghost.remove(); endDrag(); }, 470);
-      } else {
-        el.style.opacity = "";
-        endDrag();
-      }
-    };
-    const onMove = (ev) => {
-      const dx = ev.clientX - startX, dy = ev.clientY - startY;
-      if (!active) {
-        if (Math.abs(dx) + Math.abs(dy) < 8) return; // chạm thường, không kéo
-        active = true;
-        flagsUI.dragging = true;
-        ghost = el.cloneNode(true);
-        ghost.classList.add("flag-ghost");
-        ghost.style.left = rect.left + "px";
-        ghost.style.top = rect.top + "px";
-        ghost.style.width = rect.width + "px";
-        ghost.style.height = rect.height + "px";
-        document.body.appendChild(ghost);
-        el.style.opacity = "0.25";
-        document.body.classList.add("flag-dragging");
-      }
-      ev.preventDefault();
-      over = flagsRectHasPoint(board.getBoundingClientRect(), ev.clientX, ev.clientY, 14);
-      board.classList.toggle("drop-over", over);
-      ghost.style.transition = "none";
-      ghost.style.transform = `translate(${dx}px,${dy}px) rotate(6deg) scale(1.1)`;
-    };
-    const cleanupListeners = () => {
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
-      document.removeEventListener("pointercancel", onCancel);
-    };
-    const onUp = (ev) => {
-      cleanupListeners();
-      if (!active) { flagsUI.dragging = false; return; }
-      if (!over) { flyBack(); return; }
-      // Thả trúng bảng → cờ thu nhỏ bay vào giữa bảng + pulse + toast
-      board.classList.remove("drop-over");
-      const b = board.getBoundingClientRect();
-      const tx = b.left + b.width / 2 - (rect.left + rect.width / 2);
-      const ty = b.top + b.height / 2 - (rect.top + rect.height / 2);
-      ghost.style.transition = "transform .3s ease-in, opacity .3s ease-in";
-      ghost.style.transform = `translate(${tx}px,${ty}px) scale(.28)`;
-      ghost.style.opacity = "0";
-      board.classList.add("drop-landed");
-      setTimeout(() => { board.classList.remove("drop-landed"); ghost.remove(); endDrag(); }, 480);
-      void flagsPlacePending(entry.pid); // thả trúng bảng → lưu cờ thật qua FlagStore
-    };
-    const onCancel = () => {
-      cleanupListeners();
-      if (active) flyBack(); else flagsUI.dragging = false;
-    };
-    document.addEventListener("pointermove", onMove);
-    document.addEventListener("pointerup", onUp);
-    document.addEventListener("pointercancel", onCancel);
-  });
-}
-
-function wireFlagsEvents() {
-  flagsLoadPending();
-  flagsInitStaticSelects();
-  const dateEl = $("#flag-form-date");
-  if (dateEl) dateEl.value = todayISO();
-
-  const loginBtn = $("#btn-flag-login");
-  if (loginBtn) loginBtn.onclick = flagsTrySignIn;
-  const passInput = $("#flag-pass-input");
-  if (passInput) passInput.addEventListener("keydown", (e) => { if (e.key === "Enter") flagsTrySignIn(); });
-
-  const signoutBtn = $("#btn-flag-signout");
-  if (signoutBtn) signoutBtn.onclick = () => { flagStore.signOut(); flagsCloseForm(); };
-
-  const toggleBtn = $("#btn-flag-toggle-form");
-  if (toggleBtn) toggleBtn.onclick = () => {
-    const form = $("#flag-form");
-    const isOpen = form && !form.classList.contains("hidden");
-    if (isOpen && !flagsUI.editingId) flagsCloseForm();
-    else flagsOpenAdd();
-  };
-  const cancelBtn = $("#btn-flag-form-cancel");
-  if (cancelBtn) cancelBtn.onclick = flagsCloseForm;
-  const submitBtn = $("#btn-flag-submit");
-  if (submitBtn) submitBtn.onclick = () => void flagsSubmitForm();
-  const noteEl = $("#flag-form-note");
-  if (noteEl) noteEl.addEventListener("input", flagsSyncNoteCount);
-
-  const typeFilter = $("#flag-filter-type");
-  if (typeFilter) typeFilter.addEventListener("change", () => { flagsUI.type = typeFilter.value; renderFlagsList(); renderFlagsFilters(); });
-  const monthFilter = $("#flag-filter-month");
-  if (monthFilter) monthFilter.addEventListener("change", () => { flagsUI.month = monthFilter.value; renderFlagsList(); renderFlagsFilters(); });
-  const clearBtn = $("#btn-flag-clear-filters");
-  if (clearBtn) clearBtn.onclick = () => { flagsUI.type = ""; flagsUI.month = ""; renderFlagsList(); renderFlagsFilters(); };
-
-  const confirmDelete = $("#btn-flag-confirm-delete");
-  if (confirmDelete) confirmDelete.onclick = () => void flagsConfirmDelete();
-  const confirmCancel = $("#btn-flag-confirm-cancel");
-  if (confirmCancel) confirmCancel.onclick = flagsCloseConfirm;
-}
-// ——— END CỜ LUÂN LƯU ———
-
-// ===========================================================================
 // KHỞI CHẠY ỨNG DỤNG (INITIALIZE)
 // ===========================================================================
 async function initApp() {
   setupEventListeners();
-  wireFlagsEvents(); // CỜ LUÂN LƯU
-  void refreshNotificationButton();
 
-  // Đăng ký listener store
   store.subscribe(() => {
     const role = store.getRole();
     const rolePill = $("#header-user-role");
-    if (role === "admin") rolePill.textContent = "Admin GVCN";
-    else if (role === "leader") rolePill.textContent = store.getLeaderName();
-    else rolePill.textContent = "Khách";
+    if (rolePill) {
+      if (role === "admin") rolePill.textContent = "Admin GVCN";
+      else if (role === "leader") rolePill.textContent = store.getLeaderName();
+      else rolePill.textContent = "Khách";
+    }
 
     renderLeaderboard();
     if (state.currentView === "scoring") renderScoringWorkspace();
     else if (state.currentView === "profile") renderProfileView();
+    else if (state.currentView === "lookup") renderLookupView();
+    else if (state.currentView === "conduct") renderConductView();
+    else if (state.currentView === "rules") renderClassRulesView();
     else if (state.currentView === "admin") renderAdminPanel();
-    else if (state.currentView === "flags") renderFlagsView(); // CỜ LUÂN LƯU
   });
 
-  // Tải dữ liệu và kích hoạt WebSocket
   await store.init();
 }
 

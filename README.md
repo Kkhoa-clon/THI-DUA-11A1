@@ -67,33 +67,4 @@ Sau khi cập nhật ứng dụng, hãy chạy lại `supabase.sql` hoặc `supa
 
 Sau mỗi lần sửa JavaScript, chạy `npm run build` trước khi triển khai để tạo bundle đã làm rối mới nhất.
 
-### Thông báo Web Push trên Vercel
-
-Web Push hoạt động khi trang được triển khai qua HTTPS trên Vercel. GitHub Pages hoặc mở trực tiếp `file://` không có API `/api/notifications` để gửi thông báo. Sau khi chuyển người dùng sang URL Vercel:
-
-1. Import repository vào Vercel; chọn Framework `Other`, Build Command `npm run build`, Output Directory `.` và giữ Root Directory ở thư mục gốc.
-2. Trong Supabase SQL Editor, chạy thêm file `supabase-push.sql`. Hai bảng subscription và trạng thái BXH chỉ được API server truy cập.
-3. Trong Vercel → Project → Settings → Environment Variables, thêm:
-   - `SUPABASE_URL`: URL project Supabase.
-   - `SUPABASE_SERVICE_ROLE_KEY`: service-role key của Supabase; **chỉ lưu ở Vercel server, tuyệt đối không đưa vào JavaScript hoặc Git**.
-   - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`: tạo cặp khóa riêng bằng `npx web-push generate-vapid-keys`; public key được trả cho trình duyệt, private key chỉ lưu server.
-   - `VAPID_SUBJECT`: thông tin liên hệ VAPID, ví dụ `mailto:email-quan-tri@example.com`.
-   - `PUSH_TOKEN_SECRET`: bí mật ngẫu nhiên dài dùng ký phiên; có thể tạo bằng `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
-   - `PUSH_ADMIN_CODES`: mảng JSON chứa các mã Admin đang dùng trong `ADMIN_CODES`.
-   - `PUSH_LEADER_CODES`: object JSON ánh xạ từng tổ đến mảng mã hiện dùng trong `LEADER_CODES`.
-4. Hai biến này dùng cùng mã đăng nhập ghi điểm/Admin hiện tại; không cần nhập mã push riêng. Mã đăng nhập được xác thực qua API server và đổi thành phiên gửi push 12 giờ.
-5. Redeploy project Vercel. Mỗi người dùng mở bản Vercel, bấm biểu tượng chuông và chọn cho phép thông báo. Nếu đã từng chặn quyền, cần bật lại trong cài đặt trình duyệt.
-6. Trên iPhone/iPad, người dùng cần thêm trang Vercel vào Màn hình chính rồi mở ứng dụng đó trước khi bật thông báo; khả năng hỗ trợ còn tùy phiên bản iOS.
-
-Tổ trưởng gửi thông báo sau khi lượt điểm đã đồng bộ thành công. Server gửi thêm thông báo nếu vị trí top 1/2/3 của bảng điểm cộng hoặc vi phạm thay đổi; lần đầu chỉ lưu mốc so sánh để tránh gửi bảng xếp hạng giả định ban đầu. Admin có thể gửi thông báo tùy chỉnh, gửi danh sách vi phạm tuần hiện tại, và thông báo chốt sổ. Nội dung bảng vi phạm được đưa trực tiếp vào push và có thể hiển thị trên màn hình khóa; người dùng nên cân nhắc quyền riêng tư của lớp.
-
-### Chẩn đoán lỗi POST `/api/notifications` trả HTTP 500
-
-- Cập nhật/redeploy API để giao diện hiển thị nguyên nhân an toàn thay vì lỗi chung. Thông báo thường chỉ rõ biến Vercel cần bổ sung, bảng Supabase chưa có, hoặc cặp VAPID không hợp lệ; không hiển thị giá trị bí mật.
-- Nếu được báo thiếu bảng, chạy `supabase-push.sql` trong đúng project Supabase, rồi kiểm tra `SUPABASE_URL` và `SUPABASE_SERVICE_ROLE_KEY` trên Vercel thuộc cùng project.
-- Nếu được báo thiếu `PUSH_TOKEN_SECRET`, tạo chuỗi ngẫu nhiên từ 32 ký tự trở lên. Nếu cập nhật thêm mã đăng nhập Admin trong `js/config.js`, cũng cập nhật `PUSH_ADMIN_CODES` trên Vercel thành mảng JSON gồm các mã đang dùng.
-- Với lỗi chưa phân loại, mở Vercel → Deployments → Functions → `api/notifications` → Logs, tìm dòng có cùng `requestId` mà giao diện hiển thị. Chỉ chia sẻ thông báo lỗi đã che URL/token/subscription và mọi giá trị bí mật; không gửi environment variables hoặc service-role key.
-
-Lưu ý: các mã đăng nhập hiện có nằm trong JavaScript phía trình duyệt và có thể bị xem trong repository/bundle. Dùng lại chúng để xác thực gửi push nghĩa là người xem mã nguồn có thể lấy mã và gọi API; rate limit chỉ hạn chế phần nào việc lạm dụng, không biến mã thành bí mật. Muốn bảo vệ chắc chắn hơn cần xác thực người dùng thật ở phía máy chủ.
-
 ---
