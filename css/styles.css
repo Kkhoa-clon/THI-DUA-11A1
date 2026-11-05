@@ -150,6 +150,143 @@
   font-weight: 700;
 }
 
+.board-tab-pill {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+
+.board-tab-pill.active-tab-pill {
+  background: linear-gradient(135deg, rgb(var(--a1-primary)), rgb(var(--a1-primary-container)));
+  color: rgb(var(--a1-on-primary));
+  box-shadow: 0 8px 20px rgb(var(--a1-primary) / 0.22);
+}
+
+.board-tab-pill:not(.active-tab-pill) {
+  background: rgba(148, 163, 184, 0.08);
+  color: rgb(var(--a1-on-surface-variant));
+}
+
+#board-tabs .board-tab,
+.board-tab-pill {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+#week-slider,
+#admin-week-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--a1-primary)) 0%,
+    rgb(var(--a1-primary)) 50%,
+    rgb(var(--a1-surface-container)) 50%,
+    rgb(var(--a1-surface-container)) 100%
+  );
+  outline: none;
+}
+
+#week-slider::-webkit-slider-runnable-track,
+#admin-week-slider::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: transparent;
+}
+
+#week-slider::-webkit-slider-thumb,
+#admin-week-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: -0.28rem;
+  border-radius: 50%;
+  background: rgb(var(--a1-on-primary));
+  border: 3px solid rgb(var(--a1-primary));
+  box-shadow: 0 0 0 4px rgb(var(--a1-primary) / 0.16);
+  cursor: pointer;
+}
+
+#week-slider::-moz-range-thumb,
+#admin-week-slider::-moz-range-thumb {
+  width: 1.05rem;
+  height: 1.05rem;
+  border: 3px solid rgb(var(--a1-primary));
+  border-radius: 50%;
+  background: rgb(var(--a1-on-primary));
+  box-shadow: 0 0 0 4px rgb(var(--a1-primary) / 0.16);
+  cursor: pointer;
+}
+
+#week-slider::-moz-range-track,
+#admin-week-slider::-moz-range-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.quick-choice-strip {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.5rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.quick-choice-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.dropdown-select {
+  background-image: none;
+  cursor: pointer;
+}
+
+.dropdown-select:focus {
+  outline: none;
+  border-color: rgb(var(--a1-primary) / 0.5);
+  box-shadow: 0 0 0 3px rgb(var(--a1-primary) / 0.12);
+}
+
+.quick-choice-btn {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgb(var(--a1-surface-container-low));
+  color: rgb(var(--a1-on-surface-variant));
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.quick-choice-btn.active-choice {
+  background: linear-gradient(135deg, rgb(var(--a1-primary)), rgb(var(--a1-primary-container)));
+  border-color: transparent;
+  color: rgb(var(--a1-on-primary));
+  box-shadow: 0 6px 16px rgb(var(--a1-primary) / 0.18);
+}
+
+#lookup-students-list,
+#conduct-students-list,
+#profile-students-quick-list {
+  display: flex;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scroll-snap-type: x proximity;
+  padding-bottom: 0.15rem;
+}
+
+#lookup-students-list > button,
+#conduct-students-list > button,
+#profile-students-quick-list > button {
+  scroll-snap-align: start;
+  white-space: nowrap;
+}
+
+.quick-metric-card {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
 /* ============================================================
    MOBILE TOUCH IMPROVEMENTS
    ============================================================ */

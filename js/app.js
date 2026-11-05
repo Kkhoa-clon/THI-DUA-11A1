@@ -83,11 +83,36 @@ function escapeHtml(value) {
 }
 
 function renderMemberName(member, nameClass = "") {
-  const adminBadge = ADMIN_MEMBER_IDS.includes(member.id)
-    ? `<span class="member-admin-badge" title="Ban cán sự lớp"><span class="material-symbols-outlined">admin_panel_settings</span><span>BCS</span></span>`
-    : "";
+  const adminRoleMap = {
+    "to4-06": { label: "Admin dữ liệu", title: "Admin quản lý dữ liệu" },
+    "to4-10": { label: "Admin phần mềm", title: "Admin bảo trì phần mềm" },
+  };
+
+  const adminRole = adminRoleMap[member.id];
+  const adminBadge = adminRole
+    ? `<span class="member-admin-badge" title="${adminRole.title}"><span class="material-symbols-outlined">admin_panel_settings</span><span>${adminRole.label}</span></span>`
+    : ADMIN_MEMBER_IDS.includes(member.id)
+      ? `<span class="member-admin-badge" title="Quản trị hệ thống"><span class="material-symbols-outlined">admin_panel_settings</span><span>Admin</span></span>`
+      : "";
 
   return `<span class="member-name-display">${adminBadge}<span class="${nameClass}">${escapeHtml(member.name)}</span></span>`;
+}
+
+function bindNameSearchInput({ inputSelector, clearSelector, onSearch }) {
+  const input = inputSelector ? $(inputSelector) : null;
+  const clearBtn = clearSelector ? $(clearSelector) : null;
+  if (!input) return;
+
+  input.oninput = () => {
+    clearBtn?.classList.toggle("hidden", !input.value.trim());
+    onSearch?.(input.value);
+  };
+
+  clearBtn?.addEventListener("click", () => {
+    input.value = "";
+    clearBtn.classList.add("hidden");
+    onSearch?.("");
+  });
 }
 
 function getRankLabel(item) {
@@ -190,6 +215,15 @@ function renderLeaderboard() {
 
   const teamRanks = store.getTeamRankings();
   const leaderTeam = teamRanks[0] || { name: "Tổ 1", total: 400, rawTotal: 400 };
+
+  const quickLeader = $("#quick-stat-leader-team");
+  if (quickLeader) quickLeader.textContent = leaderTeam.name;
+
+  const quickScore = $("#quick-stat-top-score");
+  if (quickScore) quickScore.textContent = `${leaderTeam.total}`;
+
+  const quickCount = $("#quick-stat-team-count");
+  if (quickCount) quickCount.textContent = `${teamRanks.length} tổ`;
 
   const snapshotTitle = $("#snapshot-main-title");
   if (snapshotTitle) snapshotTitle.textContent = `Tuần ${curNum}`;
@@ -1242,6 +1276,12 @@ function renderProfileStudentPicker() {
 }
 
 function renderProfileView() {
+  bindNameSearchInput({
+    inputSelector: "#profile-search-input",
+    clearSelector: "#btn-clear-profile-search",
+    onSearch: () => renderProfileView(),
+  });
+
   renderProfileStudentPicker();
 
   let memberId = state.profileMemberId;
@@ -1557,33 +1597,22 @@ function renderLookupView() {
     }
   }
 
-  if (searchInput) {
-    searchInput.oninput = () => {
-      clearBtn?.classList.toggle("hidden", !searchInput.value);
-      renderLookupView();
-    };
-  }
-  if (clearBtn) {
-    clearBtn.onclick = () => {
-      if (searchInput) searchInput.value = "";
-      clearBtn.classList.add("hidden");
-      renderLookupView();
-    };
-  }
+  bindNameSearchInput({
+    inputSelector: "#lookup-search-input",
+    clearSelector: "#btn-clear-lookup-search",
+    onSearch: () => renderLookupView(),
+  });
 
-  // 2. Week dropdown
+  // 2. Week selector dạng dropdown/tùy chọn kéo xuống
   const weekSelector = $("#lookup-week-selector");
+  const weekSelectedLabel = $("#lookup-week-selected-label");
   if (weekSelector) {
     const allWeekIds = competitionWeekIds();
-    const through = studiedThroughWeek();
     weekSelector.innerHTML = allWeekIds
-      .map((wId) => {
-        const n = weekNumber(wId);
-        const isSelected = wId === weekId;
-        const suffix = n === through ? " (Hiện tại)" : "";
-        return `<option value="${wId}" ${isSelected ? "selected" : ""}>Tuần ${n}${suffix} • ${weekRangeLabel(wId)}</option>`;
-      })
+      .map((wId) => `<option value="${wId}" ${wId === weekId ? "selected" : ""}>Tuần ${weekNumber(wId)}</option>`)
       .join("");
+
+    if (weekSelectedLabel) weekSelectedLabel.textContent = `Tuần ${curWeekNum}`;
 
     weekSelector.onchange = (e) => {
       state.lookupWeekId = e.target.value;
@@ -1664,22 +1693,13 @@ function renderLookupView() {
     const rewards = RULES.filter((r) => r.points > 0);
     const penalties = RULES.filter((r) => r.points < 0);
     const notes = RULES.filter((r) => r.points === 0);
+    const allRules = [...rewards, ...penalties, ...notes];
 
-    ruleSelector.innerHTML = `
-      <optgroup label="Điểm cộng (Khen thưởng)">
-        ${rewards.map((r) => `<option value="${r.id}" ${r.id === state.lookupRuleId ? "selected" : ""}>+${r.points}đ — ${r.label}</option>`).join("")}
-      </optgroup>
-      <optgroup label="Vi phạm (Điểm trừ)">
-        ${penalties.map((r) => `<option value="${r.id}" ${r.id === state.lookupRuleId ? "selected" : ""}>${r.points}đ — ${r.label}</option>`).join("")}
-      </optgroup>
-      ${
-        notes.length
-          ? `<optgroup label="Ghi nhận nề nếp">
-              ${notes.map((r) => `<option value="${r.id}" ${r.id === state.lookupRuleId ? "selected" : ""}>0đ — ${r.label}</option>`).join("")}
-            </optgroup>`
-          : ""
-      }
-    `;
+    ruleSelector.innerHTML = allRules
+      .map(
+        (r) => `<option value="${r.id}" ${r.id === state.lookupRuleId ? "selected" : ""}>${r.points > 0 ? "+" : ""}${r.points}đ • ${r.label}</option>`
+      )
+      .join("");
 
     ruleSelector.onchange = (e) => {
       state.lookupRuleId = e.target.value;
@@ -1799,19 +1819,11 @@ function renderConductView() {
     }
   }
 
-  if (searchInput) {
-    searchInput.oninput = () => {
-      clearBtn?.classList.toggle("hidden", !searchInput.value);
-      renderConductView();
-    };
-  }
-  if (clearBtn) {
-    clearBtn.onclick = () => {
-      if (searchInput) searchInput.value = "";
-      clearBtn.classList.add("hidden");
-      renderConductView();
-    };
-  }
+  bindNameSearchInput({
+    inputSelector: "#conduct-search-input",
+    clearSelector: "#btn-clear-conduct-search",
+    onSearch: () => renderConductView(),
+  });
 
   // 2. 4 Semester Chips:
   // Giữa kì 1: Tuần 1-9
@@ -2051,6 +2063,52 @@ function renderAdminPanel() {
   const eventsSummary = $("#admin-summary-events");
   if (eventsSummary) {
     eventsSummary.textContent = `${store.events.length} lượt ghi tuần này`;
+  }
+
+  const adminWeekSelector = $("#admin-week-selector");
+  const adminWeekSlider = $("#admin-week-slider");
+  const adminWeekLabel = $("#admin-week-label");
+  const adminWeekPill = $("#admin-week-pill");
+  const adminWeekPrev = $("#btn-admin-week-prev");
+  const adminWeekNext = $("#btn-admin-week-next");
+  if (adminWeekSelector && adminWeekSlider) {
+    const allWeekIds = competitionWeekIds();
+    adminWeekSelector.innerHTML = allWeekIds
+      .map((wId) => `<option value="${wId}" ${wId === store.weekId ? "selected" : ""}>Tuần ${weekNumber(wId)}</option>`)
+      .join("");
+
+    const syncAdminWeekUI = () => {
+      const idx = allWeekIds.indexOf(store.weekId);
+      const val = idx >= 0 ? idx + 1 : 1;
+      adminWeekSlider.max = String(allWeekIds.length);
+      adminWeekSlider.value = String(val);
+      const currentLabel = `Tuần ${weekNumber(store.weekId)}`;
+      if (adminWeekLabel) adminWeekLabel.textContent = currentLabel;
+      if (adminWeekPill) adminWeekPill.textContent = currentLabel;
+      const pct = ((val - 1) / Math.max(1, allWeekIds.length - 1)) * 100;
+      adminWeekSlider.style.background = `linear-gradient(90deg, rgb(var(--a1-primary)) 0%, rgb(var(--a1-primary)) ${pct}%, rgb(var(--a1-surface-container)) ${pct}%, rgb(var(--a1-surface-container)) 100%)`;
+    };
+
+    adminWeekSelector.onchange = (e) => {
+      store.setWeek(e.target.value);
+    };
+    adminWeekSlider.oninput = (e) => {
+      const idx = Number(e.target.value) - 1;
+      const target = allWeekIds[idx];
+      if (target) store.setWeek(target);
+    };
+    adminWeekPrev.onclick = () => {
+      const idx = allWeekIds.indexOf(store.weekId);
+      const nextIdx = idx > 0 ? idx - 1 : 0;
+      store.setWeek(allWeekIds[nextIdx]);
+    };
+    adminWeekNext.onclick = () => {
+      const idx = allWeekIds.indexOf(store.weekId);
+      const nextIdx = idx < allWeekIds.length - 1 ? idx + 1 : allWeekIds.length - 1;
+      store.setWeek(allWeekIds[nextIdx]);
+    };
+
+    syncAdminWeekUI();
   }
 
   // 1. 4 Metric Cards
@@ -2622,22 +2680,11 @@ function setupEventListeners() {
     };
   }
 
-  // Scoring Search
-  const scoreSearchInput = $("#score-search-input");
-  const clearScoreSearchBtn = $("#btn-clear-score-search");
-  if (scoreSearchInput) {
-    scoreSearchInput.oninput = () => {
-      clearScoreSearchBtn?.classList.toggle("hidden", !scoreSearchInput.value);
-      renderStudentSelectGrid();
-    };
-  }
-  if (clearScoreSearchBtn) {
-    clearScoreSearchBtn.onclick = () => {
-      if (scoreSearchInput) scoreSearchInput.value = "";
-      clearScoreSearchBtn.classList.add("hidden");
-      renderStudentSelectGrid();
-    };
-  }
+  bindNameSearchInput({
+    inputSelector: "#score-search-input",
+    clearSelector: "#btn-clear-score-search",
+    onSearch: () => renderStudentSelectGrid(),
+  });
 
   // Submit scoring button
   const submitScoreBtn = $("#btn-submit-score");
