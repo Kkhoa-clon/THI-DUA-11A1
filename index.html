@@ -105,6 +105,9 @@
       </div>
 
       <div class="flex items-center gap-1.5">
+        <button id="btn-app-back" type="button" class="hidden w-9 h-9 rounded-full bg-surface-container-low hover:bg-surface-container-high flex items-center justify-center text-on-surface transition-colors active:scale-95" title="Quay lại trang trước" aria-label="Quay lại trang trước">
+          <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+        </button>
         <button id="btn-theme-toggle" type="button" class="w-9 h-9 rounded-full bg-surface-container-low hover:bg-surface-container-high flex items-center justify-center text-primary transition-colors active:scale-95" title="Chuyển sang chế độ tối" aria-label="Chuyển sang chế độ tối">
           <span class="material-symbols-outlined text-[20px]">dark_mode</span>
         </button>
@@ -469,20 +472,6 @@
           <input id="score-note-input" type="text" placeholder="Ghi chú chung (ví dụ: tiết 2 Hóa)..." class="w-full h-11 bg-surface-container-low px-3 rounded-xl text-xs text-on-surface placeholder:text-outline outline-none focus:ring-2 focus:ring-primary/20" />
         </div>
 
-        <!-- Lịch sử vừa chấm trong phiên (Cho phép xóa trong 15 phút) -->
-        <div class="bg-surface-container-lowest rounded-2xl p-3.5 shadow-xs flex flex-col gap-2 border border-outline-variant/20">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-[16px] text-outline">history</span>
-              <span class="font-heading font-bold text-xs text-on-surface">Lịch sử vừa chấm</span>
-              <span class="text-[10px] text-outline bg-surface-container px-2 py-0.5 rounded-full font-medium">Xóa trong 15 phút</span>
-            </div>
-          </div>
-          <div class="space-y-1.5" id="session-log-list">
-            <p class="text-xs text-outline py-2 text-center">Chưa có lượt chấm nào trong phiên này.</p>
-          </div>
-        </div>
-
         <!-- Sticky Floating Action Bar -->
         <div class="score-action-bar fixed inset-x-0 z-30 max-w-3xl mx-auto px-4 pointer-events-none">
           <div class="glass-floating rounded-2xl p-2.5 pointer-events-auto flex flex-col gap-1 shadow-lg">
@@ -771,26 +760,6 @@
         </div>
       </div>
 
-      <!-- BƯỚC 3: Tra cứu chuyên sâu -->
-      <div class="rounded-2xl bg-surface-container-lowest shadow-xs overflow-hidden">
-        <div class="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
-          <div class="w-6 h-6 rounded-full bg-tertiary text-on-tertiary text-[11px] font-bold flex items-center justify-center shrink-0">3</div>
-          <div>
-            <span class="font-heading font-bold text-xs text-on-surface uppercase tracking-wide">Tìm theo nội quy</span>
-            <p class="text-[10px] text-on-surface-variant">Chọn mục để xem lịch sử qua các tuần</p>
-          </div>
-        </div>
-        <div class="px-3 pb-3 flex flex-col gap-2">
-          <div class="relative">
-            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[16px]">menu_book</span>
-            <select id="lookup-rule-selector" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pl-9 pr-9 rounded-xl text-xs font-semibold border border-outline-variant/30">
-              <option value="">Chọn nội quy</option>
-            </select>
-            <span class="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">expand_more</span>
-          </div>
-          <div id="lookup-rule-weeks" class="space-y-1.5"></div>
-        </div>
-      </div>
     </section>
 
     <!-- ======================================================================= -->
@@ -848,7 +817,30 @@
     </section>
 
     <!-- ======================================================================= -->
-    <!-- VIEW 7: QUẢN LÝ LỚP — GVCN DASHBOARD -->
+    <!-- VIEW 7: BẢNG SINH HOẠT LỚP (4 PANEL LANDSCAPE) -->
+    <!-- ======================================================================= -->
+    <section id="view-classroom-board" class="app-view flex-col w-full gap-3 pb-8">
+      <div class="rounded-2xl bg-gradient-to-br from-indigo-600 via-primary to-sky-500 p-4 text-white shadow-md">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-white/70 font-bold">Màn hình lớp</p>
+            <h2 class="font-heading font-bold text-lg mt-1">Bảng sinh hoạt lớp</h2>
+          </div>
+          <div class="relative">
+            <select id="classroom-board-week-select" class="appearance-none bg-white/15 text-white border border-white/25 rounded-xl px-3 py-2 text-[11px] font-bold outline-none focus:ring-2 focus:ring-white/30 min-w-[120px]">
+              <option value="">Tuần</option>
+            </select>
+            <span class="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/80 text-[18px]">expand_more</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="classroom-board-summary" class="rounded-2xl bg-gradient-to-br from-indigo-600 via-primary to-sky-500 p-3 shadow-xs text-white"></div>
+      <div id="classroom-board-grid" class="classroom-board-grid"></div>
+    </section>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW 8: QUẢN LÝ LỚP — GVCN DASHBOARD -->
     <!-- ======================================================================= -->
     <section id="view-admin" class="app-view flex-col w-full gap-3 pb-8">
       <!-- Admin Login -->
@@ -907,18 +899,71 @@
             </div>
             <span id="admin-week-pill" class="px-2.5 py-1 rounded-full bg-primary-fixed text-primary text-[10px] font-bold">Tuần 7</span>
           </div>
-          <div class="relative">
-            <select id="admin-week-selector" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-9 rounded-xl text-xs font-semibold border border-outline-variant/30">
-              <option value="">Chọn tuần</option>
-            </select>
-            <span class="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">expand_more</span>
+          <div class="flex items-center gap-2">
+            <button id="btn-admin-week-prev" type="button" class="w-9 h-9 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface flex items-center justify-center shrink-0 active:scale-95">
+              <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+            <div class="relative flex-1">
+              <select id="admin-week-selector" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-9 rounded-xl text-xs font-semibold border border-outline-variant/30">
+                <option value="">Chọn tuần</option>
+              </select>
+              <span class="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">expand_more</span>
+            </div>
+            <button id="btn-admin-week-next" type="button" class="w-9 h-9 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface flex items-center justify-center shrink-0 active:scale-95">
+              <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
+          </div>
+          <div class="mt-3">
+            <input id="admin-week-slider" type="range" min="1" max="1" value="1" class="w-full" />
+          </div>
+        </div>
+
+        <!-- Kiểm Soát Tuần — Week Lock Management -->
+        <div class="rounded-2xl bg-surface-container-lowest p-3.5 shadow-xs" id="admin-week-lock-card">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center">
+                <span class="material-symbols-outlined text-amber-700 text-[16px]">lock</span>
+              </div>
+              <div>
+                <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Kiểm soát tuần</p>
+                <h3 class="font-heading font-bold text-sm text-on-surface">Khóa / Mở tuần học</h3>
+              </div>
+            </div>
+            <span id="admin-locked-count-badge" class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold">0 tuần khóa</span>
+          </div>
+          
+          <!-- Form khóa tuần mới -->
+          <div class="bg-surface-container-low rounded-xl p-3 mb-3 flex flex-col gap-2.5">
+            <p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-wide">Khóa một tuần</p>
+            <div class="flex gap-2">
+              <div class="relative flex-1">
+                <select id="admin-lock-week-select" class="dropdown-select w-full appearance-none bg-surface-container text-on-surface px-3 py-2 pr-8 rounded-xl text-xs font-semibold border border-outline-variant/30">
+                  <option value="">Chọn tuần cần khóa</option>
+                </select>
+                <span class="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">expand_more</span>
+              </div>
+            </div>
+            <input type="text" id="admin-lock-reason-input" placeholder="Lý do khóa (bắt buộc)..." 
+              class="w-full bg-surface-container text-on-surface px-3 py-2 rounded-xl text-xs font-medium border border-outline-variant/30 outline-none focus:ring-2 focus:ring-amber-400/30 placeholder:text-on-surface-variant/50" 
+              maxlength="100" />
+            <button type="button" id="btn-admin-lock-week" 
+              class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs">
+              <span class="material-symbols-outlined text-[16px]">lock</span>
+              Xác nhận khóa tuần
+            </button>
+          </div>
+          
+          <!-- Danh sách các tuần đã khóa -->
+          <div id="admin-locked-weeks-list" class="flex flex-col gap-1.5">
+            <!-- Rendered by JS -->
           </div>
         </div>
 
         <!-- Quick Action Buttons — Nút hành động nhanh -->
         <div class="rounded-2xl bg-surface-container-lowest p-3.5 shadow-xs">
-          <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold mb-2.5 px-0.5">⚡ Hành động nhanh</p>
-          <div class="grid grid-cols-3 gap-2">
+          <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold mb-2.5 px-0.5">⚡ Quản lý toàn bộ</p>
+          <div class="grid grid-cols-2 gap-2">
             <button type="button" onclick="document.querySelector('[data-view=\'leaderboard\']')?.click()" class="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-primary-fixed/50 hover:bg-primary-fixed active:scale-95 transition-all">
               <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-xs">
                 <span class="material-symbols-outlined text-on-primary text-[20px]">leaderboard</span>
@@ -931,11 +976,29 @@
               </div>
               <span class="font-heading font-bold text-[10px] text-secondary text-center leading-tight">Ghi<br>điểm</span>
             </button>
-            <button type="button" onclick="document.querySelector('[data-board-pill=\'history\']')?.click(); document.querySelector('[data-view=\'leaderboard\']')?.click();" class="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-tertiary-fixed/30 hover:bg-tertiary-fixed/60 active:scale-95 transition-all">
-              <div class="w-9 h-9 rounded-xl bg-tertiary flex items-center justify-center shadow-xs">
-                <span class="material-symbols-outlined text-on-tertiary text-[20px]">history_edu</span>
+            <button type="button" onclick="document.querySelector('[data-view=\'classroom-board\']')?.click()" class="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-indigo-100 hover:bg-indigo-200 active:scale-95 transition-all">
+              <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-xs">
+                <span class="material-symbols-outlined text-white text-[20px]">view_week</span>
               </div>
-              <span class="font-heading font-bold text-[10px] text-tertiary text-center leading-tight">Tiền án<br>tiền sự</span>
+              <span class="font-heading font-bold text-[10px] text-indigo-700 text-center leading-tight">Sinh hoạt<br>lớp</span>
+            </button>
+            <button type="button" onclick="document.querySelector('[data-view=\'conduct\']')?.click()" class="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-amber-50 hover:bg-amber-100 active:scale-95 transition-all">
+              <div class="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center shadow-xs">
+                <span class="material-symbols-outlined text-white text-[20px]">assignment</span>
+              </div>
+              <span class="font-heading font-bold text-[10px] text-amber-700 text-center leading-tight">Hạnh<br>kiểm</span>
+            </button>
+            <button type="button" onclick="document.querySelector('[data-view=\'rules\']')?.click()" class="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:scale-95 transition-all">
+              <div class="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center shadow-xs">
+                <span class="material-symbols-outlined text-white text-[20px]">menu_book</span>
+              </div>
+              <span class="font-heading font-bold text-[10px] text-emerald-700 text-center leading-tight">Nội quy<br>lớp</span>
+            </button>
+            <button type="button" onclick="document.querySelector('[data-view=\'lookup\']')?.click()" class="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-teal-50 hover:bg-teal-100 active:scale-95 transition-all">
+              <div class="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center shadow-xs">
+                <span class="material-symbols-outlined text-white text-[20px]">manage_search</span>
+              </div>
+              <span class="font-heading font-bold text-[10px] text-teal-700 text-center leading-tight">Tra cứu<br>điểm</span>
             </button>
           </div>
         </div>
@@ -1115,6 +1178,13 @@
           <div class="flex flex-col">
             <span class="font-heading font-bold text-sm">Thống kê hạnh kiểm</span>
             <span class="text-[11px] text-on-surface-variant">Xếp loại các tuần theo mốc giữa kì và cuối kì</span>
+          </div>
+        </button>
+        <button type="button" class="more-link w-full text-left p-3 rounded-xl bg-surface-container-low hover:bg-surface-container flex items-center gap-3 transition-colors" data-view="classroom-board">
+          <span class="material-symbols-outlined text-primary">view_week</span>
+          <div class="flex flex-col">
+            <span class="font-heading font-bold text-sm">Bảng sinh hoạt lớp</span>
+            <span class="text-[11px] text-on-surface-variant">Tổng quan 4 tổ theo tuần, vi phạm và điểm số dạng bảng</span>
           </div>
         </button>
         <button type="button" class="more-link w-full text-left p-3 rounded-xl bg-surface-container-low hover:bg-surface-container flex items-center gap-3 transition-colors" data-view="admin">

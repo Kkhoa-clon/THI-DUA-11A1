@@ -13,6 +13,7 @@ import {
   toNonAccentVietnamese,
 } from "./config.js";
 import {
+  BASE_POINTS,
   RULES,
   RULE_BY_ID,
   QUICK_REWARDS,
@@ -35,10 +36,11 @@ import {
 const store = new ScoreStore();
 
 // Trạng thái cục bộ của giao diện
-const MORE_VIEWS = new Set(["rules", "conduct", "admin"]);
+const MORE_VIEWS = new Set(["rules", "conduct", "admin", "classroom-board"]);
 
 const state = {
   currentView: "leaderboard",
+  viewHistory: ["leaderboard"],
   currentBoard: "teams", // teams | year | minus | plus | history | podium
   selectedStudentIds: new Set(),
   selectedRules: new Map(), // ruleId => quantity (1..10)
@@ -115,6 +117,20 @@ function bindNameSearchInput({ inputSelector, clearSelector, onSearch }) {
   });
 }
 
+function populateWeekSelector(selectEl, selectedWeekId, { placeholder = "Chọn tuần" } = {}) {
+  if (!selectEl) return;
+  const allWeekIds = competitionWeekIds();
+  const safeSelected = allWeekIds.includes(selectedWeekId) ? selectedWeekId : allWeekIds[allWeekIds.length - 1] || "";
+
+  selectEl.innerHTML = allWeekIds.length
+    ? allWeekIds
+        .map((weekId) => `<option value="${weekId}" ${weekId === safeSelected ? "selected" : ""}>Tuần ${weekNumber(weekId)}</option>`)
+        .join("")
+    : `<option value="">${placeholder}</option>`;
+
+  if (safeSelected) selectEl.value = safeSelected;
+}
+
 function getRankLabel(item) {
   return `Hạng ${item.rank}`;
 }
@@ -149,12 +165,37 @@ function openMoreSheet() {
   sheet?.classList.add("flex");
 }
 
-function switchView(viewName) {
+function syncBackButton() {
+  const backBtn = $("#btn-app-back");
+  if (!backBtn) return;
+  const canGoBack = state.viewHistory.length > 1;
+  backBtn.classList.toggle("hidden", !canGoBack);
+  backBtn.classList.toggle("flex", canGoBack);
+}
+
+function goBackView() {
+  if (state.viewHistory.length <= 1) return;
+  const previousView = state.viewHistory[state.viewHistory.length - 2] || "leaderboard";
+  state.viewHistory.pop();
+  switchView(previousView, { fromHistory: true });
+}
+
+function switchView(viewName, options = {}) {
   if (viewName === "more") {
     openMoreSheet();
     return;
   }
   closeMoreSheet();
+
+  const { fromHistory = false } = options;
+  if (!fromHistory) {
+    const lastView = state.viewHistory[state.viewHistory.length - 1];
+    if (lastView !== viewName) {
+      state.viewHistory.push(viewName);
+      if (state.viewHistory.length > 12) state.viewHistory.shift();
+    }
+  }
+
   state.currentView = viewName;
 
   $$(".app-view").forEach((v) => v.classList.remove("active-view"));
@@ -172,6 +213,7 @@ function switchView(viewName) {
   });
 
   window.scrollTo({ top: 0, behavior: "instant" });
+  syncBackButton();
 
   if (viewName === "leaderboard") renderLeaderboard();
   else if (viewName === "scoring") renderScoringWorkspace();
@@ -179,6 +221,7 @@ function switchView(viewName) {
   else if (viewName === "lookup") renderLookupView();
   else if (viewName === "conduct") renderConductView();
   else if (viewName === "rules") renderClassRulesView();
+  else if (viewName === "classroom-board") renderClassroomBoardView();
   else if (viewName === "admin") renderAdminPanel();
 }
 
@@ -840,7 +883,6 @@ function renderScoringWorkspace() {
   renderQuickActions();
   renderSelectedRulesBasket();
   updateSubmitBar();
-  renderSessionLog();
 }
 
 function renderStudentSelectGrid() {
@@ -1156,7 +1198,6 @@ async function handleScoreSubmit() {
       renderSelectedRulesBasket();
       checkRepeatInfractionAlert();
       updateSubmitBar();
-      renderSessionLog();
     }
   } catch (err) {
     alert(err.message || "Lỗi khi lưu điểm.");
@@ -1607,11 +1648,7 @@ function renderLookupView() {
   const weekSelector = $("#lookup-week-selector");
   const weekSelectedLabel = $("#lookup-week-selected-label");
   if (weekSelector) {
-    const allWeekIds = competitionWeekIds();
-    weekSelector.innerHTML = allWeekIds
-      .map((wId) => `<option value="${wId}" ${wId === weekId ? "selected" : ""}>Tuần ${weekNumber(wId)}</option>`)
-      .join("");
-
+    populateWeekSelector(weekSelector, weekId);
     if (weekSelectedLabel) weekSelectedLabel.textContent = `Tuần ${curWeekNum}`;
 
     weekSelector.onchange = (e) => {
@@ -1686,72 +1723,6 @@ function renderLookupView() {
       : `<p class="text-xs text-outline py-4 text-center">Chưa có điểm cộng trong tuần này.</p>`;
   }
 
-  // 6. TRA CỨU CHUYÊN SÂU THEO NỘI QUY CỤ THỂ
-  const ruleSelector = $("#lookup-rule-selector");
-  const ruleWeeksList = $("#lookup-rule-weeks");
-  if (ruleSelector) {
-    const rewards = RULES.filter((r) => r.points > 0);
-    const penalties = RULES.filter((r) => r.points < 0);
-    const notes = RULES.filter((r) => r.points === 0);
-    const allRules = [...rewards, ...penalties, ...notes];
-
-    ruleSelector.innerHTML = allRules
-      .map(
-        (r) => `<option value="${r.id}" ${r.id === state.lookupRuleId ? "selected" : ""}>${r.points > 0 ? "+" : ""}${r.points}đ • ${r.label}</option>`
-      )
-      .join("");
-
-    ruleSelector.onchange = (e) => {
-      state.lookupRuleId = e.target.value;
-      renderLookupDeepHistory();
-    };
-  }
-
-  renderLookupDeepHistory();
-}
-
-function renderLookupDeepHistory() {
-  const memberId = state.lookupMemberId;
-  const ruleId = state.lookupRuleId;
-  const ruleWeeksList = $("#lookup-rule-weeks");
-  if (!ruleWeeksList || !memberId || !ruleId) return;
-
-  const history = store.getMemberRuleHistory(memberId, ruleId);
-  const rule = RULE_BY_ID[ruleId];
-  if (!rule) return;
-
-  const totalPoints = history.reduce((sum, e) => sum + e.points, 0);
-
-  if (!history.length) {
-    ruleWeeksList.innerHTML = `
-      <div class="p-4 rounded-xl bg-surface-container-low text-center text-xs text-outline">
-        Học sinh chưa từng có lượt ghi nhận nội quy này trong năm học.
-      </div>
-    `;
-    return;
-  }
-
-  ruleWeeksList.innerHTML = `
-    <div class="p-2.5 rounded-xl bg-surface-container-low flex items-center justify-between text-xs mb-1">
-      <span class="font-medium text-on-surface-variant">Tổng cộng: <strong>${history.length} lần</strong></span>
-      <span class="font-heading font-bold ${rule.points > 0 ? "text-secondary" : "text-error"} tabular-nums">${formatPoints(totalPoints)}đ</span>
-    </div>
-    <div class="space-y-1.5">
-      ${history
-        .map(
-          (e) => `
-            <div class="p-2.5 rounded-xl bg-surface-container-low flex items-center justify-between gap-2 text-xs">
-              <div class="flex items-center gap-2 min-w-0">
-                <span class="px-2 py-0.5 rounded-md bg-surface-container font-heading font-bold text-[10px] text-primary shrink-0">Tuần ${e.weekNumber}</span>
-                <span class="text-on-surface truncate">${e.note ? `"${escapeHtml(e.note)}"` : "Không có ghi chú"} • ${formatRelativeTime(e.createdAt)}</span>
-              </div>
-              <span class="font-heading font-bold ${e.points > 0 ? "text-secondary" : "text-error"} tabular-nums shrink-0">${formatPoints(e.points)}đ</span>
-            </div>
-          `
-        )
-        .join("")}
-    </div>
-  `;
 }
 
 // ===========================================================================
@@ -1930,6 +1901,165 @@ function renderConductView() {
 }
 
 // ===========================================================================
+// MÀN HÌNH 7: BẢNG SINH HOẠT LỚP (LANDSCAPE 4 PANEL)
+// ===========================================================================
+function renderClassroomBoardView() {
+  const boardGrid = $("#classroom-board-grid");
+  const weekSelect = $("#classroom-board-week-select");
+  const summaryPanel = $("#classroom-board-summary");
+  if (!boardGrid) return;
+
+  if (weekSelect) {
+    populateWeekSelector(weekSelect, store.weekId);
+    weekSelect.onchange = (event) => {
+      store.setWeek(event.currentTarget.value);
+    };
+  }
+
+  const weekId = store.weekId;
+  const weekNum = weekNumber(weekId);
+  const teams = teamsForWeek(weekId);
+  const teamScores = store.calculateScoresFast(store.events, BASE_POINTS, weekId).teamScores;
+  const lockReason = store.getLockedWeekReason(weekId);
+
+  if (summaryPanel) {
+    const lockedText = lockReason
+      ? `<span class="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 px-2 py-1 text-[10px] font-bold"><span class="material-symbols-outlined text-[14px]">lock</span>Tuần bị khóa: ${escapeHtml(lockReason)}</span>`
+      : `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-1 text-[10px] font-bold"><span class="material-symbols-outlined text-[14px]">check_circle</span>Tuần đang hoạt động</span>`;
+
+    summaryPanel.innerHTML = `
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.18em] text-white/70 font-bold">Sinh hoạt lớp · Tuần ${weekNum}</p>
+          <h3 class="font-heading font-bold text-base text-white mt-0.5">Bảng điểm 4 tổ</h3>
+        </div>
+        ${lockedText}
+      </div>
+      <div class="mt-3 flex items-center justify-between gap-2 text-[11px] text-white/80">
+        <span>${weekRangeLabel(weekId)}</span>
+        <span>${store.events.filter((event) => event.weekId === weekId).length} lượt ghi</span>
+      </div>
+    `;
+  }
+
+  boardGrid.innerHTML = teams
+    .map((team) => {
+      const scoreInfo = teamScores[team.id] || {
+        total: BASE_POINTS * team.members.length,
+        plusPoints: 0,
+        minusPoints: 0,
+        plusCount: 0,
+        minusCount: 0,
+      };
+      const teamEvents = store.events.filter((event) => event.teamId === team.id && event.weekId === weekId);
+      const violations = teamEvents
+        .filter((event) => event.points < 0)
+        .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
+        .slice(0, 5);
+      const rewards = teamEvents
+        .filter((event) => event.points > 0)
+        .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
+        .slice(0, 5);
+      const topMembers = team.members
+        .map((member) => {
+          const memberEvents = teamEvents.filter((event) => event.memberId === member.id);
+          const delta = memberEvents.reduce((sum, event) => sum + event.points, 0);
+          return { member, delta, count: memberEvents.length };
+        })
+        .sort((a, b) => b.delta - a.delta || a.member.name.localeCompare(b.member.name, "vi"))
+        .slice(0, 3);
+
+      return `
+        <article class="classroom-board-panel">
+          <div class="classroom-board-head">
+            <div class="classroom-board-badge">${team.id.replace("to", "T")}</div>
+            <div class="min-w-0 flex-1">
+              <h4 class="font-heading font-bold text-sm text-on-surface truncate">${escapeHtml(team.name)}</h4>
+              <p class="text-[10px] text-on-surface-variant">${team.members.length} học sinh</p>
+            </div>
+            <div class="classroom-score-badge ${scoreInfo.total >= BASE_POINTS * team.members.length ? "positive" : "negative"}">
+              ${scoreInfo.total >= BASE_POINTS * team.members.length ? "+" : ""}${scoreInfo.total}
+            </div>
+          </div>
+
+          <div class="classroom-board-stats">
+            <div class="classroom-stat">
+              <span class="label">Điểm</span>
+              <strong class="tabular-nums">${scoreInfo.total}</strong>
+            </div>
+            <div class="classroom-stat">
+              <span class="label">Khen</span>
+              <strong class="tabular-nums text-emerald-700">+${scoreInfo.plusPoints || 0}</strong>
+            </div>
+            <div class="classroom-stat">
+              <span class="label">Lỗi</span>
+              <strong class="tabular-nums text-rose-700">${scoreInfo.minusPoints || 0}</strong>
+            </div>
+            <div class="classroom-stat">
+              <span class="label">Lượt</span>
+              <strong class="tabular-nums">${teamEvents.length}</strong>
+            </div>
+          </div>
+
+          <div class="classroom-list-block">
+            <div class="classroom-list-header">
+              <span>Vi phạm</span>
+              <span class="badge-muted">${scoreInfo.minusCount || 0}</span>
+            </div>
+            ${violations.length ? violations.map((event) => {
+              const rule = RULE_BY_ID[event.ruleId] || { label: event.label || "Vi phạm" };
+              const member = MEMBER_BY_ID[event.memberId];
+              return `
+                <div class="classroom-list-row danger">
+                  <div class="classroom-row-main">
+                    <span class="classroom-name">${escapeHtml(member?.name || event.memberId)}</span>
+                    <span class="classroom-rule">${escapeHtml(rule.label)}</span>
+                  </div>
+                  <span class="classroom-points">${formatPoints(event.points)}</span>
+                </div>
+              `;
+            }).join("") : `<div class="classroom-empty">Không có vi phạm trong tuần này.</div>`}
+          </div>
+
+          <div class="classroom-list-block">
+            <div class="classroom-list-header">
+              <span>Điểm cộng</span>
+              <span class="badge-muted">${scoreInfo.plusCount || 0}</span>
+            </div>
+            ${rewards.length ? rewards.map((event) => {
+              const rule = RULE_BY_ID[event.ruleId] || { label: event.label || "Điểm cộng" };
+              const member = MEMBER_BY_ID[event.memberId];
+              return `
+                <div class="classroom-list-row success">
+                  <div class="classroom-row-main">
+                    <span class="classroom-name">${escapeHtml(member?.name || event.memberId)}</span>
+                    <span class="classroom-rule">${escapeHtml(rule.label)}</span>
+                  </div>
+                  <span class="classroom-points">${formatPoints(event.points)}</span>
+                </div>
+              `;
+            }).join("") : `<div class="classroom-empty">Chưa có điểm cộng.</div>`}
+          </div>
+
+          <div class="classroom-list-block compact">
+            <div class="classroom-list-header">
+              <span>Nhân tố nổi bật</span>
+            </div>
+            ${topMembers.length ? topMembers.map(({ member, delta, count }) => `
+              <div class="classroom-member-row">
+                <span class="classroom-member-name">${escapeHtml(member.name)}</span>
+                <span class="classroom-member-score ${delta >= 0 ? "positive" : "negative"}">${delta >= 0 ? "+" : ""}${delta}đ</span>
+                <span class="text-[9px] text-on-surface-variant">${count} lượt</span>
+              </div>
+            `).join("") : `<div class="classroom-empty">Chưa có dữ liệu.</div>`}
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+// ===========================================================================
 // MÀN HÌNH 6: NỘI QUY LỚP (YÊU CẦU 14: TOÀN BỘ BIỂU ĐIỂM TRỰC QUAN)
 // ===========================================================================
 function renderClassRulesView() {
@@ -2073,9 +2203,7 @@ function renderAdminPanel() {
   const adminWeekNext = $("#btn-admin-week-next");
   if (adminWeekSelector && adminWeekSlider) {
     const allWeekIds = competitionWeekIds();
-    adminWeekSelector.innerHTML = allWeekIds
-      .map((wId) => `<option value="${wId}" ${wId === store.weekId ? "selected" : ""}>Tuần ${weekNumber(wId)}</option>`)
-      .join("");
+    populateWeekSelector(adminWeekSelector, store.weekId);
 
     const syncAdminWeekUI = () => {
       const idx = allWeekIds.indexOf(store.weekId);
@@ -2110,6 +2238,114 @@ function renderAdminPanel() {
 
     syncAdminWeekUI();
   }
+
+  // Week Lock Management
+  const lockWeekSelect = $("#admin-lock-week-select");
+  const lockReasonInput = $("#admin-lock-reason-input");
+  const lockWeekBtn = $("#btn-admin-lock-week");
+  const lockedList = $("#admin-locked-weeks-list");
+  const lockedCountBadge = $("#admin-locked-count-badge");
+
+  const renderLockedWeeks = () => {
+    const locked = store.getLockedWeeks();
+    const count = locked.length;
+    if (lockedCountBadge) lockedCountBadge.textContent = `${count} tuần khóa`;
+    
+    if (lockedList) {
+      if (!locked.length) {
+        lockedList.innerHTML = `<p class="text-xs text-on-surface-variant text-center py-2">Chưa có tuần nào bị khóa.</p>`;
+      } else {
+        lockedList.innerHTML = locked
+          .sort((a, b) => a.weekId.localeCompare(b.weekId))
+          .map(entry => {
+            const wNum = weekNumber(entry.weekId);
+            const range = weekRangeLabel(entry.weekId);
+            const dateStr = entry.lockedAt ? new Date(entry.lockedAt).toLocaleDateString('vi-VN') : '';
+            return `
+              <div class="flex items-start justify-between gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                <div class="flex items-start gap-2 min-w-0">
+                  <span class="material-symbols-outlined text-amber-600 text-[18px] mt-0.5 shrink-0">lock</span>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="font-heading font-bold text-xs text-amber-900">Tuần ${wNum}</span>
+                      <span class="text-[10px] text-amber-700">${range}</span>
+                    </div>
+                    <p class="text-[10px] text-amber-800 mt-0.5 break-words">${escapeHtml(entry.reason || 'Không có lý do')}</p>
+                    ${dateStr ? `<p class="text-[9px] text-amber-600 mt-0.5">Khóa ngày ${dateStr}</p>` : ''}
+                  </div>
+                </div>
+                <button type="button" class="shrink-0 w-7 h-7 rounded-lg bg-amber-200 hover:bg-amber-300 active:scale-95 flex items-center justify-center transition-all" data-unlock-week="${entry.weekId}" title="Mở khóa tuần này">
+                  <span class="material-symbols-outlined text-amber-800 text-[14px]">lock_open</span>
+                </button>
+              </div>
+            `;
+          }).join('');
+        
+        $$("#admin-locked-weeks-list [data-unlock-week]").forEach(btn => {
+          btn.onclick = async () => {
+            const wId = btn.dataset.unlockWeek;
+            const wNum = weekNumber(wId);
+            if (!confirm(`Mở khóa Tuần ${wNum}? Dữ liệu tuần này sẽ được tính trở lại.`)) return;
+            try {
+              btn.disabled = true;
+              await store.setWeekLocked(wId, false);
+              renderLockedWeeks();
+            } catch (err) {
+              alert('Lỗi: ' + err.message);
+              btn.disabled = false;
+            }
+          };
+        });
+      }
+    }
+  };
+
+  // Populate week selector for locking
+  if (lockWeekSelect) {
+    const allWeekIds = competitionWeekIds();
+    const locked = store.getLockedWeeks();
+    const lockedIds = new Set(locked.map(e => e.weekId));
+    lockWeekSelect.innerHTML = `<option value="">Chọn tuần cần khóa</option>` + 
+      allWeekIds
+        .filter(wId => !lockedIds.has(wId))
+        .map(wId => `<option value="${wId}">Tuần ${weekNumber(wId)} (${weekRangeLabel(wId)})</option>`)
+        .join('');
+  }
+
+  if (lockWeekBtn) {
+    lockWeekBtn.onclick = async () => {
+      const wId = lockWeekSelect?.value;
+      const reason = lockReasonInput?.value?.trim();
+      if (!wId) { alert('Vui lòng chọn tuần cần khóa.'); return; }
+      if (!reason) { alert('Vui lòng nhập lý do khóa tuần.'); return; }
+      const wNum = weekNumber(wId);
+      if (!confirm(`Khóa Tuần ${wNum}?\n\nLý do: "${reason}"\n\nDữ liệu tuần này sẽ KHÔNG được tính vào tổng điểm, hạnh kiểm và bảng xếp hạng năm.`)) return;
+      try {
+        lockWeekBtn.disabled = true;
+        await store.setWeekLocked(wId, true, reason);
+        if (lockWeekSelect) lockWeekSelect.value = '';
+        if (lockReasonInput) lockReasonInput.value = '';
+        renderLockedWeeks();
+        // Re-populate selector without the newly locked week
+        const allWeekIds = competitionWeekIds();
+        const locked = store.getLockedWeeks();
+        const lockedIds = new Set(locked.map(e => e.weekId));
+        if (lockWeekSelect) {
+          lockWeekSelect.innerHTML = `<option value="">Chọn tuần cần khóa</option>` + 
+            allWeekIds
+              .filter(wId2 => !lockedIds.has(wId2))
+              .map(wId2 => `<option value="${wId2}">Tuần ${weekNumber(wId2)} (${weekRangeLabel(wId2)})</option>`)
+              .join('');
+        }
+      } catch (err) {
+        alert('Lỗi: ' + err.message);
+      } finally {
+        lockWeekBtn.disabled = false;
+      }
+    };
+  }
+
+  renderLockedWeeks();
 
   // 1. 4 Metric Cards
   const metricCards = $("#admin-metric-cards");
@@ -2255,34 +2491,7 @@ function renderAdminPanel() {
     `;
   }
 
-  // 4. Recent Events
-  const recentList = $("#admin-recent-events");
-  if (recentList) {
-    const recent = store.allEvents.slice(0, 6);
-    recentList.innerHTML = recent.length
-      ? recent
-          .map((e) => {
-            const isPlus = e.points > 0;
-            const m = MEMBER_BY_ID[e.memberId];
-            const name = m ? m.name : e.memberId;
-            return `
-              <div class="flex items-center gap-2 p-2 rounded-xl bg-surface-container-low text-xs">
-                <div class="w-7 h-7 rounded-lg ${isPlus ? "bg-secondary-container" : "bg-error-container"} flex items-center justify-center shrink-0">
-                  <span class="material-symbols-outlined text-[14px] ${isPlus ? "text-on-secondary-container" : "text-error"}">${isPlus ? "star" : "warning"}</span>
-                </div>
-                <div class="flex flex-col min-w-0 flex-1">
-                  <span class="font-heading font-bold text-on-surface truncate">${escapeHtml(name)}</span>
-                  <span class="text-[10px] text-outline truncate">${escapeHtml(e.label)} • ${formatRelativeTime(e.createdAt)}</span>
-                </div>
-                <span class="font-heading font-bold ${isPlus ? "text-secondary" : "text-error"} tabular-nums shrink-0">${formatPoints(e.points)}đ</span>
-              </div>
-            `;
-          })
-          .join("")
-      : `<p class="text-xs text-outline py-2 text-center">Chưa có lượt ghi nhận nào.</p>`;
-  }
-
-  // 5. Học sinh cần lưu ý tuần này
+  // 4. Học sinh cần lưu ý tuần này
   const topViolations = $("#admin-top-violations");
   if (topViolations) {
     const { memberScores } = store.calculateScoresFast(store.events);
@@ -2610,6 +2819,11 @@ function setupEventListeners() {
     };
   }
 
+  const appBackBtn = $("#btn-app-back");
+  if (appBackBtn) {
+    appBackBtn.onclick = goBackView;
+  }
+
   // 3. User Avatar Top Right
   const userProfileBtn = $("#btn-user-profile");
   if (userProfileBtn) {
@@ -2798,6 +3012,7 @@ async function initApp() {
     else if (state.currentView === "lookup") renderLookupView();
     else if (state.currentView === "conduct") renderConductView();
     else if (state.currentView === "rules") renderClassRulesView();
+    else if (state.currentView === "classroom-board") renderClassroomBoardView();
     else if (state.currentView === "admin") renderAdminPanel();
   });
 

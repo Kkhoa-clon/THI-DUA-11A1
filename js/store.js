@@ -72,7 +72,15 @@ const safeSession = {
 
 /**
  * @typedef {{
- *   lockedWeeks: string[],
+ *   weekId: string,
+ *   reason: string,
+ *   lockedAt: number
+ * }} LockedWeekEntry
+ */
+
+/**
+ * @typedef {{
+ *   lockedWeeks: LockedWeekEntry[],
  *   leadersPaused: boolean
  * }} AppSettings
  */
@@ -100,11 +108,31 @@ function saveLocalSettings(settings) {
 function normalizeSettings(raw) {
   const base = defaultSettings();
   if (!raw || typeof raw !== "object") return base;
-  const locked = Array.isArray(raw.lockedWeeks)
-    ? raw.lockedWeeks.map(String).filter(Boolean)
-    : [];
+  // Support both old format (string[]) and new format (LockedWeekEntry[])
+  const rawLocked = Array.isArray(raw.lockedWeeks) ? raw.lockedWeeks : [];
+  const seen = new Set();
+  const locked = [];
+  for (const item of rawLocked) {
+    if (typeof item === "string" && item) {
+      // Old format: migrate to new format
+      if (!seen.has(item)) {
+        seen.add(item);
+        locked.push({ weekId: item, reason: "", lockedAt: 0 });
+      }
+    } else if (item && typeof item === "object" && typeof item.weekId === "string" && item.weekId) {
+      // New format
+      if (!seen.has(item.weekId)) {
+        seen.add(item.weekId);
+        locked.push({
+          weekId: item.weekId,
+          reason: typeof item.reason === "string" ? item.reason : "",
+          lockedAt: typeof item.lockedAt === "number" ? item.lockedAt : 0,
+        });
+      }
+    }
+  }
   return {
-    lockedWeeks: [...new Set(locked)],
+    lockedWeeks: locked,
     leadersPaused: Boolean(raw.leadersPaused),
   };
 }
@@ -329,12 +357,19 @@ export class ScoreStore {
   }
 
   // —— Cấu hình & Khóa sổ ——
+  /** @returns {LockedWeekEntry[]} */
   getLockedWeeks() {
     return this.settings.lockedWeeks || [];
   }
 
   isWeekLocked(weekId = this.weekId) {
-    return this.getLockedWeeks().includes(weekId);
+    return this.getLockedWeeks().some(entry => entry.weekId === weekId);
+  }
+
+  /** @returns {string} reason or empty string */
+  getLockedWeekReason(weekId = this.weekId) {
+    const entry = this.getLockedWeeks().find(e => e.weekId === weekId);
+    return entry ? (entry.reason || "") : "";
   }
 
   isLeadersPaused() {
@@ -350,7 +385,7 @@ export class ScoreStore {
     const ids = [];
     for (let n = 1; n <= through; n++) {
       const id = weekIdForNumber(n);
-      if (this.isCountingWeek(id)) ids.push(id);
+      if (this.isCountingWeek(id) && !this.isWeekLocked(id)) ids.push(id);
     }
     return ids;
   }
@@ -372,14 +407,15 @@ export class ScoreStore {
     return null;
   }
 
-  async setWeekLocked(weekId, locked) {
+  async setWeekLocked(weekId, locked, reason = "") {
     if (!this.isAdmin()) throw new Error("Chỉ Admin được khóa sổ tuần.");
-    const set = new Set(this.getLockedWeeks());
-    if (locked) set.add(weekId);
-    else set.delete(weekId);
+    const current = this.getLockedWeeks().filter(e => e.weekId !== weekId);
+    if (locked) {
+      current.push({ weekId, reason: String(reason || ""), lockedAt: Date.now() });
+    }
     await this._saveSettings({
       ...this.settings,
-      lockedWeeks: [...set].sort(),
+      lockedWeeks: current.sort((a, b) => a.weekId.localeCompare(b.weekId)),
     });
   }
 
