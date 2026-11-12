@@ -174,9 +174,9 @@ export function weekIdForNumber(n) {
 
 export function studiedThroughWeek() {
   const n = weekNumber(weekIdFromDate());
-  if (n < 1) return 1;
+  if (n < 1) return 0;
   if (n > TOTAL_WEEKS) return TOTAL_WEEKS;
-  return n;
+  return n - 1;
 }
 
 export function isStudiedWeek(weekId) {
@@ -186,8 +186,10 @@ export function isStudiedWeek(weekId) {
 }
 
 export function defaultWeekId() {
-  const through = studiedThroughWeek();
-  return weekIdForNumber(through);
+  const current = weekNumber(weekIdFromDate());
+  if (current < 1) return weekIdForNumber(1);
+  if (current > TOTAL_WEEKS) return weekIdForNumber(TOTAL_WEEKS);
+  return weekIdForNumber(current);
 }
 
 export function competitionWeekIds() {
@@ -760,11 +762,74 @@ export class ScoreStore {
 
   /** Xếp hạng các tổ tuần hiện tại */
   getTeamRankings() {
+    if (!isStudiedWeek(this.weekId)) return [];
     const { teamScores } = this.calculateScoresFast(this.events);
     const sorted = Object.values(teamScores).sort(
       (a, b) => b.total - a.total || compareNamesAlphabetically(a, b)
     );
     return assignCompetitionRanks(sorted, (team) => team.total);
+  }
+
+  getTeamRangeRankings(fromWeek, toWeek) {
+    const through = studiedThroughWeek();
+    if (
+      !Number.isInteger(fromWeek) ||
+      !Number.isInteger(toWeek) ||
+      fromWeek < 1 ||
+      fromWeek > toWeek ||
+      toWeek > through
+    ) {
+      throw new RangeError("Khoảng tuần tổng kết không hợp lệ.");
+    }
+
+    const totals = new Map(
+      teamsForWeek(weekIdForNumber(fromWeek)).map((team) => [
+        team.id,
+        {
+          id: team.id,
+          name: team.name,
+          total: 0,
+          plusPoints: 0,
+          minusPoints: 0,
+          weeklyResults: [],
+        },
+      ])
+    );
+
+    for (let n = fromWeek; n <= toWeek; n++) {
+      const weekId = weekIdForNumber(n);
+      const weekEvents = this.allEvents.filter((event) => event.weekId === weekId);
+      const { teamScores } = this.calculateScoresFast(weekEvents, BASE_POINTS, weekId);
+      const weeklyRankings = assignCompetitionRanks(
+        Object.values(teamScores).sort(
+          (a, b) => b.total - a.total || compareNamesAlphabetically(a, b)
+        ),
+        (team) => team.total
+      );
+      for (const team of weeklyRankings) {
+        const total = totals.get(team.id);
+        if (total) {
+          total.weeklyResults.push({
+            weekNumber: n,
+            rank: team.rank,
+            total: team.total,
+          });
+        }
+      }
+
+      for (const [teamId, score] of Object.entries(teamScores)) {
+        const total = totals.get(teamId);
+        if (!total) continue;
+        total.total += score.total;
+        total.plusPoints += score.plusPoints;
+        total.minusPoints += score.minusPoints;
+      }
+    }
+
+    const ranked = [...totals.values()].sort(
+      (a, b) => b.total - a.total || compareNamesAlphabetically(a, b)
+    );
+    return assignCompetitionRanks(ranked, (team) => team.total);
   }
 
   /** Lấy danh sách thành viên trong tổ đã sắp xếp theo điểm */
@@ -775,7 +840,9 @@ export class ScoreStore {
     const sorted = team.members
       .map((m) => memberScores[m.id] || { ...m, points: BASE_POINTS, teamId })
       .sort((a, b) => b.points - a.points || compareNamesAlphabetically(a, b));
-    return assignCompetitionRanks(sorted, (member) => member.points);
+    return isStudiedWeek(this.weekId)
+      ? assignCompetitionRanks(sorted, (member) => member.points)
+      : sorted;
   }
 
   getTeamMemberWeekActivity(teamId, weekId = this.weekId) {
@@ -949,16 +1016,17 @@ export class ScoreStore {
     const yearTotal = BASE_POINTS * weeksCount + (plusPoints + minusPoints);
     const avgScore = Math.round((yearTotal / weeksCount) * 10) / 10;
 
-    // Tính thứ hạng của bạn trong lớp tuần này
-    const { memberScores } = this.calculateScoresFast(this.events);
-    const rankedMembers = assignCompetitionRanks(
-      Object.values(memberScores).sort(
-        (a, b) => b.points - a.points || compareNamesAlphabetically(a, b)
-      ),
-      (member) => member.points
-    );
+    // Chỉ xếp hạng cá nhân khi tuần đang chọn đã kết thúc.
+    const rankedMembers = isStudiedWeek(this.weekId)
+      ? assignCompetitionRanks(
+          Object.values(this.calculateScoresFast(this.events).memberScores).sort(
+            (a, b) => b.points - a.points || compareNamesAlphabetically(a, b)
+          ),
+          (m) => m.points
+        )
+      : [];
     const rankedMember = rankedMembers.find((m) => m.id === memberId);
-    const classRank = rankedMember?.rank || 1;
+    const classRank = rankedMember?.rank ?? null;
     const isClassRankTied = rankedMember?.isTied || false;
 
     // Điểm tuần trước để tính chênh lệch tăng/giảm

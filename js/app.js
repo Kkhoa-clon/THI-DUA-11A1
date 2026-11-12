@@ -30,6 +30,7 @@ import {
   defaultWeekId,
   competitionWeekIds,
   studiedThroughWeek,
+  isStudiedWeek,
 } from "./store.js";
 
 // Khởi tạo Store trung tâm
@@ -41,7 +42,9 @@ const MORE_VIEWS = new Set(["rules", "conduct", "admin", "classroom-board"]);
 const state = {
   currentView: "leaderboard",
   viewHistory: ["leaderboard"],
-  currentBoard: "teams", // teams | year | minus | plus | history | podium
+  currentBoard: "teams", // teams | year | minus | plus | history | podium | monthly
+  summaryFromWeek: null,
+  summaryToWeek: null,
   selectedStudentIds: new Set(),
   selectedRules: new Map(), // ruleId => quantity (1..10)
   scoringTeamFilter: "my",
@@ -256,17 +259,23 @@ function renderLeaderboard() {
     }
   }
 
-  const teamRanks = store.getTeamRankings();
-  const leaderTeam = teamRanks[0] || { name: "Tổ 1", total: 400, rawTotal: 400 };
+  const isRankableWeek = isStudiedWeek(currentWeek);
+  const teamRanks = isRankableWeek ? store.getTeamRankings() : [];
+  const leaderTeam = teamRanks[0] || {
+    name: isRankableWeek ? "Chưa có điểm" : "Chưa xếp hạng",
+    total: null,
+    plusPoints: 0,
+    minusPoints: 0,
+  };
 
   const quickLeader = $("#quick-stat-leader-team");
   if (quickLeader) quickLeader.textContent = leaderTeam.name;
 
   const quickScore = $("#quick-stat-top-score");
-  if (quickScore) quickScore.textContent = `${leaderTeam.total}`;
+  if (quickScore) quickScore.textContent = leaderTeam.total === null ? "—" : `${leaderTeam.total}`;
 
   const quickCount = $("#quick-stat-team-count");
-  if (quickCount) quickCount.textContent = `${teamRanks.length} tổ`;
+  if (quickCount) quickCount.textContent = `${TEAMS.length} tổ`;
 
   const snapshotTitle = $("#snapshot-main-title");
   if (snapshotTitle) snapshotTitle.textContent = `Tuần ${curNum}`;
@@ -277,20 +286,23 @@ function renderLeaderboard() {
   const tiedLeaders = teamRanks.filter((team) => team.rank === 1);
   const snapshotRankLead = $("#snapshot-rank-lead");
   if (snapshotRankLead) {
-    snapshotRankLead.textContent =
-      tiedLeaders.length > 1
+    snapshotRankLead.textContent = !isRankableWeek
+      ? "Tuần đang học • chưa xếp hạng"
+      : tiedLeaders.length > 1
         ? `${tiedLeaders.map((t) => t.name).join(" & ")} dẫn đầu`
         : `${leaderTeam.name} dẫn đầu`;
   }
 
   const snapshotTopScore = $("#snapshot-top-score");
-  if (snapshotTopScore) snapshotTopScore.textContent = leaderTeam.total;
+  if (snapshotTopScore) snapshotTopScore.textContent = leaderTeam.total === null ? "—" : leaderTeam.total;
 
   const plusTotal = leaderTeam.plusPoints || 0;
   const minusTotal = leaderTeam.minusPoints || 0;
   const netDelta = plusTotal + minusTotal;
   const snapshotDelta = $("#snapshot-delta");
-  if (snapshotDelta) snapshotDelta.textContent = `${formatPoints(netDelta)} điểm`;
+  if (snapshotDelta) snapshotDelta.textContent = isRankableWeek
+    ? `${formatPoints(netDelta)} điểm`
+    : "Đang cập nhật";
 
   // Week selector
   const weekSelector = $("#week-selector");
@@ -301,8 +313,12 @@ function renderLeaderboard() {
       .map((wId) => {
         const n = weekNumber(wId);
         const isSelected = wId === currentWeek;
-        const isCurStudied = n === through;
-        const suffix = isCurStudied ? " (Hiện tại)" : "";
+        const isCurrent = n === weekNumber(defaultWeekId());
+        const suffix = isCurrent
+          ? " (Đang học)"
+          : n === through
+            ? " (Mới hoàn thành)"
+            : "";
         return `<option value="${wId}" ${isSelected ? "selected" : ""}>Tuần ${n}${suffix}</option>`;
       })
       .join("");
@@ -311,7 +327,7 @@ function renderLeaderboard() {
   // Podium Top 3 Teams
   const podiumGrid = $("#podium-grid");
   const podiumSection = $("#podium-section");
-  if (teamRanks.length >= 3 && state.currentBoard === "teams") {
+  if (isRankableWeek && teamRanks.length >= 3 && state.currentBoard === "teams") {
     podiumSection?.classList.remove("hidden");
     if (podiumGrid) {
       const t1 = teamRanks[0];
@@ -400,7 +416,13 @@ function renderLeaderboard() {
   renderRankingsList(teamRanks);
 
   // Realtime Activity Feed
-  $("#activity-feed-card")?.classList.toggle("hidden", state.currentBoard === "history" || state.currentBoard === "podium");
+  $("#activity-feed-card")?.classList.toggle(
+    "hidden",
+    !isRankableWeek ||
+      state.currentBoard === "history" ||
+      state.currentBoard === "podium" ||
+      state.currentBoard === "monthly"
+  );
   renderRealtimeFeed();
 }
 
@@ -409,6 +431,45 @@ function renderRankingsList(teamRanks) {
   if (!container) return;
 
   if (state.currentBoard === "teams") {
+    if (!isStudiedWeek(store.weekId)) {
+      const { teamScores } = store.calculateScoresFast(
+        store.events,
+        BASE_POINTS,
+        store.weekId
+      );
+      const currentWeekTeams = TEAMS.map((team) => teamScores[team.id]).filter(Boolean);
+
+      container.innerHTML = `
+        <div class="rounded-2xl bg-primary-fixed/50 p-3.5 text-center border border-primary/10">
+          <span class="material-symbols-outlined text-primary text-[24px]">visibility</span>
+          <h3 class="font-heading font-bold text-sm text-on-surface mt-1">Dữ liệu thực tế • Tuần ${weekNumber(store.weekId)}</h3>
+          <p class="text-[11px] text-on-surface-variant mt-1">Chưa xếp hạng thi đua. Điểm và vi phạm bên dưới là số liệu đang ghi nhận, chưa chốt.</p>
+        </div>
+        ${currentWeekTeams.map((team) => `
+          <article class="rounded-2xl bg-surface-container-lowest p-3.5 shadow-xs border border-outline-variant/30">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <h3 class="font-heading font-bold text-sm text-on-surface">${escapeHtml(team.name)}</h3>
+                <p class="text-[10px] text-on-surface-variant mt-0.5">${team.memberCount} học sinh • ${team.minusCount} lượt vi phạm • ${team.plusCount} lượt khen</p>
+              </div>
+              <div class="text-right shrink-0">
+                <span class="block font-heading font-bold text-lg text-primary tabular-nums">${team.total}</span>
+                <span class="text-[10px] text-outline">điểm tạm tính</span>
+              </div>
+            </div>
+            <button type="button" class="btn-view-live-team mt-3 w-full rounded-xl bg-surface-container-low px-3 py-2 text-xs font-bold text-primary hover:bg-surface-container flex items-center justify-center gap-1.5" data-team-id="${team.id}">
+              <span class="material-symbols-outlined text-[16px]">groups</span>
+              Xem điểm và vi phạm từng thành viên
+            </button>
+          </article>
+        `).join("")}
+      `;
+      $$(".btn-view-live-team", container).forEach((button) => {
+        button.onclick = () => openTeamDetailModal(button.dataset.teamId);
+      });
+      return;
+    }
+
     container.innerHTML = teamRanks
       .map((t) => {
         const medal = getRankMedal(t.rank);
@@ -530,6 +591,129 @@ function renderRankingsList(teamRanks) {
     renderViolationHistory(container);
   } else if (state.currentBoard === "podium") {
     renderTeamPodiumStats(container);
+  } else if (state.currentBoard === "monthly") {
+    renderTeamRangeSummary(container);
+  }
+}
+
+function renderTeamRangeSummary(container) {
+  const through = studiedThroughWeek();
+  if (through < 1) {
+    container.innerHTML = `
+      <div class="rounded-2xl bg-surface-container-lowest p-5 text-center shadow-xs">
+        <h3 class="font-heading font-bold text-sm text-on-surface">Chưa có tuần thi đua hoàn thành</h3>
+        <p class="text-xs text-on-surface-variant mt-1">Tổng kết sẽ khả dụng sau khi kết thúc tuần đầu tiên.</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (state.summaryToWeek === null || state.summaryToWeek > through) {
+    state.summaryToWeek = through;
+  }
+  if (state.summaryFromWeek === null || state.summaryFromWeek > through) {
+    state.summaryFromWeek = Math.max(1, through - 3);
+  }
+
+  const weekOptions = Array.from({ length: through }, (_, index) => {
+    const number = index + 1;
+    const weekId = weekIdForNumber(number);
+    return `<option value="${number}">Tuần ${number} (${weekRangeLabel(weekId)})</option>`;
+  }).join("");
+  const fromWeek = state.summaryFromWeek;
+  const toWeek = state.summaryToWeek;
+  const isValidRange = Number.isInteger(fromWeek) &&
+    Number.isInteger(toWeek) &&
+    fromWeek >= 1 &&
+    fromWeek <= toWeek &&
+    toWeek <= through;
+
+  let summaryContent = "";
+  if (!isValidRange) {
+    summaryContent = `
+      <p class="rounded-xl bg-error-container/40 p-3 text-xs font-semibold text-error">
+        Tuần bắt đầu phải nhỏ hơn hoặc bằng tuần kết thúc.
+      </p>
+    `;
+  } else {
+    const teamRanks = store.getTeamRangeRankings(fromWeek, toWeek);
+    summaryContent = `
+      <div class="space-y-2">
+        ${teamRanks.map((team) => `
+          <details class="group rounded-xl bg-surface-container-lowest shadow-xs border border-outline-variant/20">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-3 [&::-webkit-details-marker]:hidden">
+              <span class="flex items-center gap-3 min-w-0">
+                <span class="w-9 h-9 rounded-xl bg-primary-fixed text-primary flex items-center justify-center font-heading font-bold text-sm shrink-0">${getRankMedal(team.rank)}</span>
+                <span class="min-w-0">
+                  <span class="block font-heading font-bold text-sm text-on-surface">${team.name}</span>
+                  <span class="block text-[10px] text-on-surface-variant">Hạng ${team.rank} • Tuần ${fromWeek}–${toWeek} • Xem từng tuần</span>
+                </span>
+              </span>
+              <span class="text-right shrink-0">
+                <span class="block font-heading font-bold text-lg text-primary tabular-nums">${team.total}</span>
+                <span class="block text-[10px] text-outline">điểm tổng</span>
+              </span>
+            </summary>
+            <div class="border-t border-surface-container px-3 py-2.5">
+              <p class="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-2">Kết quả từng tuần</p>
+              <div class="space-y-1.5">
+                ${team.weeklyResults.map((result) => `
+                  <div class="flex items-center justify-between gap-2 rounded-lg bg-surface-container-low px-2.5 py-2">
+                    <span class="text-xs font-semibold text-on-surface">Tuần ${result.weekNumber}</span>
+                    <span class="text-[11px] text-on-surface-variant">Hạng ${result.rank}</span>
+                    <span class="text-xs font-bold text-primary tabular-nums">${result.total} điểm</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          </details>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <section class="rounded-2xl bg-surface-container-lowest p-4 shadow-xs border border-outline-variant/20">
+      <div class="flex items-start gap-2 mb-3">
+        <span class="material-symbols-outlined text-primary">calendar_month</span>
+        <div>
+          <h3 class="font-heading font-bold text-sm text-on-surface">Tổng kết tháng</h3>
+          <p class="text-[11px] text-on-surface-variant mt-0.5">Chọn khoảng tuần đã hoàn thành để cộng điểm và xếp hạng 4 tổ.</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <label class="text-[10px] font-bold text-on-surface-variant">
+          Từ tuần
+          <select id="summary-from-week" class="dropdown-select w-full mt-1 bg-surface-container-low text-on-surface px-3 py-2.5 rounded-xl text-xs font-semibold border border-outline-variant/30">
+            ${weekOptions}
+          </select>
+        </label>
+        <label class="text-[10px] font-bold text-on-surface-variant">
+          Đến tuần
+          <select id="summary-to-week" class="dropdown-select w-full mt-1 bg-surface-container-low text-on-surface px-3 py-2.5 rounded-xl text-xs font-semibold border border-outline-variant/30">
+            ${weekOptions}
+          </select>
+        </label>
+      </div>
+      ${summaryContent}
+    </section>
+  `;
+
+  const fromSelect = $("#summary-from-week", container);
+  const toSelect = $("#summary-to-week", container);
+  if (fromSelect) {
+    fromSelect.value = String(fromWeek);
+    fromSelect.onchange = () => {
+      state.summaryFromWeek = Number(fromSelect.value);
+      renderLeaderboard();
+    };
+  }
+  if (toSelect) {
+    toSelect.value = String(toWeek);
+    toSelect.onchange = () => {
+      state.summaryToWeek = Number(toSelect.value);
+      renderLeaderboard();
+    };
   }
 }
 
@@ -1374,10 +1558,14 @@ function renderProfileView() {
   }
 
   const rankBadge = $("#profile-rank-badge");
-  if (rankBadge) rankBadge.textContent = `#${classRank}`;
+  if (rankBadge) rankBadge.textContent = classRank === null ? "—" : `#${classRank}`;
 
   const rankSub = $("#profile-rank-sub");
-  if (rankSub) rankSub.textContent = `Tuần ${weekNumber(store.weekId)}`;
+  if (rankSub) {
+    rankSub.textContent = isStudiedWeek(store.weekId)
+      ? `Tuần ${weekNumber(store.weekId)}`
+      : `Tuần ${weekNumber(store.weekId)} • Chưa xếp hạng`;
+  }
 
   const weekPointsEl = $("#profile-week-points");
   if (weekPointsEl) weekPointsEl.textContent = currentWeekPoints;
@@ -2551,7 +2739,7 @@ function openTeamDetailModal(teamId) {
 
   membersList.innerHTML = sortedMembers
     .map((m) => {
-      const medal = getRankMedal(m.rank);
+      const medal = isStudiedWeek(store.weekId) ? getRankMedal(m.rank) : "•";
       const activity = weekActivity.get(m.id);
       const activityDetails = activity?.violationGroups.length
         ? activity.violationGroups
