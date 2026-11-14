@@ -829,11 +829,17 @@
             <p class="text-[10px] uppercase tracking-[0.2em] text-white/70 font-bold">Màn hình lớp</p>
             <h2 class="font-heading font-bold text-lg mt-1">Bảng sinh hoạt lớp</h2>
           </div>
-          <div class="relative">
-            <select id="classroom-board-week-select" class="appearance-none bg-white/15 text-white border border-white/25 rounded-xl px-3 py-2 text-[11px] font-bold outline-none focus:ring-2 focus:ring-white/30 min-w-[120px]">
-              <option value="">Tuần</option>
-            </select>
-            <span class="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/80 text-[18px]">expand_more</span>
+          <div class="flex flex-col items-end gap-2 shrink-0">
+            <div class="relative">
+              <select id="classroom-board-week-select" class="appearance-none bg-white/15 text-white border border-white/25 rounded-xl px-3 py-2 text-[11px] font-bold outline-none focus:ring-2 focus:ring-white/30 min-w-[120px]">
+                <option value="">Tuần</option>
+              </select>
+              <span class="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/80 text-[18px]">expand_more</span>
+            </div>
+            <button id="btn-export-classroom-board" type="button" class="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[11px] font-bold text-indigo-700 shadow-sm transition active:scale-95 hover:bg-indigo-50" title="Tải bảng sinh hoạt đầy đủ dưới dạng ảnh PNG">
+              <span class="material-symbols-outlined text-[17px]">image</span>
+              Xuất ảnh
+            </button>
           </div>
         </div>
       </div>

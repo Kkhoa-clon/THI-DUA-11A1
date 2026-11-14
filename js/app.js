@@ -11,6 +11,7 @@ import {
   SEMESTERS,
   resolveAuthCode,
   toNonAccentVietnamese,
+  teamsForWeek,
 } from "./config.js";
 import {
   BASE_POINTS,
@@ -2103,6 +2104,22 @@ function renderClassroomBoardView() {
       store.setWeek(event.currentTarget.value);
     };
   }
+  const exportButton = $("#btn-export-classroom-board");
+  if (exportButton) {
+    exportButton.onclick = async () => {
+      exportButton.disabled = true;
+      exportButton.innerHTML = '<span class="material-symbols-outlined text-[17px]">hourglass_top</span>Đang xuất';
+      try {
+        await exportClassroomBoardImage();
+      } catch (error) {
+        console.error("Không thể xuất ảnh bảng sinh hoạt:", error);
+        alert(`Không thể xuất ảnh bảng sinh hoạt. ${error.message || "Vui lòng thử lại."}`);
+      } finally {
+        exportButton.disabled = false;
+        exportButton.innerHTML = '<span class="material-symbols-outlined text-[17px]">image</span>Xuất ảnh';
+      }
+    };
+  }
 
   const weekId = store.weekId;
   const weekNum = weekNumber(weekId);
@@ -2245,6 +2262,244 @@ function renderClassroomBoardView() {
       `;
     })
     .join("");
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  const words = String(text || "—").split(/\s+/);
+  const lines = [];
+  let line = "";
+
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(candidate).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawCanvasLines(ctx, lines, x, y, lineHeight) {
+  lines.forEach((line, index) => ctx.fillText(line, x, y + index * lineHeight));
+  return y + lines.length * lineHeight;
+}
+
+function classroomExportTeamData(team, scores, weekId, events, ctx) {
+  const score = scores.teamScores[team.id];
+  const teamEvents = events
+    .filter((event) => event.teamId === team.id && event.weekId === weekId)
+    .sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
+  const toActivity = (event) => ({
+    name: MEMBER_BY_ID[event.memberId]?.name || event.memberId || "Không rõ",
+    label: event.label || RULE_BY_ID[event.ruleId]?.label || event.ruleId || "Ghi nhận",
+    points: Number(event.points) || 0,
+  });
+  const topMembers = team.members
+    .map((member) => {
+      const memberEvents = teamEvents.filter((event) => event.memberId === member.id);
+      return {
+        name: member.name,
+        delta: memberEvents.reduce((sum, event) => sum + event.points, 0),
+        count: memberEvents.length,
+      };
+    })
+    .sort((a, b) => b.delta - a.delta || a.name.localeCompare(b.name, "vi"))
+    .slice(0, 3);
+
+  ctx.font = "21px Manrope, Arial, sans-serif";
+  const maxRowWidth = 570;
+  const formatActivity = (event) => {
+    const activity = toActivity(event);
+    return {
+      ...activity,
+      lines: wrapCanvasText(ctx, `${activity.name} · ${activity.label}`, maxRowWidth),
+    };
+  };
+
+  return {
+    team,
+    score,
+    violations: teamEvents.filter((event) => event.points < 0).slice(0, 5).map(formatActivity),
+    rewards: teamEvents.filter((event) => event.points > 0).slice(0, 5).map(formatActivity),
+    topMembers,
+    eventCount: teamEvents.length,
+  };
+}
+
+function drawClassroomExportTeam(ctx, data, x, y, width) {
+  const padding = 24;
+  const innerWidth = width - padding * 2;
+  const activityRowHeight = (item) => Math.max(36, item.lines.length * 28) + 12;
+  const activityHeight = (items) => items.length
+    ? 54 + items.reduce((sum, item) => sum + activityRowHeight(item), 0)
+    : 88;
+  const topMembersHeight = 54 + data.topMembers.length * 40;
+  const height = 116 + 82 + activityHeight(data.violations) +
+    activityHeight(data.rewards) + topMembersHeight + 20;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = "#dbe3f0";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, width, height);
+
+  ctx.fillStyle = "#243b8a";
+  ctx.fillRect(x, y, width, 84);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 32px 'Space Grotesk', Arial, sans-serif";
+  ctx.fillText(`${data.team.name}  ·  ${data.team.members.length} học sinh`, x + padding, y + 54);
+  ctx.textAlign = "right";
+  ctx.font = "bold 32px 'Space Grotesk', Arial, sans-serif";
+  ctx.fillText(`${data.score.total} điểm`, x + width - padding, y + 54);
+  ctx.textAlign = "left";
+
+  let cursorY = y + 116;
+  const stats = [
+    { label: "Điểm", value: String(data.score.total), color: "#1e293b" },
+    { label: "Khen", value: formatPoints(data.score.plusPoints), color: "#047857" },
+    { label: "Lỗi", value: String(data.score.minusPoints), color: "#be123c" },
+    { label: "Lượt", value: String(data.eventCount), color: "#1e293b" },
+  ];
+  const statWidth = innerWidth / stats.length;
+  stats.forEach((stat, index) => {
+    const statX = x + padding + index * statWidth;
+    ctx.fillStyle = "#f1f5f9";
+    ctx.fillRect(statX, cursorY - 26, statWidth - 8, 74);
+    ctx.fillStyle = "#64748b";
+    ctx.font = "20px Manrope, Arial, sans-serif";
+    ctx.fillText(stat.label, statX + 12, cursorY);
+    ctx.fillStyle = stat.color;
+    ctx.font = "bold 26px 'Space Grotesk', Arial, sans-serif";
+    ctx.fillText(stat.value, statX + 12, cursorY + 34);
+  });
+  cursorY += 82;
+
+  const drawActivitySection = (title, items, count, color) => {
+    ctx.fillStyle = color;
+    ctx.font = "bold 24px Manrope, Arial, sans-serif";
+    ctx.fillText(`${title} (${count})`, x + padding, cursorY + 26);
+    cursorY += 54;
+
+    if (!items.length) {
+      ctx.fillStyle = "#64748b";
+      ctx.font = "20px Manrope, Arial, sans-serif";
+      ctx.fillText("Chưa có dữ liệu trong tuần này.", x + padding, cursorY + 2);
+      cursorY += 34;
+      return;
+    }
+
+    items.forEach((item, index) => {
+      const rowHeight = activityRowHeight(item);
+      ctx.fillStyle = index % 2 ? "#f8fafc" : "#ffffff";
+      ctx.fillRect(x + padding - 6, cursorY - 23, innerWidth + 12, rowHeight);
+      const itemY = cursorY;
+      ctx.fillStyle = "#1e293b";
+      ctx.font = "21px Manrope, Arial, sans-serif";
+      cursorY = drawCanvasLines(ctx, item.lines, x + padding, cursorY, 28);
+      ctx.textAlign = "right";
+      ctx.fillStyle = color;
+      ctx.font = "bold 22px 'Space Grotesk', Arial, sans-serif";
+      ctx.fillText(`${formatPoints(item.points)}đ`, x + width - padding, itemY);
+      ctx.textAlign = "left";
+      cursorY += rowHeight - item.lines.length * 28;
+    });
+  };
+
+  drawActivitySection("Vi phạm", data.violations, data.score.minusCount || 0, "#be123c");
+  drawActivitySection("Điểm cộng", data.rewards, data.score.plusCount || 0, "#047857");
+
+  ctx.fillStyle = "#243b8a";
+  ctx.font = "bold 24px Manrope, Arial, sans-serif";
+  ctx.fillText("Nhân tố nổi bật", x + padding, cursorY + 26);
+  cursorY += 54;
+  data.topMembers.forEach((member, index) => {
+    ctx.fillStyle = index % 2 ? "#f8fafc" : "#ffffff";
+    ctx.fillRect(x + padding - 6, cursorY - 24, innerWidth + 12, 38);
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "21px Manrope, Arial, sans-serif";
+    ctx.fillText(member.name, x + padding, cursorY);
+    ctx.textAlign = "right";
+    ctx.fillStyle = member.delta >= 0 ? "#047857" : "#be123c";
+    ctx.font = "bold 21px 'Space Grotesk', Arial, sans-serif";
+    ctx.fillText(
+      `${member.delta >= 0 ? "+" : ""}${member.delta}đ · ${member.count} lượt`,
+      x + width - padding,
+      cursorY
+    );
+    ctx.textAlign = "left";
+    cursorY += 40;
+  });
+
+  return y + height;
+}
+
+async function exportClassroomBoardImage() {
+  await document.fonts?.ready;
+
+  const weekId = store.weekId;
+  const weekNum = weekNumber(weekId);
+  const teams = teamsForWeek(weekId);
+  const events = store.events.filter((event) => event.weekId === weekId);
+  const scores = store.calculateScoresFast(store.events, BASE_POINTS, weekId);
+  const logicalWidth = 1800;
+  const padding = 48;
+  const gap = 24;
+  const teamWidth = (logicalWidth - padding * 2 - gap) / 2;
+  const measureCanvas = document.createElement("canvas");
+  const measureContext = measureCanvas.getContext("2d");
+  if (!measureContext) throw new Error("Trình duyệt không hỗ trợ tạo ảnh Canvas.");
+
+  const teamData = teams.map((team) =>
+    classroomExportTeamData(team, scores, weekId, events, measureContext)
+  );
+  const panelHeights = teamData.map((data) =>
+    drawClassroomExportTeam(measureContext, data, 0, 0, teamWidth)
+  );
+  const firstRowY = 152;
+  const secondRowY = firstRowY + Math.max(panelHeights[0], panelHeights[1]) + gap;
+  const logicalHeight = secondRowY + Math.max(panelHeights[2], panelHeights[3]) + 48;
+  const rowY = [firstRowY, secondRowY];
+  const canvas = document.createElement("canvas");
+  canvas.width = logicalWidth * 2;
+  canvas.height = logicalHeight * 2;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Không thể khởi tạo vùng vẽ ảnh.");
+  ctx.scale(2, 2);
+  ctx.fillStyle = "#f1f5fb";
+  ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+
+  ctx.fillStyle = "#172554";
+  ctx.font = "bold 34px 'Space Grotesk', Arial, sans-serif";
+  ctx.fillText("BẢNG SINH HOẠT LỚP 11A1", padding, 48);
+  ctx.fillStyle = "#475569";
+  ctx.font = "20px Manrope, Arial, sans-serif";
+  ctx.fillText(`Tuần ${weekNum} · ${weekRangeLabel(weekId)}`, padding, 86);
+
+  teamData.forEach((data, index) => {
+    drawClassroomExportTeam(
+      ctx,
+      data,
+      padding + (index % 2) * (teamWidth + gap),
+      rowY[Math.floor(index / 2)],
+      teamWidth
+    );
+  });
+
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((result) => {
+      if (result) resolve(result);
+      else reject(new Error("Trình duyệt không thể tạo tệp ảnh PNG."));
+    }, "image/png");
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `11A1-sinh-hoat-tuan-${weekNum}-${weekId}.png`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ===========================================================================
