@@ -198,9 +198,42 @@
 .classroom-list-block {
   border-top: 1px solid rgba(148, 163, 184, 0.18);
   padding-top: 0.6rem;
+}
+
+.classroom-list-block > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.classroom-list-block > summary::-webkit-details-marker {
+  display: none;
+}
+
+.classroom-section-title {
+  min-width: 0;
+}
+
+.classroom-section-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.classroom-section-icon {
+  font-size: 1rem;
+  transition: transform 160ms ease;
+}
+
+.classroom-list-block[open] .classroom-section-icon {
+  transform: rotate(180deg);
+}
+
+.classroom-list-content {
   display: flex;
   flex-direction: column;
   gap: 0.38rem;
+  margin-top: 0.45rem;
 }
 
 .classroom-list-header {

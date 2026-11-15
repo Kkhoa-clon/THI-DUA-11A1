@@ -1729,11 +1729,20 @@ function renderProfileView() {
   }
 
   // 3. Chi tiết tuần hiện tại
+  const currentWeekPlusPoints = weekEvents.reduce(
+    (total, event) => total + (event.points > 0 ? event.points : 0),
+    0
+  );
+  const currentWeekMinusPoints = weekEvents.reduce(
+    (total, event) => total + (event.points < 0 ? event.points : 0),
+    0
+  );
+  const currentWeekViolationCount = weekEvents.filter((event) => event.points < 0).length;
   const statPlus = $("#profile-stat-plus");
-  if (statPlus) statPlus.textContent = `+${profile.plusPoints || 0} đ`;
+  if (statPlus) statPlus.textContent = `+${currentWeekPlusPoints} đ`;
 
   const statMinus = $("#profile-stat-minus");
-  if (statMinus) statMinus.textContent = `${profile.minusPoints || 0} đ`;
+  if (statMinus) statMinus.textContent = `${currentWeekMinusPoints} đ`;
 
   const currentGrade = gradeFor(currentWeekPoints);
   const gradePill = $("#profile-grade-pill");
@@ -1752,13 +1761,13 @@ function renderProfileView() {
   const badgesRow = $("#profile-badges-row");
   if (badgesRow) {
     const badges = [];
-    if (profile.minusPoints === 0) {
-      badges.push(`<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">verified</span> 0 Vi Phạm</span>`);
+    if (currentWeekViolationCount === 0) {
+      badges.push(`<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">verified</span> 0 vi phạm tuần này</span>`);
     } else {
-      badges.push(`<span class="px-2.5 py-1 rounded-full bg-error-container text-error text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">warning</span> ${profile.minusCount} lần vi phạm</span>`);
+      badges.push(`<span class="px-2.5 py-1 rounded-full bg-error-container text-error text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">warning</span> ${currentWeekViolationCount} lần vi phạm tuần này</span>`);
     }
-    if (profile.plusPoints > 0) {
-      badges.push(`<span class="px-2.5 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">stars</span> +${profile.plusPoints}đ khen</span>`);
+    if (currentWeekPlusPoints > 0) {
+      badges.push(`<span class="px-2.5 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">stars</span> +${currentWeekPlusPoints}đ khen tuần này</span>`);
     }
     if (currentWeekPoints >= 100) {
       badges.push(`<span class="px-2.5 py-1 rounded-full bg-primary-fixed text-primary text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">military_tech</span> Đạt chuẩn thi đua</span>`);
@@ -2159,6 +2168,36 @@ function renderConductView() {
 // ===========================================================================
 // MÀN HÌNH 7: BẢNG SINH HOẠT LỚP (LANDSCAPE 4 PANEL)
 // ===========================================================================
+function groupClassroomActivityEvents(events) {
+  const grouped = new Map();
+
+  for (const event of events) {
+    const isTeamAdjustment = event.ruleId === TEAM_ADJUSTMENT_RULE_ID;
+    const memberName = MEMBER_BY_ID[event.memberId]?.name || event.memberId || "Không rõ";
+    const label = isTeamAdjustment
+      ? event.note || event.label || "Điểm phong trào tổ"
+      : RULE_BY_ID[event.ruleId]?.label || event.label || event.ruleId || "Ghi nhận";
+    const key = isTeamAdjustment
+      ? `${event.ruleId}:${label}`
+      : `${event.memberId}:${event.ruleId}`;
+    const multiplier = Number(event.label?.match(/\(x(\d+)\)$/)?.[1]) || 1;
+    const current = grouped.get(key) || {
+      name: isTeamAdjustment ? "Điểm phong trào tổ" : memberName,
+      label,
+      points: 0,
+      count: 0,
+      createdAt: 0,
+    };
+
+    current.points += Number(event.points) || 0;
+    current.count += multiplier;
+    current.createdAt = Math.max(current.createdAt, Number(event.createdAt) || 0);
+    grouped.set(key, current);
+  }
+
+  return [...grouped.values()].sort((a, b) => b.createdAt - a.createdAt);
+}
+
 function renderClassroomBoardView() {
   const boardGrid = $("#classroom-board-grid");
   const weekSelect = $("#classroom-board-week-select");
@@ -2224,14 +2263,8 @@ function renderClassroomBoardView() {
         minusCount: 0,
       };
       const teamEvents = store.events.filter((event) => event.teamId === team.id && event.weekId === weekId);
-      const violations = teamEvents
-        .filter((event) => event.points < 0)
-        .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
-        .slice(0, 5);
-      const rewards = teamEvents
-        .filter((event) => event.points > 0)
-        .sort((a, b) => Number(b.createdAt) - Number(a.createdAt))
-        .slice(0, 5);
+      const violations = groupClassroomActivityEvents(teamEvents.filter((event) => event.points < 0));
+      const rewards = groupClassroomActivityEvents(teamEvents.filter((event) => event.points > 0));
       const topMembers = team.members
         .map((member) => {
           const memberEvents = teamEvents.filter((event) => event.memberId === member.id);
@@ -2279,72 +2312,85 @@ function renderClassroomBoardView() {
             </div>
           </div>
 
-          <div class="classroom-list-block">
-            <div class="classroom-list-header">
-              <span>Vi phạm</span>
-              <span class="badge-muted">${scoreInfo.minusCount || 0}</span>
-            </div>
-            ${violations.length ? violations.map((event) => {
-              const rule = RULE_BY_ID[event.ruleId] || { label: event.label || "Vi phạm" };
-              const member = MEMBER_BY_ID[event.memberId];
-              return `
+          <details class="classroom-list-block">
+            <summary class="classroom-list-header">
+              <span class="classroom-section-title">Vi phạm</span>
+              <span class="classroom-section-meta">
+                <span class="badge-muted">${violations.reduce((sum, activity) => sum + activity.count, 0)}</span>
+                <span class="material-symbols-outlined classroom-section-icon" aria-hidden="true">expand_more</span>
+              </span>
+            </summary>
+            <div class="classroom-list-content">
+              ${violations.length ? violations.map((activity) => `
                 <div class="classroom-list-row danger">
                   <div class="classroom-row-main">
-                    <span class="classroom-name">${escapeHtml(event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? "Điểm phong trào tổ" : member?.name || event.memberId)}</span>
-                    <span class="classroom-rule">${escapeHtml(event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? event.note : rule.label)}</span>
+                    <span class="classroom-name">${escapeHtml(activity.name)}</span>
+                    <span class="classroom-rule">${escapeHtml(activity.label)}${activity.count > 1 ? ` · ${activity.count} lần` : ""}</span>
                   </div>
-                  <span class="classroom-points">${formatPoints(event.points)}</span>
+                  <span class="classroom-points">${formatPoints(activity.points)}</span>
                 </div>
-              `;
-            }).join("") : `<div class="classroom-empty">Không có vi phạm trong tuần này.</div>`}
-          </div>
-
-          <div class="classroom-list-block">
-            <div class="classroom-list-header">
-              <span>Điểm cộng</span>
-              <span class="badge-muted">${scoreInfo.plusCount || 0}</span>
+              `).join("") : `<div class="classroom-empty">Không có vi phạm trong tuần này.</div>`}
             </div>
-            ${rewards.length ? rewards.map((event) => {
-              const rule = RULE_BY_ID[event.ruleId] || { label: event.label || "Điểm cộng" };
-              const member = MEMBER_BY_ID[event.memberId];
-              return `
+          </details>
+
+          <details class="classroom-list-block">
+            <summary class="classroom-list-header">
+              <span class="classroom-section-title">Điểm cộng</span>
+              <span class="classroom-section-meta">
+                <span class="badge-muted">${rewards.reduce((sum, activity) => sum + activity.count, 0)}</span>
+                <span class="material-symbols-outlined classroom-section-icon" aria-hidden="true">expand_more</span>
+              </span>
+            </summary>
+            <div class="classroom-list-content">
+              ${rewards.length ? rewards.map((activity) => `
                 <div class="classroom-list-row success">
                   <div class="classroom-row-main">
-                    <span class="classroom-name">${escapeHtml(event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? "Điểm phong trào tổ" : member?.name || event.memberId)}</span>
-                    <span class="classroom-rule">${escapeHtml(event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? event.note : rule.label)}</span>
+                    <span class="classroom-name">${escapeHtml(activity.name)}</span>
+                    <span class="classroom-rule">${escapeHtml(activity.label)}${activity.count > 1 ? ` · ${activity.count} lần` : ""}</span>
                   </div>
-                  <span class="classroom-points">${formatPoints(event.points)}</span>
+                  <span class="classroom-points">${formatPoints(activity.points)}</span>
                 </div>
-              `;
-            }).join("") : `<div class="classroom-empty">Chưa có điểm cộng.</div>`}
-          </div>
-
-          <div class="classroom-list-block compact">
-            <div class="classroom-list-header">
-              <span>Điểm từng thành viên</span>
-              <span class="badge-muted">${rankedMembers.length}</span>
+              `).join("") : `<div class="classroom-empty">Chưa có điểm cộng.</div>`}
             </div>
-            ${rankedMembers.map((member, index) => `
+          </details>
+
+          <details class="classroom-list-block compact">
+            <summary class="classroom-list-header">
+              <span class="classroom-section-title">Điểm từng thành viên</span>
+              <span class="classroom-section-meta">
+                <span class="badge-muted">${rankedMembers.length}</span>
+                <span class="material-symbols-outlined classroom-section-icon" aria-hidden="true">expand_more</span>
+              </span>
+            </summary>
+            <div class="classroom-list-content">
+              ${rankedMembers.map((member, index) => `
               <div class="classroom-member-row">
                 <span class="classroom-member-name">${index + 1}. ${escapeHtml(member.name)}</span>
                 <span class="classroom-member-score ${member.points >= BASE_POINTS ? "positive" : "negative"}">${formatPoints(member.points)}đ</span>
                 <span class="text-[9px] text-on-surface-variant">Tuần ${weekNum}</span>
               </div>
             `).join("")}
-          </div>
-
-          <div class="classroom-list-block compact">
-            <div class="classroom-list-header">
-              <span>Nhân tố nổi bật</span>
             </div>
-            ${topMembers.length ? topMembers.map(({ member, delta, count }) => `
+          </details>
+
+          <details class="classroom-list-block compact">
+            <summary class="classroom-list-header">
+              <span class="classroom-section-title">Nhân tố nổi bật</span>
+              <span class="classroom-section-meta">
+                <span class="badge-muted">${topMembers.length}</span>
+                <span class="material-symbols-outlined classroom-section-icon" aria-hidden="true">expand_more</span>
+              </span>
+            </summary>
+            <div class="classroom-list-content">
+              ${topMembers.length ? topMembers.map(({ member, delta, count }) => `
               <div class="classroom-member-row">
                 <span class="classroom-member-name">${escapeHtml(member.name)}</span>
                 <span class="classroom-member-score ${delta >= 0 ? "positive" : "negative"}">${delta >= 0 ? "+" : ""}${delta}đ</span>
                 <span class="text-[9px] text-on-surface-variant">${count} lượt</span>
               </div>
             `).join("") : `<div class="classroom-empty">Chưa có dữ liệu.</div>`}
-          </div>
+            </div>
+          </details>
         </article>
       `;
     })
@@ -2379,14 +2425,14 @@ function classroomExportTeamData(team, scores, weekId, events, ctx) {
   const teamEvents = events
     .filter((event) => event.teamId === team.id && event.weekId === weekId)
     .sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
-  const toActivity = (event) => ({
-    name: event.ruleId === TEAM_ADJUSTMENT_RULE_ID
-      ? "Điểm phong trào tổ"
-      : MEMBER_BY_ID[event.memberId]?.name || event.memberId || "Không rõ",
-    label: event.ruleId === TEAM_ADJUSTMENT_RULE_ID
-      ? event.note
-      : event.label || RULE_BY_ID[event.ruleId]?.label || event.ruleId || "Ghi nhận",
-    points: Number(event.points) || 0,
+  ctx.font = "21px Manrope, Arial, sans-serif";
+  const toActivity = (group) => ({
+    ...group,
+    lines: wrapCanvasText(
+      ctx,
+      `${group.name} · ${group.label}${group.count > 1 ? ` · ${group.count} lần` : ""}`,
+      570
+    ),
   });
   const topMembers = team.members
     .map((member) => {
@@ -2406,21 +2452,11 @@ function classroomExportTeamData(team, scores, weekId, events, ctx) {
     }))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, "vi"));
 
-  ctx.font = "21px Manrope, Arial, sans-serif";
-  const maxRowWidth = 570;
-  const formatActivity = (event) => {
-    const activity = toActivity(event);
-    return {
-      ...activity,
-      lines: wrapCanvasText(ctx, `${activity.name} · ${activity.label}`, maxRowWidth),
-    };
-  };
-
   return {
     team,
     score,
-    violations: teamEvents.filter((event) => event.points < 0).slice(0, 5).map(formatActivity),
-    rewards: teamEvents.filter((event) => event.points > 0).slice(0, 5).map(formatActivity),
+    violations: groupClassroomActivityEvents(teamEvents.filter((event) => event.points < 0)).map(toActivity),
+    rewards: groupClassroomActivityEvents(teamEvents.filter((event) => event.points > 0)).map(toActivity),
     memberScores,
     topMembers,
     eventCount: teamEvents.length,
@@ -2507,8 +2543,18 @@ function drawClassroomExportTeam(ctx, data, x, y, width) {
     });
   };
 
-  drawActivitySection("Vi phạm", data.violations, data.score.minusCount || 0, "#be123c");
-  drawActivitySection("Điểm cộng", data.rewards, data.score.plusCount || 0, "#047857");
+  drawActivitySection(
+    "Vi phạm",
+    data.violations,
+    data.violations.reduce((sum, activity) => sum + activity.count, 0),
+    "#be123c"
+  );
+  drawActivitySection(
+    "Điểm cộng",
+    data.rewards,
+    data.rewards.reduce((sum, activity) => sum + activity.count, 0),
+    "#047857"
+  );
 
   ctx.fillStyle = "#243b8a";
   ctx.font = "bold 24px Manrope, Arial, sans-serif";
