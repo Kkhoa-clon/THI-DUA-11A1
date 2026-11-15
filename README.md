@@ -54,10 +54,13 @@ c:\Users\KhoaNguyen\Desktop\11A1\
 ├── PHAN-TICH-TAI-CAU-TRUC-VA-CHUC-NANG.md # Tài liệu kiến trúc phân tích chịu tải & UI/UX
 ├── supabase.sql                           # Script khởi tạo bảng events & realtime trên Supabase
 ├── supabase-admin.sql                     # Script khởi tạo bảng app_settings cho admin
-└── supabase-enable-delete.sql             # Script kích hoạt quyền xóa cho tổ trưởng & admin
+├── supabase-enable-delete.sql             # Script kích hoạt quyền xóa cho tổ trưởng & admin
+└── supabase-team-adjustment.sql           # Chính sách ghi điểm phong trào riêng cho từng tổ
 ```
 
 Sau khi cập nhật ứng dụng, hãy chạy lại `supabase.sql` hoặc `supabase-full-setup.sql` trong Supabase SQL Editor để thêm cột phân biệt người ghi điểm (`by_role`). Nhật ký cập nhật tức thời chỉ hiển thị lượt ghi mới của tổ trưởng; lượt ghi mới của admin không xuất hiện trong nhật ký. Các lượt ghi cũ không có thông tin vai trò nên không thể phân biệt ngược lại.
+
+Để Admin ghi điểm phong trào theo tổ với số điểm tùy chọn trên dự án Supabase hiện có, chạy `supabase-team-adjustment.sql` trong SQL Editor. Các lượt chấm điểm cá nhân vẫn giữ giới hạn ±50 điểm; điểm phong trào chỉ thay đổi tổng điểm tổ, không thay đổi điểm cá nhân.
 
 ### Bảo toàn dữ liệu lịch sử khi sửa nội quy hoặc chuyển tổ
 

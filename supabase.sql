@@ -36,9 +36,15 @@ create policy "events_insert_valid"
   on public.events for insert
   with check (
     by_team_id = team_id
-    and points >= -50
-    and points <= 50
     and char_length(note) <= 200
+    and (
+      (rule_id = 'team-adjustment' and by_role = 'admin')
+      or (
+        rule_id <> 'team-adjustment'
+        and points >= -50
+        and points <= 50
+      )
+    )
   );
 
 -- Cho phép xoá (app chỉ hiện nút xoá cho tổ trưởng đúng tổ)

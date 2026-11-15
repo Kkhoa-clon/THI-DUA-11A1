@@ -365,6 +365,34 @@
           </button>
         </div>
 
+        <div class="rounded-2xl bg-surface-container-lowest p-3.5 shadow-xs border border-error/20">
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="flex items-start gap-2.5 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-error-container/60 text-error flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[19px]">delete_sweep</span>
+              </div>
+              <div class="min-w-0">
+                <h3 class="font-heading font-bold text-sm text-on-surface">Sửa sai lượt ghi</h3>
+                <p id="score-delete-role-hint" class="text-[10px] leading-relaxed text-on-surface-variant mt-0.5"></p>
+              </div>
+            </div>
+            <span id="score-delete-count" class="px-2 py-1 rounded-full bg-error-container/50 text-error text-[10px] font-bold shrink-0">0 lượt</span>
+          </div>
+          <div id="score-delete-week-filter-wrap" class="hidden mb-2">
+            <label for="score-delete-week-filter" class="block text-[10px] font-semibold text-on-surface-variant mb-1">Phạm vi tuần</label>
+            <div class="relative">
+              <select id="score-delete-week-filter" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-8 rounded-xl text-xs font-semibold border border-outline-variant/30">
+                <option value="current">Tuần đang chọn</option>
+                <option value="all">Tất cả tuần</option>
+              </select>
+              <span class="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">expand_more</span>
+            </div>
+          </div>
+          <div id="score-delete-events-list" class="flex flex-col gap-2 max-h-[26rem] overflow-y-auto">
+            <p class="text-xs text-outline text-center py-4">Đang tải lượt ghi...</p>
+          </div>
+        </div>
+
         <!-- Step Indicator -->
         <div class="flex items-center px-1">
           <div class="flex items-center gap-1.5 shrink-0">
@@ -381,6 +409,21 @@
             <div class="w-6 h-6 rounded-full bg-surface-container-high text-on-surface text-[11px] font-bold flex items-center justify-center">3</div>
             <span class="text-[11px] font-bold text-on-surface-variant">Xác nhận</span>
           </div>
+        </div>
+
+        <!-- Keep quantity correction controls reachable while scrolling -->
+        <div class="sticky top-16 z-20 bg-surface-container-lowest rounded-2xl p-3 shadow-sm flex flex-col gap-2.5 border border-outline-variant/20">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-[18px]">tune</span>
+              <span class="font-heading font-bold text-xs text-on-surface">ĐIỀU CHỈNH SỐ LƯỢNG</span>
+            </div>
+            <button id="btn-clear-basket" type="button" class="text-[11px] text-outline hover:text-error font-medium hidden px-2 py-1 rounded-lg hover:bg-error-container/30 active:scale-95">Xóa tất cả</button>
+          </div>
+          <div id="selected-rules-basket" class="space-y-1.5 max-h-36 overflow-y-auto">
+            <p class="text-xs text-outline text-center py-3">Chưa chọn điểm cộng hoặc vi phạm.</p>
+          </div>
+          <input id="score-note-input" type="text" placeholder="Ghi chú chung (ví dụ: tiết 2 Hóa)..." class="w-full h-11 bg-surface-container-low px-3 rounded-xl text-xs text-on-surface placeholder:text-outline outline-none focus:ring-2 focus:ring-primary/20" />
         </div>
 
         <!-- Search & Filter Chips -->
@@ -404,16 +447,17 @@
             <div class="flex items-center gap-2">
               <div class="w-6 h-6 rounded-full bg-primary text-on-primary text-[11px] font-bold flex items-center justify-center shrink-0">1</div>
               <span class="font-heading font-bold text-xs text-on-surface">CHỌN HỌC SINH</span>
-              <span id="selected-students-count" class="px-2 py-0.5 rounded-full bg-primary text-on-primary text-[10px] font-bold">0</span>
+              <span id="selected-students-count" class="px-2 py-0.5 rounded-full bg-primary text-on-primary text-[10px] font-bold">0/1</span>
             </div>
-            <button id="btn-select-all-team" type="button" class="text-xs text-primary font-bold px-2 py-1 rounded-lg bg-primary-fixed/60 active:scale-95">
-              Chọn cả tổ
-            </button>
+            <span class="text-[10px] text-on-surface-variant">Mỗi lượt chọn 1 bạn</span>
           </div>
 
           <div class="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-0.5" id="student-select-grid">
             <!-- Rendered dynamically via JS -->
           </div>
+          <p class="mt-2 px-1 text-[10px] leading-relaxed text-on-surface-variant">
+            Lưu ý: Mỗi lượt nhập điểm chỉ ghi cho 1 bạn. Muốn ghi cho bạn khác, hãy thực hiện lượt nhập mới.
+          </p>
         </div>
 
         <!-- Multi-Rule Selection: Rewards & Penalties -->
@@ -458,21 +502,6 @@
           <button id="btn-apply-repeat-penalty" type="button" class="self-start mt-1 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs active:scale-95">
             Áp dụng phạt -50 điểm theo nội quy
           </button>
-        </div>
-
-        <!-- Basket: Selected Rules & Quantities -->
-        <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-xs flex flex-col gap-2.5 border border-outline-variant/20">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="w-6 h-6 rounded-full bg-surface-container-high text-on-surface text-[11px] font-bold flex items-center justify-center shrink-0">3</div>
-              <span class="font-heading font-bold text-xs text-on-surface">MỤC ĐÃ CHỌN & SỐ LƯỢNG</span>
-            </div>
-            <button id="btn-clear-basket" type="button" class="text-[11px] text-outline hover:text-error font-medium hidden px-2 py-1 rounded-lg hover:bg-error-container/30 active:scale-95">Xóa tất cả</button>
-          </div>
-          <div id="selected-rules-basket" class="space-y-1.5">
-            <p class="text-xs text-outline text-center py-3">Chưa chọn điểm cộng hoặc vi phạm.</p>
-          </div>
-          <input id="score-note-input" type="text" placeholder="Ghi chú chung (ví dụ: tiết 2 Hóa)..." class="w-full h-11 bg-surface-container-low px-3 rounded-xl text-xs text-on-surface placeholder:text-outline outline-none focus:ring-2 focus:ring-primary/20" />
         </div>
 
         <!-- Sticky Floating Action Bar -->
@@ -924,6 +953,54 @@
           </div>
           <div class="mt-3">
             <input id="admin-week-slider" type="range" min="1" max="1" value="1" class="w-full" />
+          </div>
+        </div>
+
+        <div class="rounded-2xl bg-surface-container-lowest p-3.5 shadow-xs border border-secondary/20">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-7 h-7 rounded-lg bg-secondary-container flex items-center justify-center">
+              <span class="material-symbols-outlined text-on-secondary-container text-[16px]">campaign</span>
+            </div>
+            <div>
+              <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Điểm phong trào</p>
+              <h3 class="font-heading font-bold text-sm text-on-surface">Theo thống nhất lớp</h3>
+            </div>
+          </div>
+          <p class="text-[11px] text-on-surface-variant mb-3">
+            Điểm được cộng/trừ riêng vào tổng điểm của tổ, không thay đổi điểm cá nhân. Tuần áp dụng theo tuần đang chọn phía trên.
+          </p>
+          <div class="flex flex-col gap-2.5">
+            <div class="grid grid-cols-2 gap-2">
+              <div class="relative">
+                <select id="admin-team-adjustment-team" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-8 rounded-xl text-xs font-semibold border border-outline-variant/30">
+                  <option value="">Chọn tổ</option>
+                  <option value="to1">Tổ 1</option>
+                  <option value="to2">Tổ 2</option>
+                  <option value="to3">Tổ 3</option>
+                  <option value="to4">Tổ 4</option>
+                </select>
+                <span class="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">expand_more</span>
+              </div>
+              <div class="relative">
+                <select id="admin-team-adjustment-direction" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-8 rounded-xl text-xs font-semibold border border-outline-variant/30">
+                  <option value="plus">Cộng điểm</option>
+                  <option value="minus">Trừ điểm</option>
+                </select>
+                <span class="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">expand_more</span>
+              </div>
+            </div>
+            <label class="flex flex-col gap-1 text-[10px] text-on-surface-variant font-semibold">
+              Số điểm
+              <input id="admin-team-adjustment-points" type="number" min="1" max="2147483647" step="1" inputmode="numeric" placeholder="Nhập số điểm" class="w-full bg-surface-container-low text-on-surface px-3 py-2.5 rounded-xl text-xs font-semibold border border-outline-variant/30 outline-none focus:ring-2 focus:ring-secondary/30 placeholder:text-on-surface-variant/50" />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-on-surface-variant font-semibold">
+              Chú thích lý do
+              <textarea id="admin-team-adjustment-reason" rows="2" maxlength="200" placeholder="Ví dụ: Cộng điểm phong trào theo thống nhất lớp..." class="w-full resize-y bg-surface-container-low text-on-surface px-3 py-2.5 rounded-xl text-xs font-medium border border-outline-variant/30 outline-none focus:ring-2 focus:ring-secondary/30 placeholder:text-on-surface-variant/50"></textarea>
+            </label>
+            <button type="button" id="btn-admin-team-adjustment" class="w-full py-2.5 rounded-xl bg-secondary hover:opacity-90 active:scale-[0.98] text-on-secondary text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs">
+              <span class="material-symbols-outlined text-[16px]">save</span>
+              Ghi điểm cho tổ trong tuần này
+            </button>
           </div>
         </div>
 

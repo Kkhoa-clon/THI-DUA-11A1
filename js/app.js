@@ -32,6 +32,7 @@ import {
   competitionWeekIds,
   studiedThroughWeek,
   isStudiedWeek,
+  TEAM_ADJUSTMENT_RULE_ID,
 } from "./store.js";
 
 // Khởi tạo Store trung tâm
@@ -47,7 +48,7 @@ const state = {
   summaryFromWeek: null,
   summaryToWeek: null,
   selectedStudentIds: new Set(),
-  selectedRules: new Map(), // ruleId => quantity (1..10)
+  selectedRules: new Map(), // ruleId => positive safe-integer quantity
   scoringTeamFilter: "my",
   profileMemberId: "to1-01",
   profileFilter: "all",
@@ -970,7 +971,9 @@ function renderRealtimeFeed() {
       const dotColor = isPlus ? "bg-secondary" : "bg-error";
       const textColor = isPlus ? "text-secondary font-bold" : "text-error font-bold";
       const member = MEMBER_BY_ID[ev.memberId];
-      const memberName = member ? member.name : ev.memberId;
+      const memberName = ev.ruleId === TEAM_ADJUSTMENT_RULE_ID
+        ? "Phong trào theo tổ"
+        : member ? member.name : ev.memberId;
       const team = TEAM_BY_ID[ev.teamId];
       const teamName = team ? team.name : ev.teamId;
 
@@ -1068,6 +1071,7 @@ function renderScoringWorkspace() {
   renderQuickActions();
   renderSelectedRulesBasket();
   updateSubmitBar();
+  renderScoreDeleteEvents();
 }
 
 function renderStudentSelectGrid() {
@@ -1123,6 +1127,7 @@ function renderStudentSelectGrid() {
       if (state.selectedStudentIds.has(sid)) {
         state.selectedStudentIds.delete(sid);
       } else {
+        state.selectedStudentIds.clear();
         state.selectedStudentIds.add(sid);
       }
       renderStudentSelectGrid();
@@ -1132,7 +1137,7 @@ function renderStudentSelectGrid() {
   });
 
   const countEl = $("#selected-students-count");
-  if (countEl) countEl.textContent = `Đã chọn: ${state.selectedStudentIds.size}`;
+  if (countEl) countEl.textContent = `${state.selectedStudentIds.size}/1`;
 }
 
 function renderQuickActions() {
@@ -1189,6 +1194,10 @@ function renderQuickActions() {
     btn.onclick = () => {
       const rId = btn.dataset.ruleId;
       const cur = state.selectedRules.get(rId) || 0;
+      if (!Number.isSafeInteger(cur + 1)) {
+        alert("Số lượng đã vượt quá giới hạn số nguyên an toàn.");
+        return;
+      }
       state.selectedRules.set(rId, cur + 1);
       renderQuickActions();
       renderSelectedRulesBasket();
@@ -1269,7 +1278,11 @@ function renderSelectedRulesBasket() {
     btn.onclick = () => {
       const rId = btn.dataset.ruleId;
       const cur = state.selectedRules.get(rId) || 0;
-      if (cur < 10) state.selectedRules.set(rId, cur + 1);
+      if (Number.isSafeInteger(cur + 1)) state.selectedRules.set(rId, cur + 1);
+      else {
+        alert("Số lượng đã vượt quá giới hạn số nguyên an toàn.");
+        return;
+      }
       renderQuickActions();
       renderSelectedRulesBasket();
       updateSubmitBar();
@@ -1392,56 +1405,110 @@ async function handleScoreSubmit() {
   }
 }
 
-function renderSessionLog() {
-  const list = $("#session-log-list");
+function renderScoreDeleteEvents() {
+  const list = $("#score-delete-events-list");
   if (!list) return;
-  if (!state.sessionLog.length) {
-    list.innerHTML = `<p class="text-xs text-outline py-2 text-center font-medium">Chưa có lượt chấm nào trong phiên này.</p>`;
+
+  const isAdmin = store.isAdmin();
+  const roleHint = $("#score-delete-role-hint");
+  if (roleHint) {
+    roleHint.textContent = isAdmin
+      ? "Admin có thể xóa lượt ghi ở mọi tổ và mọi tuần."
+      : `Tổ trưởng chỉ xóa được lượt ghi của ${TEAM_BY_ID[store.getLeaderTeamId()]?.name || "tổ mình"} trong tuần đang học.`;
+  }
+
+  const filterWrap = $("#score-delete-week-filter-wrap");
+  const weekFilter = $("#score-delete-week-filter");
+  let selectedWeek = "current";
+  if (isAdmin && weekFilter) {
+    filterWrap?.classList.remove("hidden");
+    selectedWeek = weekFilter.value || "current";
+    const allWeeks = competitionWeekIds();
+    weekFilter.innerHTML = `
+      <option value="current">Tuần đang chọn (Tuần ${weekNumber(store.weekId)})</option>
+      <option value="all">Tất cả tuần</option>
+      ${allWeeks.map((weekId) => `<option value="${weekId}">Tuần ${weekNumber(weekId)}</option>`).join("")}
+    `;
+    if (selectedWeek !== "all" && selectedWeek !== "current" && !allWeeks.includes(selectedWeek)) {
+      selectedWeek = "current";
+    }
+    weekFilter.value = selectedWeek;
+    weekFilter.onchange = () => renderScoreDeleteEvents();
+  } else {
+    filterWrap?.classList.add("hidden");
+  }
+
+  let deletableEvents = store.allEvents.filter((event) => store.canDeleteEvent(event));
+  if (!isAdmin || selectedWeek === "current") {
+    deletableEvents = deletableEvents.filter((event) => event.weekId === store.weekId);
+  } else if (selectedWeek !== "all") {
+    deletableEvents = deletableEvents.filter((event) => event.weekId === selectedWeek);
+  }
+  deletableEvents.sort((a, b) => b.createdAt - a.createdAt);
+
+  const count = $("#score-delete-count");
+  if (count) count.textContent = `${deletableEvents.length} lượt`;
+
+  if (!deletableEvents.length) {
+    list.innerHTML = `
+      <div class="flex flex-col items-center gap-1 py-5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-[24px]">check_circle</span>
+        <p class="text-xs font-medium">Không có lượt ghi nào trong phạm vi này.</p>
+      </div>
+    `;
     return;
   }
 
-  list.innerHTML = state.sessionLog
-    .map((ev) => {
-      const isPlus = ev.points > 0;
-      const m = MEMBER_BY_ID[ev.memberId];
-      const name = m ? m.name : ev.memberId;
-      const canDelete = store.canDeleteEvent(ev);
-
-      return `
-        <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-surface-container-low text-xs">
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="w-1.5 h-1.5 rounded-full ${isPlus ? "bg-secondary" : "bg-error"} shrink-0"></span>
-            <div class="flex flex-col min-w-0">
-              <span class="font-heading font-bold text-on-surface truncate">${escapeHtml(name)} • ${escapeHtml(ev.label)}</span>
-              <span class="text-[10px] text-outline">${formatRelativeTime(ev.createdAt)}${ev.note ? ` — "${escapeHtml(ev.note)}"` : ""}</span>
+  const displayEvents = deletableEvents.slice(0, 100);
+  list.innerHTML = displayEvents.map((event) => {
+    const member = MEMBER_BY_ID[event.memberId];
+    const teamName = TEAM_BY_ID[event.teamId]?.name || event.teamId;
+    const title = member?.name || (event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? "Điểm phong trào của tổ" : teamName);
+    const isPlus = event.points > 0;
+    return `
+      <article class="rounded-xl border ${isPlus ? "border-secondary/20 bg-secondary/5" : "border-error/20 bg-error/5"} p-2.5">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-start gap-2 min-w-0">
+            <span class="material-symbols-outlined ${isPlus ? "text-secondary" : "text-error"} text-[17px] mt-0.5">${isPlus ? "add_circle" : "warning"}</span>
+            <div class="min-w-0">
+              <p class="text-xs font-bold text-on-surface break-words">${escapeHtml(title)} · ${escapeHtml(event.label)}</p>
+              <p class="text-[10px] text-on-surface-variant mt-0.5">${escapeHtml(teamName)} · Tuần ${weekNumber(event.weekId)} · ${formatRelativeTime(event.createdAt)}</p>
+              ${event.note ? `<p class="text-[10px] text-outline mt-0.5 break-words">${escapeHtml(event.note)}</p>` : ""}
             </div>
           </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <span class="font-heading font-bold ${isPlus ? "text-secondary" : "text-error"} tabular-nums">${formatPoints(ev.points)}đ</span>
-            ${
-              canDelete
-                ? `<button type="button" class="btn-undo-event w-6 h-6 rounded-lg bg-surface-container hover:bg-error-container hover:text-error flex items-center justify-center transition-colors text-outline" data-del-id="${ev.id}" title="Xóa">
-                    <span class="material-symbols-outlined text-[14px]">delete</span>
-                   </button>`
-                : ""
-            }
-          </div>
+          <span class="font-heading font-bold text-xs ${isPlus ? "text-secondary" : "text-error"} tabular-nums shrink-0">${formatPoints(event.points)}đ</span>
         </div>
-      `;
-    })
-    .join("");
+        <button type="button" class="btn-score-delete-event mt-2 w-full min-h-9 rounded-lg bg-error-container/70 hover:bg-error hover:text-on-error text-error text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors" data-del-id="${escapeHtml(event.id)}">
+          <span class="material-symbols-outlined text-[15px]">delete</span>
+          Xóa lượt ghi này
+        </button>
+      </article>
+    `;
+  }).join("");
 
-  $$(".btn-undo-event", list).forEach((btn) => {
-    btn.onclick = async () => {
-      const id = btn.dataset.delId;
-      if (confirm("Bạn có chắc muốn xóa bản ghi điểm này không?")) {
-        try {
-          await store.deleteEvent(id);
-          state.sessionLog = state.sessionLog.filter((e) => e.id !== id);
-          renderSessionLog();
-        } catch (err) {
-          alert(err.message || "Không thể xóa bản ghi.");
-        }
+  if (deletableEvents.length > displayEvents.length) {
+    list.insertAdjacentHTML(
+      "beforeend",
+      `<p class="text-[10px] text-outline text-center py-1">Đang hiển thị 100 lượt gần nhất trong tổng số ${deletableEvents.length} lượt. Hãy lọc theo tuần để tìm lượt cũ hơn.</p>`
+    );
+  }
+
+  $$(".btn-score-delete-event", list).forEach((button) => {
+    button.onclick = async () => {
+      const event = deletableEvents.find((item) => item.id === button.dataset.delId);
+      if (!event) return;
+      const teamName = TEAM_BY_ID[event.teamId]?.name || event.teamId;
+      const memberName = MEMBER_BY_ID[event.memberId]?.name || "Điểm phong trào của tổ";
+      if (!confirm(`Xóa lượt ghi này?\n\n${teamName} · ${memberName} · Tuần ${weekNumber(event.weekId)}\n${event.label}${event.note ? `\nLý do/ghi chú: ${event.note}` : ""}\n${formatPoints(event.points)} điểm`)) return;
+
+      button.disabled = true;
+      try {
+        await store.deleteEvent(event.id);
+        state.sessionLog = state.sessionLog.filter((item) => item.id !== event.id);
+        renderScoreDeleteEvents();
+      } catch (error) {
+        alert(error.message || "Không thể xóa lượt ghi.");
+        button.disabled = false;
       }
     };
   });
@@ -2217,8 +2284,8 @@ function renderClassroomBoardView() {
               return `
                 <div class="classroom-list-row danger">
                   <div class="classroom-row-main">
-                    <span class="classroom-name">${escapeHtml(member?.name || event.memberId)}</span>
-                    <span class="classroom-rule">${escapeHtml(rule.label)}</span>
+                    <span class="classroom-name">${escapeHtml(event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? "Điểm phong trào tổ" : member?.name || event.memberId)}</span>
+                    <span class="classroom-rule">${escapeHtml(event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? event.note : rule.label)}</span>
                   </div>
                   <span class="classroom-points">${formatPoints(event.points)}</span>
                 </div>
@@ -2237,8 +2304,8 @@ function renderClassroomBoardView() {
               return `
                 <div class="classroom-list-row success">
                   <div class="classroom-row-main">
-                    <span class="classroom-name">${escapeHtml(member?.name || event.memberId)}</span>
-                    <span class="classroom-rule">${escapeHtml(rule.label)}</span>
+                    <span class="classroom-name">${escapeHtml(event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? "Điểm phong trào tổ" : member?.name || event.memberId)}</span>
+                    <span class="classroom-rule">${escapeHtml(event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? event.note : rule.label)}</span>
                   </div>
                   <span class="classroom-points">${formatPoints(event.points)}</span>
                 </div>
@@ -2293,8 +2360,12 @@ function classroomExportTeamData(team, scores, weekId, events, ctx) {
     .filter((event) => event.teamId === team.id && event.weekId === weekId)
     .sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
   const toActivity = (event) => ({
-    name: MEMBER_BY_ID[event.memberId]?.name || event.memberId || "Không rõ",
-    label: event.label || RULE_BY_ID[event.ruleId]?.label || event.ruleId || "Ghi nhận",
+    name: event.ruleId === TEAM_ADJUSTMENT_RULE_ID
+      ? "Điểm phong trào tổ"
+      : MEMBER_BY_ID[event.memberId]?.name || event.memberId || "Không rõ",
+    label: event.ruleId === TEAM_ADJUSTMENT_RULE_ID
+      ? event.note
+      : event.label || RULE_BY_ID[event.ruleId]?.label || event.ruleId || "Ghi nhận",
     points: Number(event.points) || 0,
   });
   const topMembers = team.members
@@ -2682,6 +2753,57 @@ function renderAdminPanel() {
     syncAdminWeekUI();
   }
 
+  const adjustmentTeamSelect = $("#admin-team-adjustment-team");
+  const adjustmentDirectionSelect = $("#admin-team-adjustment-direction");
+  const adjustmentPointsInput = $("#admin-team-adjustment-points");
+  const adjustmentReasonInput = $("#admin-team-adjustment-reason");
+  const adjustmentButton = $("#btn-admin-team-adjustment");
+  if (
+    adjustmentTeamSelect &&
+    adjustmentDirectionSelect &&
+    adjustmentPointsInput &&
+    adjustmentReasonInput &&
+    adjustmentButton
+  ) {
+    adjustmentButton.onclick = async () => {
+      const teamId = adjustmentTeamSelect.value;
+      const amount = Number(adjustmentPointsInput.value);
+      const reason = adjustmentReasonInput.value.trim();
+      if (!teamId) {
+        alert("Vui lòng chọn tổ cần cộng hoặc trừ điểm.");
+        return;
+      }
+      if (!Number.isSafeInteger(amount) || amount < 1 || amount > 2147483647) {
+        alert("Số điểm phải là số nguyên dương, tối đa 2.147.483.647.");
+        return;
+      }
+      if (!reason) {
+        alert("Vui lòng nhập chú thích lý do.");
+        adjustmentReasonInput.focus();
+        return;
+      }
+
+      const points = adjustmentDirectionSelect.value === "minus" ? -amount : amount;
+      const action = points > 0 ? "Cộng" : "Trừ";
+      const teamName = TEAM_BY_ID[teamId]?.name || teamId;
+      const week = weekNumber(store.weekId);
+      if (!confirm(`${action} ${amount} điểm cho ${teamName} trong Tuần ${week}?\n\nLý do: ${reason}`)) return;
+
+      adjustmentButton.disabled = true;
+      try {
+        await store.addTeamAdjustment({ teamId, points, note: reason });
+        adjustmentPointsInput.value = "";
+        adjustmentReasonInput.value = "";
+        const syncNote = store.mode === "live" ? "" : " (hiện chỉ lưu trên thiết bị này)";
+        alert(`Đã ${action.toLowerCase()} ${amount} điểm cho ${teamName}, Tuần ${week}.${syncNote}`);
+      } catch (err) {
+        alert(err.message || "Không thể lưu điểm phong trào.");
+      } finally {
+        adjustmentButton.disabled = false;
+      }
+    };
+  }
+
   // Week Lock Management
   const lockWeekSelect = $("#admin-lock-week-select");
   const lockReasonInput = $("#admin-lock-reason-input");
@@ -2991,9 +3113,31 @@ function openTeamDetailModal(teamId) {
     store.getTeamMemberWeekActivity(teamId).map((member) => [member.id, member])
   );
   const sortedMembers = store.getTeamMembersSorted(teamId);
+  const teamAdjustments = store.events
+    .filter((event) => event.teamId === teamId && event.ruleId === TEAM_ADJUSTMENT_RULE_ID)
+    .sort((a, b) => b.createdAt - a.createdAt);
 
-  membersList.innerHTML = sortedMembers
-    .map((m) => {
+  membersList.innerHTML = `
+    ${
+      teamAdjustments.length
+        ? `<div class="p-3 rounded-xl bg-secondary-container/30 border border-secondary/20 space-y-2">
+            <h4 class="font-heading font-bold text-xs text-secondary">Điểm phong trào của tổ</h4>
+            ${teamAdjustments
+              .map((event) => `
+                <div class="flex items-start justify-between gap-2 text-xs">
+                  <div class="min-w-0">
+                    <p class="font-medium text-on-surface">${escapeHtml(event.note)}</p>
+                    <p class="text-[10px] text-outline">${formatRelativeTime(event.createdAt)}</p>
+                  </div>
+                  <span class="font-heading font-bold ${event.points > 0 ? "text-secondary" : "text-error"} shrink-0">${formatPoints(event.points)}đ</span>
+                </div>
+              `)
+              .join("")}
+          </div>`
+        : ""
+    }
+    ${sortedMembers
+      .map((m) => {
       const medal = isStudiedWeek(store.weekId) ? getRankMedal(m.rank) : "•";
       const activity = weekActivity.get(m.id);
       const activityDetails = activity?.violationGroups.length
@@ -3020,8 +3164,9 @@ function openTeamDetailModal(teamId) {
           </div>
         </div>
       `;
-    })
-    .join("");
+      })
+      .join("")}
+  `;
 
   // YÊU CẦU 5: Bấm vào 1 thành viên hiện ra tuần đó thành viên vi phạm và cộng điểm gì!
   $$("[data-week-member]", membersList).forEach((el) => {
@@ -3307,33 +3452,6 @@ function setupEventListeners() {
     btnLogout.onclick = () => {
       store.logout();
       renderScoringWorkspace();
-    };
-  }
-
-  // 5. Select All Team
-  const btnSelectAll = $("#btn-select-all-team");
-  if (btnSelectAll) {
-    btnSelectAll.onclick = () => {
-      const isAdmin = store.isAdmin();
-      const myTeam = store.getLeaderTeamId();
-      let members = [];
-      if (!isAdmin) {
-        members = myTeam ? TEAM_BY_ID[myTeam]?.members || [] : [];
-      } else {
-        const teamFilter = state.scoringTeamFilter;
-        if (teamFilter === "all") members = TEAMS.flatMap((t) => t.members);
-        else members = TEAM_BY_ID[teamFilter]?.members || [];
-      }
-
-      const allSelected = members.length > 0 && members.every((m) => state.selectedStudentIds.has(m.id));
-      if (allSelected) {
-        members.forEach((m) => state.selectedStudentIds.delete(m.id));
-      } else {
-        members.forEach((m) => state.selectedStudentIds.add(m.id));
-      }
-      renderStudentSelectGrid();
-      checkRepeatInfractionAlert();
-      updateSubmitBar();
     };
   }
 

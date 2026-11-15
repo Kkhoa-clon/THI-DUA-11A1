@@ -39,9 +39,15 @@ create policy "events_select_all"
 create policy "events_insert_valid"
   on public.events for insert
   with check (
-    points >= -50
-    and points <= 50
-    and char_length(note) <= 200
+    char_length(note) <= 200
+    and (
+      (rule_id = 'team-adjustment' and by_role = 'admin')
+      or (
+        rule_id <> 'team-adjustment'
+        and points >= -50
+        and points <= 50
+      )
+    )
   );
 
 create policy "events_delete_all"

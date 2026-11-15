@@ -24,6 +24,8 @@ const SESSION_LEADER_NAME = "a1-leader-name";
 const LOCAL_EVENTS_KEY = "a1-events-v2";
 const LOCAL_SETTINGS_KEY = "a1-settings-v2";
 const SETTINGS_ROW_KEY = "class";
+export const TEAM_ADJUSTMENT_RULE_ID = "team-adjustment";
+const TEAM_ADJUSTMENT_LABEL = "Điểm phong trào theo thống nhất lớp";
 
 const memSession = new Map();
 const safeSession = {
@@ -1220,7 +1222,11 @@ export class ScoreStore {
     const rule = RULE_BY_ID[ruleId];
     if (!rule) throw new Error("Quy tắc chấm điểm không hợp lệ.");
 
-    const mult = Math.max(1, Math.min(10, Math.floor(Number(multiplier) || 1)));
+    const requestedMultiplier = Number(multiplier);
+    if (!Number.isSafeInteger(requestedMultiplier) || requestedMultiplier < 1) {
+      throw new Error("Số lượng phải là số nguyên dương hợp lệ.");
+    }
+    const mult = requestedMultiplier;
     const points = rule.points * mult;
     const createdAt = Date.now();
     const byTeamId = this.isAdmin() ? member.teamId : this.getLeaderTeamId();
@@ -1310,6 +1316,9 @@ export class ScoreStore {
     if (!Array.isArray(memberIds) || memberIds.length === 0) {
       throw new Error("Vui lòng chọn ít nhất một học sinh.");
     }
+    if (memberIds.length !== 1) {
+      throw new Error("Mỗi lượt chỉ được ghi điểm cho một học sinh.");
+    }
     const jobs = Array.isArray(items) && items.length
       ? items
       : [{ ruleId, multiplier }];
@@ -1328,17 +1337,94 @@ export class ScoreStore {
     return results;
   }
 
-  // —— Xóa bản ghi (Cơ chế sửa sai trong 15 phút) ——
+  async addTeamAdjustment({ teamId, points, note }) {
+    if (!this.isAdmin()) throw new Error("Chỉ Admin được ghi điểm phong trào cho tổ.");
+    if (!TEAM_BY_ID[teamId]) throw new Error("Vui lòng chọn một tổ hợp lệ.");
+
+    const adjustment = Number(points);
+    if (
+      !Number.isSafeInteger(adjustment) ||
+      adjustment === 0 ||
+      Math.abs(adjustment) > 2147483647
+    ) {
+      throw new Error("Số điểm phải là số nguyên khác 0, không vượt quá 2.147.483.647.");
+    }
+
+    const reason = String(note || "").trim();
+    if (!reason) throw new Error("Vui lòng nhập lý do cộng hoặc trừ điểm.");
+    if (reason.length > 200) throw new Error("Lý do không được vượt quá 200 ký tự.");
+
+    const event = {
+      id: uid(),
+      weekId: this.weekId,
+      teamId,
+      memberId: "",
+      ruleId: TEAM_ADJUSTMENT_RULE_ID,
+      points: adjustment,
+      label: TEAM_ADJUSTMENT_LABEL,
+      note: reason,
+      byTeamId: teamId,
+      createdByRole: "admin",
+      createdAt: Date.now(),
+      syncError: null,
+    };
+
+    if (this.mode === "live") {
+      const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/events`, {
+        method: "POST",
+        headers: supabaseHeaders({
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+          Accept: "application/json",
+        }),
+        body: JSON.stringify({
+          week_id: event.weekId,
+          team_id: event.teamId,
+          member_id: event.memberId,
+          rule_id: event.ruleId,
+          points: event.points,
+          label: event.label,
+          note: event.note,
+          by_team_id: event.byTeamId,
+          by_role: event.createdByRole,
+          created_at: event.createdAt,
+        }),
+      });
+
+      if (!res.ok) {
+        const detail = (await res.text().catch(() => "")).slice(0, 160);
+        throw new Error(
+          `Supabase không lưu được điểm phong trào (HTTP ${res.status})${detail ? `: ${detail}` : ""}`
+        );
+      }
+
+      const rows = await res.json();
+      const saved = Array.isArray(rows) ? rows[0] : rows;
+      if (saved?.id) event.id = String(saved.id);
+      const realtimeEvent = this.allEvents.find(
+        (item) =>
+          item.ruleId === TEAM_ADJUSTMENT_RULE_ID &&
+          item.teamId === event.teamId &&
+          item.weekId === event.weekId &&
+          item.createdAt === event.createdAt
+      );
+      if (realtimeEvent) event.id = realtimeEvent.id;
+    }
+
+    if (!this.allEvents.some((item) => item.id === event.id)) this.allEvents.unshift(event);
+    this._saveToLocal();
+    this._emit();
+    return event;
+  }
+
+  // —— Xóa bản ghi theo phạm vi quyền của từng vai trò ——
   canDeleteEvent(event) {
     if (!event) return false;
     if (this.isAdmin()) return true;
+    if (event.ruleId === TEAM_ADJUSTMENT_RULE_ID) return false;
     const leaderTeam = this.getLeaderTeamId();
     if (!leaderTeam || event.teamId !== leaderTeam) return false;
-    // Tuần đã qua -> Tổ trưởng KHÔNG được xóa!
-    if (event.weekId !== defaultWeekId()) return false;
-    // Cho phép xóa nếu trong vòng 15 phút sau khi ghi
-    const isWithin15Min = Date.now() - event.createdAt < 15 * 60 * 1000;
-    return isWithin15Min && this.canEditWeek(event.weekId);
+    return event.weekId === defaultWeekId() && this.canEditWeek(event.weekId);
   }
 
   async deleteEvent(eventId) {
@@ -1348,26 +1434,32 @@ export class ScoreStore {
     if (!event) throw new Error("Không tìm thấy bản ghi.");
 
     if (!this.canDeleteEvent(event)) {
-      throw new Error("Bạn không có quyền xóa bản ghi này (đã quá 15 phút, tuần đã học qua hoặc không thuộc tổ của bạn).");
+      throw new Error("Bạn không có quyền xóa bản ghi này (tuần đã học qua hoặc không thuộc tổ của bạn).");
     }
 
-    // 1. Optimistic delete (< 5ms)
+    const originalIndex = this.allEvents.indexOf(event);
     this.allEvents = this.allEvents.filter((e) => String(e.id) !== String(eventId));
     this._saveToLocal();
     this._emit();
 
-    // 2. Gửi xóa lên Supabase
     if (this.mode === "live" && !event.syncError) {
       try {
-        await fetchWithTimeout(
+        const res = await fetchWithTimeout(
           `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(eventId)}`,
           {
             method: "DELETE",
             headers: supabaseHeaders({ Accept: "application/json" }),
           }
         );
+        if (!res.ok) {
+          const detail = (await res.text().catch(() => "")).slice(0, 160);
+          throw new Error(`Supabase không xóa được bản ghi (HTTP ${res.status})${detail ? `: ${detail}` : ""}`);
+        }
       } catch (err) {
-        console.warn("Lỗi xóa trên Supabase:", err);
+        this.allEvents.splice(Math.max(0, originalIndex), 0, event);
+        this._saveToLocal();
+        this._emit();
+        throw err instanceof Error ? err : new Error("Không xác định được lỗi khi xóa bản ghi trên Supabase.");
       }
     }
   }
