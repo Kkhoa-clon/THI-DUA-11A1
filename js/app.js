@@ -2191,7 +2191,7 @@ function renderClassroomBoardView() {
   const weekId = store.weekId;
   const weekNum = weekNumber(weekId);
   const teams = teamsForWeek(weekId);
-  const teamScores = store.calculateScoresFast(store.events, BASE_POINTS, weekId).teamScores;
+  const { teamScores, memberScores } = store.calculateScoresFast(store.events, BASE_POINTS, weekId);
   const lockReason = store.getLockedWeekReason(weekId);
 
   if (summaryPanel) {
@@ -2240,6 +2240,12 @@ function renderClassroomBoardView() {
         })
         .sort((a, b) => b.delta - a.delta || a.member.name.localeCompare(b.member.name, "vi"))
         .slice(0, 3);
+      const rankedMembers = team.members
+        .map((member) => ({
+          ...member,
+          points: memberScores[member.id]?.points ?? BASE_POINTS,
+        }))
+        .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, "vi"));
 
       return `
         <article class="classroom-board-panel">
@@ -2315,6 +2321,20 @@ function renderClassroomBoardView() {
 
           <div class="classroom-list-block compact">
             <div class="classroom-list-header">
+              <span>Điểm từng thành viên</span>
+              <span class="badge-muted">${rankedMembers.length}</span>
+            </div>
+            ${rankedMembers.map((member, index) => `
+              <div class="classroom-member-row">
+                <span class="classroom-member-name">${index + 1}. ${escapeHtml(member.name)}</span>
+                <span class="classroom-member-score ${member.points >= BASE_POINTS ? "positive" : "negative"}">${formatPoints(member.points)}đ</span>
+                <span class="text-[9px] text-on-surface-variant">Tuần ${weekNum}</span>
+              </div>
+            `).join("")}
+          </div>
+
+          <div class="classroom-list-block compact">
+            <div class="classroom-list-header">
               <span>Nhân tố nổi bật</span>
             </div>
             ${topMembers.length ? topMembers.map(({ member, delta, count }) => `
@@ -2379,6 +2399,12 @@ function classroomExportTeamData(team, scores, weekId, events, ctx) {
     })
     .sort((a, b) => b.delta - a.delta || a.name.localeCompare(b.name, "vi"))
     .slice(0, 3);
+  const memberScores = team.members
+    .map((member) => ({
+      name: member.name,
+      points: scores.memberScores[member.id]?.points ?? BASE_POINTS,
+    }))
+    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, "vi"));
 
   ctx.font = "21px Manrope, Arial, sans-serif";
   const maxRowWidth = 570;
@@ -2395,6 +2421,7 @@ function classroomExportTeamData(team, scores, weekId, events, ctx) {
     score,
     violations: teamEvents.filter((event) => event.points < 0).slice(0, 5).map(formatActivity),
     rewards: teamEvents.filter((event) => event.points > 0).slice(0, 5).map(formatActivity),
+    memberScores,
     topMembers,
     eventCount: teamEvents.length,
   };
@@ -2407,9 +2434,10 @@ function drawClassroomExportTeam(ctx, data, x, y, width) {
   const activityHeight = (items) => items.length
     ? 54 + items.reduce((sum, item) => sum + activityRowHeight(item), 0)
     : 88;
+  const memberScoresHeight = 54 + data.memberScores.length * 38;
   const topMembersHeight = 54 + data.topMembers.length * 40;
   const height = 116 + 82 + activityHeight(data.violations) +
-    activityHeight(data.rewards) + topMembersHeight + 20;
+    activityHeight(data.rewards) + memberScoresHeight + topMembersHeight + 20;
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(x, y, width, height);
@@ -2481,6 +2509,24 @@ function drawClassroomExportTeam(ctx, data, x, y, width) {
 
   drawActivitySection("Vi phạm", data.violations, data.score.minusCount || 0, "#be123c");
   drawActivitySection("Điểm cộng", data.rewards, data.score.plusCount || 0, "#047857");
+
+  ctx.fillStyle = "#243b8a";
+  ctx.font = "bold 24px Manrope, Arial, sans-serif";
+  ctx.fillText(`Điểm từng thành viên (${data.memberScores.length})`, x + padding, cursorY + 26);
+  cursorY += 54;
+  data.memberScores.forEach((member, index) => {
+    ctx.fillStyle = index % 2 ? "#f8fafc" : "#ffffff";
+    ctx.fillRect(x + padding - 6, cursorY - 23, innerWidth + 12, 36);
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "21px Manrope, Arial, sans-serif";
+    ctx.fillText(`${index + 1}. ${member.name}`, x + padding, cursorY);
+    ctx.textAlign = "right";
+    ctx.fillStyle = member.points >= BASE_POINTS ? "#047857" : "#be123c";
+    ctx.font = "bold 21px 'Space Grotesk', Arial, sans-serif";
+    ctx.fillText(`${formatPoints(member.points)}đ`, x + width - padding, cursorY);
+    ctx.textAlign = "left";
+    cursorY += 38;
+  });
 
   ctx.fillStyle = "#243b8a";
   ctx.font = "bold 24px Manrope, Arial, sans-serif";
