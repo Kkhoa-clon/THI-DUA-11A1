@@ -1414,7 +1414,7 @@ function renderScoreDeleteEvents() {
   if (roleHint) {
     roleHint.textContent = isAdmin
       ? "Admin có thể xóa lượt ghi ở mọi tổ và mọi tuần."
-      : `Tổ trưởng chỉ xóa được lượt ghi của ${TEAM_BY_ID[store.getLeaderTeamId()]?.name || "tổ mình"} trong tuần đang học.`;
+      : `Tổ trưởng có thể xóa lượt ghi của ${TEAM_BY_ID[store.getLeaderTeamId()]?.name || "tổ mình"} trong tuần hiện tại, không giới hạn 15 phút.`;
   }
 
   const filterWrap = $("#score-delete-week-filter-wrap");
