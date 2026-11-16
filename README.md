@@ -2,6 +2,33 @@
 
 Dự án Web App thi đua Lớp 11A1 được thiết kế và tái cấu trúc toàn diện theo phong cách **Modern Swiss-Minimalist** kết hợp **Realtime WebSocket & Delta-Sync**, tối ưu chịu tải cho hơn 50 thiết bị truy cập đồng thời trong giờ sinh hoạt lớp mà không giật lag, nghẽn mạng hay sập database.
 
+## 📜 LỊCH SỬ CẬP NHẬT
+
+Các mốc dưới đây được tổng hợp từ 30 commit trên nhánh `main`, từ ngày 19/10 đến 15/11/2026. Tên phiên bản giữ theo commit; những commit không đặt tên phiên bản được nhóm thành các đợt cập nhật bổ sung.
+
+| Phiên bản / giai đoạn | Ngày | Commit | Nội dung cập nhật |
+|---|---|---|---|
+| Khởi tạo · v1 | 19/10/2026 | `68addd6`, `f19e7db` | Khởi tạo giao diện web, CSS, ứng dụng JavaScript, quy tắc chấm điểm, kho dữ liệu và SQL Supabase. |
+| v2 | 19/10/2026 | `39af593` | Cải tiến giao diện và luồng ứng dụng; bổ sung điều chỉnh cho cấu hình và đồng bộ dữ liệu. |
+| v3 | 19/10/2026 | `ce538b7` | Tiếp tục tinh chỉnh giao diện, xử lý ứng dụng và đồng bộ dữ liệu. |
+| v4 | 19/10/2026 | `1fe5f4d` | Mở rộng đáng kể giao diện, ứng dụng, kho dữ liệu và cấu hình; bổ sung hỗ trợ thao tác xóa trong Supabase. |
+| Bổ sung tính năng | 20–21/10/2026 | `32a6718`, `0f399d8`, `86c3d17`, `5908da6` | Cập nhật cấu hình và cờ tính năng; thêm xử lý chuỗi thành tích mà không cần lưu trạng thái riêng. |
+| Tái cấu trúc nền tảng | 24/10/2026 | `dce3218` | Tổ chức lại mã nguồn và giao diện; bổ sung tài liệu thiết kế, hướng dẫn chạy ứng dụng, quy trình tạo bundle và cấu hình Supabase đầy đủ. |
+| v1.0 | 25/10/2026 | `c55568b` | Chốt mốc 1.0, tiếp tục hoàn thiện giao diện, cấu hình lớp, quy tắc và dữ liệu ứng dụng. |
+| v1.1 | 25/10/2026 | `3a3ee66` | Điều chỉnh quy tắc thi đua và nội dung nội quy. |
+| v1.2 | 25/10/2026 | `b88dd12` | Cập nhật quy trình tạo bundle và các tệp phụ thuộc; lưu ý obfuscation chỉ làm khó đọc mã, không thay thế xác thực hay phân quyền. |
+| v1.3 | 25/10/2026 | `f91cb51` | Bổ sung luồng thông báo, PWA/service worker và các thành phần liên quan đến push notification. |
+| v1.3.1 | 25/10/2026 | `7d6e5dd`, `3da7b52`, `55e6b1a` | Sửa một số vấn đề liên quan đến dữ liệu database và xử lý thông báo. |
+| v1.4 | 25/10/2026 | `3204506` | Thêm tab Cờ luân lưu, giao diện kéo-thả và chế độ sáng/tối. |
+| Hoàn thiện sau v1.4 | 25–26/10/2026 | `508639b`, `c6764e5`, `58b22a2` | Hợp nhất nhánh tính năng, cập nhật thông tin/quy tắc và hoàn tất các thay đổi liên quan đến Cờ luân lưu. |
+| v6 | 05/11/2026 | `a406ed7` | Tái cấu trúc lớn ứng dụng và bundle; điều chỉnh giao diện, cấu hình và các thành phần tính năng. |
+| v7 | 05/11/2026 | `93c07df` | Cập nhật giao diện và nội quy; tinh chỉnh luồng ứng dụng và quy tắc chấm điểm. |
+| v10 | 08/11/2026 | `d808160` | Ổn định và cải tiến giao diện, xử lý ứng dụng và đồng bộ dữ liệu. |
+| v12 · triển khai lớp | 12–14/11/2026 | `59799c4`, `b629e8f` | Đưa ứng dụng vào triển khai lớp 11A1; tiếp tục bổ sung và hoàn thiện các luồng ứng dụng. |
+| Cập nhật sau triển khai | 15/11/2026 | `d41cd76`, `aed7efb`, `3a85459`, `521c498` | Tinh chỉnh giao diện, ghi điểm và đồng bộ; cập nhật SQL Supabase, bổ sung script điều chỉnh điểm phong trào theo tổ và sửa các lỗi phát sinh. |
+
+> **Ghi chú:** Commit hiện có không ghi nhận các mốc v5, v8, v9 hoặc v11; lịch sử trên không tự đặt nội dung cho các phiên bản này. Các commit hợp nhất và sửa lỗi đã được gộp vào giai đoạn tương ứng để dễ theo dõi.
+
 ---
 
 ## 🌟 ĐẶC ĐIỂM NỔI BẬT
