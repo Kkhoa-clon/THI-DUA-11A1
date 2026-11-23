@@ -1338,8 +1338,17 @@ export class ScoreStore {
   }
 
   async addTeamAdjustment({ teamId, points, note }) {
-    if (!this.isAdmin()) throw new Error("Chỉ Admin được ghi điểm phong trào cho tổ.");
+    if (!this.isLoggedIn()) throw new Error("Vui lòng đăng nhập để ghi điểm phong trào.");
     if (!TEAM_BY_ID[teamId]) throw new Error("Vui lòng chọn một tổ hợp lệ.");
+    if (this.isLeader()) {
+      if (this.getLeaderTeamId() !== teamId) {
+        throw new Error("Tổ trưởng chỉ được ghi điểm phong trào cho tổ của mình.");
+      }
+      const blockReason = this.leaderBlockReason(this.weekId);
+      if (blockReason) throw new Error(blockReason);
+    } else if (!this.isAdmin()) {
+      throw new Error("Bạn không có quyền ghi điểm phong trào.");
+    }
 
     const adjustment = Number(points);
     if (
@@ -1364,7 +1373,7 @@ export class ScoreStore {
       label: TEAM_ADJUSTMENT_LABEL,
       note: reason,
       byTeamId: teamId,
-      createdByRole: "admin",
+      createdByRole: this.isAdmin() ? "admin" : "leader",
       createdAt: Date.now(),
       syncError: null,
     };

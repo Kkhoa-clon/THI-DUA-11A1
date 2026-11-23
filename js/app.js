@@ -378,9 +378,9 @@ function renderLeaderboard() {
               <span class="font-heading font-bold text-sm text-primary block truncate">${t1.name}</span>
               <span class="text-[11px] text-secondary font-bold tabular-nums">${formatPoints(t1.plusPoints - Math.abs(t1.minusPoints))} đ</span>
             </div>
-            <div class="w-full bg-primary-fixed/60 rounded-xl py-1.5 px-1">
-              <span class="font-heading font-bold text-lg text-primary block leading-none tabular-nums">${t1.total}</span>
-              <span class="text-[9px] text-primary font-bold uppercase tracking-wider">${getBadgeLabel(t1)}</span>
+            <div class="podium-champion-score w-full rounded-xl py-1.5 px-1">
+              <span class="font-heading font-bold text-lg block leading-none tabular-nums">${t1.total}</span>
+              <span class="text-[9px] font-bold uppercase tracking-wider">${getBadgeLabel(t1)}</span>
             </div>
           </div>
         </div>
@@ -442,7 +442,7 @@ function renderRankingsList(teamRanks) {
       const currentWeekTeams = TEAMS.map((team) => teamScores[team.id]).filter(Boolean);
 
       container.innerHTML = `
-        <div class="rounded-2xl bg-primary-fixed/50 p-3.5 text-center border border-primary/10">
+        <div class="rounded-2xl bg-primary-fixed/50 dark:bg-surface-container-lowest p-3.5 text-center border border-primary/10 dark:border-outline-variant/30 dark:text-on-surface">
           <span class="material-symbols-outlined text-primary text-[24px]">visibility</span>
           <h3 class="font-heading font-bold text-sm text-on-surface mt-1">Dữ liệu thực tế • Tuần ${weekNumber(store.weekId)}</h3>
           <p class="text-[11px] text-on-surface-variant mt-1">Chưa xếp hạng thi đua. Điểm và vi phạm bên dưới là số liệu đang ghi nhận, chưa chốt.</p>
@@ -1064,6 +1064,75 @@ function renderScoringWorkspace() {
         };
       });
     }
+  }
+
+  const adjustmentTeamSelect = $("#team-adjustment-team");
+  const adjustmentDirectionSelect = $("#team-adjustment-direction");
+  const adjustmentPointsInput = $("#team-adjustment-points");
+  const adjustmentReasonInput = $("#team-adjustment-reason");
+  const adjustmentButton = $("#btn-team-adjustment");
+  const adjustmentHint = $("#team-adjustment-permission-hint");
+
+  if (adjustmentTeamSelect) {
+    const selectedTeamId = isAdmin ? adjustmentTeamSelect.value : leaderTeam;
+    const availableTeams = isAdmin
+      ? TEAMS
+      : leaderTeam && TEAM_BY_ID[leaderTeam]
+        ? [TEAM_BY_ID[leaderTeam]]
+        : [];
+    adjustmentTeamSelect.innerHTML = [
+      isAdmin ? '<option value="">Chọn tổ</option>' : "",
+      ...availableTeams.map((team) => `<option value="${team.id}">${escapeHtml(team.name)}</option>`),
+    ].join("");
+    adjustmentTeamSelect.value = selectedTeamId || "";
+    adjustmentTeamSelect.disabled = !isAdmin;
+  }
+
+  if (adjustmentHint) {
+    const scope = isAdmin
+      ? "Admin có thể chọn bất kỳ tổ nào; tuần áp dụng theo tuần đang chọn."
+      : `Bạn chỉ có thể ghi điểm cho ${TEAM_BY_ID[leaderTeam]?.name || "tổ của mình"} trong tuần hiện tại.`;
+    adjustmentHint.textContent = `${scope} Điểm chỉ thay đổi tổng điểm tổ, không thay đổi điểm cá nhân.`;
+  }
+
+  if (adjustmentTeamSelect && adjustmentDirectionSelect && adjustmentPointsInput && adjustmentReasonInput && adjustmentButton) {
+    adjustmentButton.onclick = async () => {
+      const teamId = adjustmentTeamSelect.value;
+      const amount = Number(adjustmentPointsInput.value);
+      const reason = adjustmentReasonInput.value.trim();
+      if (!teamId) {
+        alert("Vui lòng chọn tổ cần cộng hoặc trừ điểm.");
+        return;
+      }
+      if (!Number.isSafeInteger(amount) || amount < 1 || amount > 2147483647) {
+        alert("Số điểm phải là số nguyên dương, tối đa 2.147.483.647.");
+        return;
+      }
+      if (!reason) {
+        alert("Vui lòng nhập chú thích lý do.");
+        adjustmentReasonInput.focus();
+        return;
+      }
+
+      const points = adjustmentDirectionSelect.value === "minus" ? -amount : amount;
+      const action = points > 0 ? "Cộng" : "Trừ";
+      const teamName = TEAM_BY_ID[teamId]?.name || teamId;
+      const week = weekNumber(store.weekId);
+      if (!confirm(`${action} ${amount} điểm cho ${teamName} trong Tuần ${week}?\n\nLý do: ${reason}`)) return;
+
+      adjustmentButton.disabled = true;
+      try {
+        await store.addTeamAdjustment({ teamId, points, note: reason });
+        adjustmentPointsInput.value = "";
+        adjustmentReasonInput.value = "";
+        const syncNote = store.mode === "live" ? "" : " (hiện chỉ lưu trên thiết bị này)";
+        alert(`Đã ${action.toLowerCase()} ${amount} điểm cho ${teamName}, Tuần ${week}.${syncNote}`);
+      } catch (err) {
+        alert(err.message || "Không thể lưu điểm phong trào.");
+      } finally {
+        adjustmentButton.disabled = false;
+      }
+    };
   }
 
   // Render components
@@ -1770,7 +1839,7 @@ function renderProfileView() {
       badges.push(`<span class="px-2.5 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">stars</span> +${currentWeekPlusPoints}đ khen tuần này</span>`);
     }
     if (currentWeekPoints >= 100) {
-      badges.push(`<span class="px-2.5 py-1 rounded-full bg-primary-fixed text-primary text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">military_tech</span> Đạt chuẩn thi đua</span>`);
+      badges.push(`<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1 shrink-0"><span class="material-symbols-outlined text-[13px]">military_tech</span> Đạt chuẩn thi đua</span>`);
     }
     badgesRow.innerHTML = badges.join("");
   }
@@ -2262,6 +2331,12 @@ function renderClassroomBoardView() {
         plusCount: 0,
         minusCount: 0,
       };
+      const baseTeamScore = BASE_POINTS * team.members.length;
+      const teamScoreTone = scoreInfo.total > baseTeamScore
+        ? "positive"
+        : scoreInfo.total < baseTeamScore
+          ? "negative"
+          : "neutral";
       const teamEvents = store.events.filter((event) => event.teamId === team.id && event.weekId === weekId);
       const violations = groupClassroomActivityEvents(teamEvents.filter((event) => event.points < 0));
       const rewards = groupClassroomActivityEvents(teamEvents.filter((event) => event.points > 0));
@@ -2288,8 +2363,8 @@ function renderClassroomBoardView() {
               <h4 class="font-heading font-bold text-sm text-on-surface truncate">${escapeHtml(team.name)}</h4>
               <p class="text-[10px] text-on-surface-variant">${team.members.length} học sinh</p>
             </div>
-            <div class="classroom-score-badge ${scoreInfo.total >= BASE_POINTS * team.members.length ? "positive" : "negative"}">
-              ${scoreInfo.total >= BASE_POINTS * team.members.length ? "+" : ""}${scoreInfo.total}
+            <div class="classroom-score-badge ${teamScoreTone}">
+              ${scoreInfo.total > baseTeamScore ? "+" : ""}${scoreInfo.total}
             </div>
           </div>
 
@@ -2300,11 +2375,11 @@ function renderClassroomBoardView() {
             </div>
             <div class="classroom-stat">
               <span class="label">Khen</span>
-              <strong class="tabular-nums text-emerald-700">+${scoreInfo.plusPoints || 0}</strong>
+              <strong class="tabular-nums classroom-score-chip ${scoreInfo.plusPoints > 0 ? "positive" : "neutral"}">+${scoreInfo.plusPoints || 0}</strong>
             </div>
             <div class="classroom-stat">
               <span class="label">Lỗi</span>
-              <strong class="tabular-nums text-rose-700">${scoreInfo.minusPoints || 0}</strong>
+              <strong class="tabular-nums classroom-score-chip ${scoreInfo.minusPoints < 0 ? "negative" : "neutral"}">${scoreInfo.minusPoints || 0}</strong>
             </div>
             <div class="classroom-stat">
               <span class="label">Lượt</span>
@@ -2366,7 +2441,7 @@ function renderClassroomBoardView() {
               ${rankedMembers.map((member, index) => `
               <div class="classroom-member-row">
                 <span class="classroom-member-name">${index + 1}. ${escapeHtml(member.name)}</span>
-                <span class="classroom-member-score ${member.points >= BASE_POINTS ? "positive" : "negative"}">${formatPoints(member.points)}đ</span>
+                <span class="classroom-member-score ${member.points > BASE_POINTS ? "positive" : member.points < BASE_POINTS ? "negative" : "neutral"}">${formatPoints(member.points)}đ</span>
                 <span class="text-[9px] text-on-surface-variant">Tuần ${weekNum}</span>
               </div>
             `).join("")}
@@ -2385,7 +2460,7 @@ function renderClassroomBoardView() {
               ${topMembers.length ? topMembers.map(({ member, delta, count }) => `
               <div class="classroom-member-row">
                 <span class="classroom-member-name">${escapeHtml(member.name)}</span>
-                <span class="classroom-member-score ${delta >= 0 ? "positive" : "negative"}">${delta >= 0 ? "+" : ""}${delta}đ</span>
+                <span class="classroom-member-score ${delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral"}">${delta > 0 ? "+" : ""}${delta}đ</span>
                 <span class="text-[9px] text-on-surface-variant">${count} lượt</span>
               </div>
             `).join("") : `<div class="classroom-empty">Chưa có dữ liệu.</div>`}
@@ -2753,10 +2828,10 @@ function renderClassRulesView() {
               const isPlus = r.points > 0;
               const isZero = r.points === 0;
               const badgeClass = isPlus
-                ? "bg-secondary-fixed text-on-secondary-fixed"
+                ? "bg-secondary-fixed text-on-secondary-fixed rule-points-positive"
                 : isZero
-                ? "bg-surface-container-high text-on-surface-variant"
-                : "bg-tertiary-fixed text-on-tertiary-fixed";
+                ? "bg-surface-container-high text-on-surface-variant rule-points-neutral"
+                : "bg-tertiary-fixed text-on-tertiary-fixed rule-points-negative";
               const iconColor = isPlus ? "text-secondary" : isZero ? "text-outline" : "text-tertiary";
 
               return `
@@ -2843,57 +2918,6 @@ function renderAdminPanel() {
     };
 
     syncAdminWeekUI();
-  }
-
-  const adjustmentTeamSelect = $("#admin-team-adjustment-team");
-  const adjustmentDirectionSelect = $("#admin-team-adjustment-direction");
-  const adjustmentPointsInput = $("#admin-team-adjustment-points");
-  const adjustmentReasonInput = $("#admin-team-adjustment-reason");
-  const adjustmentButton = $("#btn-admin-team-adjustment");
-  if (
-    adjustmentTeamSelect &&
-    adjustmentDirectionSelect &&
-    adjustmentPointsInput &&
-    adjustmentReasonInput &&
-    adjustmentButton
-  ) {
-    adjustmentButton.onclick = async () => {
-      const teamId = adjustmentTeamSelect.value;
-      const amount = Number(adjustmentPointsInput.value);
-      const reason = adjustmentReasonInput.value.trim();
-      if (!teamId) {
-        alert("Vui lòng chọn tổ cần cộng hoặc trừ điểm.");
-        return;
-      }
-      if (!Number.isSafeInteger(amount) || amount < 1 || amount > 2147483647) {
-        alert("Số điểm phải là số nguyên dương, tối đa 2.147.483.647.");
-        return;
-      }
-      if (!reason) {
-        alert("Vui lòng nhập chú thích lý do.");
-        adjustmentReasonInput.focus();
-        return;
-      }
-
-      const points = adjustmentDirectionSelect.value === "minus" ? -amount : amount;
-      const action = points > 0 ? "Cộng" : "Trừ";
-      const teamName = TEAM_BY_ID[teamId]?.name || teamId;
-      const week = weekNumber(store.weekId);
-      if (!confirm(`${action} ${amount} điểm cho ${teamName} trong Tuần ${week}?\n\nLý do: ${reason}`)) return;
-
-      adjustmentButton.disabled = true;
-      try {
-        await store.addTeamAdjustment({ teamId, points, note: reason });
-        adjustmentPointsInput.value = "";
-        adjustmentReasonInput.value = "";
-        const syncNote = store.mode === "live" ? "" : " (hiện chỉ lưu trên thiết bị này)";
-        alert(`Đã ${action.toLowerCase()} ${amount} điểm cho ${teamName}, Tuần ${week}.${syncNote}`);
-      } catch (err) {
-        alert(err.message || "Không thể lưu điểm phong trào.");
-      } finally {
-        adjustmentButton.disabled = false;
-      }
-    };
   }
 
   // Week Lock Management
@@ -3420,10 +3444,10 @@ function openRulesCatalogModal() {
       const isPlus = r.points > 0;
       const isZero = r.points === 0;
       const badgeColor = isPlus
-        ? "bg-secondary-fixed text-on-secondary-fixed"
+        ? "bg-secondary-fixed text-on-secondary-fixed rule-points-positive"
         : isZero
-        ? "bg-surface-container-high text-on-surface-variant"
-        : "bg-tertiary-fixed text-on-tertiary-fixed";
+        ? "bg-surface-container-high text-on-surface-variant rule-points-neutral"
+        : "bg-tertiary-fixed text-on-tertiary-fixed rule-points-negative";
 
       const qty = state.selectedRules.get(r.id) || 0;
 
@@ -3478,19 +3502,27 @@ function setupEventListeners() {
   });
 
   // 2. Sub-tabs on Leaderboard
-  $$("#board-tabs .board-tab").forEach((btn) => {
+  const boardTabButtons = $$("#board-tabs .board-tab");
+  const syncBoardTabState = () => {
+    boardTabButtons.forEach((btn) => {
+      const isActive = btn.dataset.board === state.currentBoard;
+      btn.classList.toggle("active-board-tab", isActive);
+      btn.classList.toggle("bg-surface-container-lowest", isActive);
+      btn.classList.toggle("text-primary", isActive);
+      btn.classList.toggle("shadow-xs", isActive);
+      btn.classList.toggle("text-on-surface-variant", !isActive);
+      btn.setAttribute("aria-pressed", String(isActive));
+    });
+  };
+
+  boardTabButtons.forEach((btn) => {
     btn.onclick = () => {
       state.currentBoard = btn.dataset.board;
-      $$("#board-tabs .board-tab").forEach((b) => {
-        const isActive = b.dataset.board === state.currentBoard;
-        b.classList.toggle("bg-surface-container-lowest", isActive);
-        b.classList.toggle("text-primary", isActive);
-        b.classList.toggle("shadow-xs", isActive);
-        b.classList.toggle("text-on-surface-variant", !isActive);
-      });
+      syncBoardTabState();
       renderLeaderboard();
     };
   });
+  syncBoardTabState();
 
   const weekSelector = $("#week-selector");
   if (weekSelector) {

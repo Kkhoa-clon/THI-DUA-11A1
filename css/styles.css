@@ -346,6 +346,14 @@
   color: #be123c;
 }
 
+.classroom-score-chip.positive {
+  color: #047857;
+}
+
+.classroom-score-chip.negative {
+  color: #be123c;
+}
+
 .classroom-empty {
   font-size: 0.6rem;
   color: rgb(var(--a1-on-surface-variant));
@@ -402,21 +410,120 @@
 }
 
 /* ============================================================
-   BOARD TABS — Scroll chip active state
+   BOARD TABS — Icon tiles with labels
    ============================================================ */
-#board-tabs .board-tab.active-board-tab {
-  background-color: rgb(var(--a1-primary)) !important;
-  color: rgb(var(--a1-on-primary)) !important;
-  box-shadow: 0 2px 8px rgb(var(--a1-primary) / 0.35);
+.board-tabs-scroll {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 0.625rem;
+  min-width: 0;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0.25rem 0.125rem 0.5rem;
+}
+
+.board-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+#board-tabs .board-tab {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  width: 4.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgb(var(--a1-on-surface-variant));
+  cursor: pointer;
+}
+
+#board-tabs .board-tab-icon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 1.1rem;
+  background: var(--board-icon-bg, #eef2ff);
+  color: var(--board-icon-color, #4f46e5);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+#board-tabs .board-tab-icon svg {
+  width: 1.65rem;
+  height: 1.65rem;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#board-tabs .board-tab-label {
+  max-width: 100%;
+  color: rgb(var(--a1-on-surface-variant));
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1rem;
+  text-align: center;
+  white-space: normal;
+}
+
+#board-tabs .board-tab[data-board="teams"] {
+  --board-icon-bg: #fef3c7;
+  --board-icon-color: #b45309;
+}
+
+#board-tabs .board-tab[data-board="year"] {
+  --board-icon-bg: #dbeafe;
+  --board-icon-color: #2563eb;
+}
+
+#board-tabs .board-tab[data-board="minus"] {
+  --board-icon-bg: #fee2e2;
+  --board-icon-color: #dc2626;
+}
+
+#board-tabs .board-tab[data-board="plus"] {
+  --board-icon-bg: #dcfce7;
+  --board-icon-color: #16a34a;
+}
+
+#board-tabs .board-tab[data-board="history"] {
+  --board-icon-bg: #f3e8ff;
+  --board-icon-color: #9333ea;
+}
+
+#board-tabs .board-tab[data-board="podium"] {
+  --board-icon-bg: #ffedd5;
+  --board-icon-color: #ea580c;
+}
+
+#board-tabs .board-tab[data-board="monthly"] {
+  --board-icon-bg: #cffafe;
+  --board-icon-color: #0891b2;
+}
+
+#board-tabs .board-tab.active-board-tab .board-tab-icon,
+#board-tabs .board-tab.text-primary .board-tab-icon {
+  box-shadow: 0 4px 12px rgb(var(--a1-primary) / 0.2);
+  transform: translateY(-2px);
+}
+
+#board-tabs .board-tab.active-board-tab .board-tab-label,
+#board-tabs .board-tab.text-primary .board-tab-label {
+  color: rgb(var(--a1-primary));
   font-weight: 700;
 }
 
-/* JS toggle class "text-primary" trên scroll chips — chúng ta dùng selector này */
-#board-tabs .board-tab.text-primary {
-  background-color: rgb(var(--a1-primary)) !important;
-  color: rgb(var(--a1-on-primary)) !important;
-  box-shadow: 0 2px 8px rgb(var(--a1-primary) / 0.35);
-  font-weight: 700;
+#board-tabs .board-tab:focus-visible {
+  outline: 2px solid rgb(var(--a1-primary));
+  outline-offset: 3px;
 }
 
 .board-tab-pill {
@@ -435,7 +542,6 @@
   color: rgb(var(--a1-on-surface-variant));
 }
 
-#board-tabs .board-tab,
 .board-tab-pill {
   transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
@@ -846,6 +952,22 @@ textarea {
   border: 1px solid rgba(203, 213, 225, 0.7);
 }
 
+.admin-dashboard-banner {
+  background: linear-gradient(125deg, #78350f 0%, #a34a0a 55%, #7c2d12 100%);
+  box-shadow: 0 12px 28px rgba(120, 53, 15, 0.2);
+}
+
+.podium-champion-score {
+  background-color: rgb(var(--a1-primary-fixed) / 0.6);
+  color: rgb(var(--a1-primary));
+}
+
+html.dark .podium-champion-score {
+  background: #111111;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ranking-team-card,
   .ranking-member-card {
@@ -860,6 +982,89 @@ html.dark,
 html.dark body {
   background-color: #0d1420;
   color: #dde4f0;
+}
+
+html.dark .snapshot-card {
+  background: linear-gradient(135deg, #073b4c 0%, #0b2738 55%, #101827 100%);
+}
+
+html.dark .admin-dashboard-banner {
+  background: linear-gradient(125deg, #142238 0%, #1c3046 58%, #49320f 100%);
+  border: 1px solid rgba(251, 191, 36, 0.26);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+}
+
+html.dark .lookup-banner {
+  background: linear-gradient(135deg, #073b4c 0%, #0b2738 55%, #101827 100%);
+}
+
+html.dark .snapshot-card :is(p, h2, span),
+html.dark .lookup-banner :is(p, h2, span) {
+  color: #f8fafc;
+}
+
+html.dark .quick-metric-card {
+  background: #000;
+  border-color: rgba(148, 163, 184, 0.3);
+  box-shadow: none;
+}
+
+html.dark .quick-metric-card :is(.text-on-surface-variant, .text-on-surface) {
+  color: #fff;
+}
+
+html.dark #week-slider-label,
+html.dark #week-selector {
+  background: #000;
+  color: #fff;
+}
+
+html.dark .rule-points-positive {
+  background: #16a34a;
+  color: #fff;
+}
+
+html.dark .rule-points-negative {
+  background: #dc2626;
+  color: #fff;
+}
+
+html.dark .rule-points-neutral {
+  background: #000;
+  color: #fff;
+}
+
+html.dark .classroom-score-badge.positive,
+html.dark .classroom-list-row.success .classroom-points,
+html.dark .classroom-member-score.positive,
+html.dark .classroom-score-chip.positive {
+  background: #16a34a;
+  color: #fff;
+}
+
+html.dark .classroom-score-badge.negative,
+html.dark .classroom-list-row.danger .classroom-points,
+html.dark .classroom-member-score.negative,
+html.dark .classroom-score-chip.negative {
+  background: #dc2626;
+  color: #fff;
+}
+
+html.dark .classroom-score-badge.neutral,
+html.dark .classroom-member-score.neutral,
+html.dark .classroom-score-chip.neutral {
+  background: #000;
+  color: #fff;
+}
+
+html.dark .classroom-list-row .classroom-points,
+html.dark .classroom-member-score,
+html.dark .classroom-score-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.16rem 0.45rem;
 }
 
 html.dark .member-admin-badge {
@@ -968,9 +1173,35 @@ html.dark .nav-item.text-primary .nav-icon-pill {
   background-color: rgb(var(--a1-primary) / 0.18);
 }
 
-/* Dark mode: board tab active */
-html.dark #board-tabs .board-tab.active-board-tab {
-  box-shadow: 0 2px 10px rgb(var(--a1-primary) / 0.5);
+/* Dark mode: board tab active icon */
+html.dark #board-tabs .board-tab.active-board-tab .board-tab-icon {
+  box-shadow: 0 4px 12px rgb(var(--a1-primary) / 0.35);
+}
+
+/* Dark mode: hard-coded white/light-gray surfaces used by ranking and history cards */
+html.dark .ranking-team-card,
+html.dark .ranking-member-card,
+html.dark .history-team-card,
+html.dark .history-member-card,
+html.dark .history-details li,
+html.dark .rule-qty-stepper {
+  background: #192332;
+  color: #dde4f0;
+}
+
+html.dark .ranking-team-card.rank-1,
+html.dark .ranking-member-card.rank-1 {
+  background: linear-gradient(120deg, #1f1a09 0%, #192332 58%);
+}
+
+html.dark .ranking-team-card.rank-2,
+html.dark .ranking-member-card.rank-2 {
+  background: #192332;
+}
+
+html.dark .ranking-team-card.rank-3,
+html.dark .ranking-member-card.rank-3 {
+  background: #1b202c;
 }
 
 /* Dark mode: ranking 1st nền gold */

@@ -38,7 +38,11 @@ create policy "events_insert_valid"
     by_team_id = team_id
     and char_length(note) <= 200
     and (
-      (rule_id = 'team-adjustment' and by_role = 'admin')
+      (
+        rule_id = 'team-adjustment'
+        and by_role in ('admin', 'leader')
+        and by_team_id = team_id
+      )
       or (
         rule_id <> 'team-adjustment'
         and points >= -50
