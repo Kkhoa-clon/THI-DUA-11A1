@@ -1066,6 +1066,75 @@ function renderScoringWorkspace() {
     }
   }
 
+  const teamMovementTeamSelect = $("#team-movement-team");
+  const teamMovementDirectionSelect = $("#team-movement-direction");
+  const teamMovementPointsInput = $("#team-movement-points");
+  const teamMovementReasonInput = $("#team-movement-reason");
+  const teamMovementButton = $("#btn-team-movement");
+  const teamMovementHint = $("#team-movement-permission-hint");
+
+  if (teamMovementTeamSelect) {
+    const selectedTeamId = isAdmin ? teamMovementTeamSelect.value : leaderTeam;
+    const availableTeams = isAdmin
+      ? TEAMS
+      : leaderTeam && TEAM_BY_ID[leaderTeam]
+        ? [TEAM_BY_ID[leaderTeam]]
+        : [];
+    teamMovementTeamSelect.innerHTML = [
+      '<option value="">Chọn tổ</option>',
+      ...availableTeams.map((team) => `<option value="${team.id}">${escapeHtml(team.name)}</option>`),
+    ].join("");
+    teamMovementTeamSelect.value = availableTeams.some((team) => team.id === selectedTeamId)
+      ? selectedTeamId
+      : "";
+  }
+
+  if (teamMovementHint) {
+    teamMovementHint.textContent = isAdmin
+      ? "Admin có thể chọn bất kỳ tổ; tuần áp dụng theo tuần đang chọn."
+      : `Tổ trưởng chỉ được ghi điểm cho ${TEAM_BY_ID[leaderTeam]?.name || "tổ của mình"} trong tuần hiện tại.`;
+  }
+
+  if (teamMovementTeamSelect && teamMovementDirectionSelect && teamMovementPointsInput && teamMovementReasonInput && teamMovementButton) {
+    teamMovementButton.onclick = async () => {
+      const teamId = teamMovementTeamSelect.value;
+      const amount = Math.round((Number(teamMovementPointsInput.value) + Number.EPSILON) * 100) / 100;
+      const reason = teamMovementReasonInput.value.trim();
+      if (!teamId) {
+        alert("Vui lòng chọn tổ cần cộng hoặc trừ điểm.");
+        return;
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        alert("Số điểm phải là số dương, có thể nhập số lẻ.");
+        return;
+      }
+      if (!reason) {
+        alert("Vui lòng nhập chú thích lý do.");
+        teamMovementReasonInput.focus();
+        return;
+      }
+
+      const points = teamMovementDirectionSelect.value === "minus" ? -amount : amount;
+      const action = points > 0 ? "Cộng" : "Trừ";
+      const teamName = TEAM_BY_ID[teamId]?.name || teamId;
+      const week = weekNumber(store.weekId);
+      if (!confirm(`${action} ${amount} điểm cho ${teamName} trong Tuần ${week}?\n\nLý do: ${reason}`)) return;
+
+      teamMovementButton.disabled = true;
+      try {
+        await store.addTeamAdjustment({ teamId, points, note: reason });
+        teamMovementPointsInput.value = "";
+        teamMovementReasonInput.value = "";
+        const syncNote = store.mode === "live" ? "" : " (hiện chỉ lưu trên thiết bị này)";
+        alert(`Đã ${action.toLowerCase()} ${amount} điểm cho ${teamName}, Tuần ${week}.${syncNote}`);
+      } catch (err) {
+        alert(err.message || "Không thể lưu điểm phong trào của tổ.");
+      } finally {
+        teamMovementButton.disabled = false;
+      }
+    };
+  }
+
   const adjustmentTeamSelect = $("#team-adjustment-team");
   const adjustmentDirectionSelect = $("#team-adjustment-direction");
   const adjustmentPointsInput = $("#team-adjustment-points");
@@ -1074,38 +1143,41 @@ function renderScoringWorkspace() {
   const adjustmentHint = $("#team-adjustment-permission-hint");
 
   if (adjustmentTeamSelect) {
-    const selectedTeamId = isAdmin ? adjustmentTeamSelect.value : leaderTeam;
-    const availableTeams = isAdmin
-      ? TEAMS
+    const selectedMemberId = adjustmentTeamSelect.value;
+    const availableMembers = isAdmin
+      ? TEAMS.flatMap((team) => team.members.map((member) => ({ ...member, teamId: team.id })))
       : leaderTeam && TEAM_BY_ID[leaderTeam]
-        ? [TEAM_BY_ID[leaderTeam]]
+        ? TEAM_BY_ID[leaderTeam].members.map((member) => ({ ...member, teamId: leaderTeam }))
         : [];
     adjustmentTeamSelect.innerHTML = [
-      isAdmin ? '<option value="">Chọn tổ</option>' : "",
-      ...availableTeams.map((team) => `<option value="${team.id}">${escapeHtml(team.name)}</option>`),
+      '<option value="">Chọn thành viên</option>',
+      ...availableMembers.map((member) =>
+        `<option value="${member.id}">${escapeHtml(member.name)} — ${escapeHtml(TEAM_BY_ID[member.teamId]?.name || member.teamId)}</option>`
+      ),
     ].join("");
-    adjustmentTeamSelect.value = selectedTeamId || "";
-    adjustmentTeamSelect.disabled = !isAdmin;
+    adjustmentTeamSelect.value = availableMembers.some((member) => member.id === selectedMemberId)
+      ? selectedMemberId
+      : "";
   }
 
   if (adjustmentHint) {
     const scope = isAdmin
-      ? "Admin có thể chọn bất kỳ tổ nào; tuần áp dụng theo tuần đang chọn."
-      : `Bạn chỉ có thể ghi điểm cho ${TEAM_BY_ID[leaderTeam]?.name || "tổ của mình"} trong tuần hiện tại.`;
-    adjustmentHint.textContent = `${scope} Điểm chỉ thay đổi tổng điểm tổ, không thay đổi điểm cá nhân.`;
+      ? "Admin có thể chọn bất kỳ thành viên và xem/sửa/xóa mọi lượt."
+      : `Bạn chỉ có thể ghi điểm cho thành viên của ${TEAM_BY_ID[leaderTeam]?.name || "tổ mình"} trong tuần hiện tại.`;
+    adjustmentHint.textContent = `${scope} Cho phép số lẻ (ví dụ 2.5); điểm cộng trực tiếp vào điểm cá nhân và tổng tổ.`;
   }
 
   if (adjustmentTeamSelect && adjustmentDirectionSelect && adjustmentPointsInput && adjustmentReasonInput && adjustmentButton) {
     adjustmentButton.onclick = async () => {
-      const teamId = adjustmentTeamSelect.value;
-      const amount = Number(adjustmentPointsInput.value);
+      const memberId = adjustmentTeamSelect.value;
+      const amount = Math.round((Number(adjustmentPointsInput.value) + Number.EPSILON) * 100) / 100;
       const reason = adjustmentReasonInput.value.trim();
-      if (!teamId) {
-        alert("Vui lòng chọn tổ cần cộng hoặc trừ điểm.");
+      if (!memberId) {
+        alert("Vui lòng chọn thành viên cần cộng hoặc trừ điểm.");
         return;
       }
-      if (!Number.isSafeInteger(amount) || amount < 1 || amount > 2147483647) {
-        alert("Số điểm phải là số nguyên dương, tối đa 2.147.483.647.");
+      if (!Number.isFinite(amount) || amount <= 0) {
+        alert("Số điểm phải là số dương, có thể nhập số lẻ.");
         return;
       }
       if (!reason) {
@@ -1116,17 +1188,18 @@ function renderScoringWorkspace() {
 
       const points = adjustmentDirectionSelect.value === "minus" ? -amount : amount;
       const action = points > 0 ? "Cộng" : "Trừ";
-      const teamName = TEAM_BY_ID[teamId]?.name || teamId;
+      const memberName = MEMBER_BY_ID[memberId]?.name || memberId;
+      const teamName = TEAM_BY_ID[MEMBER_BY_ID[memberId]?.teamId]?.name || "";
       const week = weekNumber(store.weekId);
-      if (!confirm(`${action} ${amount} điểm cho ${teamName} trong Tuần ${week}?\n\nLý do: ${reason}`)) return;
+      if (!confirm(`${action} ${amount} điểm cho ${memberName} (${teamName}) trong Tuần ${week}?\n\nLý do: ${reason}`)) return;
 
       adjustmentButton.disabled = true;
       try {
-        await store.addTeamAdjustment({ teamId, points, note: reason });
+        await store.addTeamAdjustment({ memberId, points, note: reason });
         adjustmentPointsInput.value = "";
         adjustmentReasonInput.value = "";
         const syncNote = store.mode === "live" ? "" : " (hiện chỉ lưu trên thiết bị này)";
-        alert(`Đã ${action.toLowerCase()} ${amount} điểm cho ${teamName}, Tuần ${week}.${syncNote}`);
+        alert(`Đã ${action.toLowerCase()} ${amount} điểm cho ${memberName}, Tuần ${week}.${syncNote}`);
       } catch (err) {
         alert(err.message || "Không thể lưu điểm phong trào.");
       } finally {
@@ -1482,8 +1555,8 @@ function renderScoreDeleteEvents() {
   const roleHint = $("#score-delete-role-hint");
   if (roleHint) {
     roleHint.textContent = isAdmin
-      ? "Admin có thể xóa lượt ghi ở mọi tổ và mọi tuần."
-      : `Tổ trưởng có thể xóa lượt ghi của ${TEAM_BY_ID[store.getLeaderTeamId()]?.name || "tổ mình"} trong tuần hiện tại, không giới hạn 15 phút.`;
+      ? "Admin có thể sửa/xóa lượt ghi ở mọi tổ và mọi tuần."
+      : `Tổ trưởng có thể sửa/xóa lượt ghi phong trào cá nhân của ${TEAM_BY_ID[store.getLeaderTeamId()]?.name || "tổ mình"} trong tuần hiện tại.`;
   }
 
   const filterWrap = $("#score-delete-week-filter-wrap");
@@ -1532,8 +1605,10 @@ function renderScoreDeleteEvents() {
   list.innerHTML = displayEvents.map((event) => {
     const member = MEMBER_BY_ID[event.memberId];
     const teamName = TEAM_BY_ID[event.teamId]?.name || event.teamId;
-    const title = member?.name || (event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? "Điểm phong trào của tổ" : teamName);
+    const title = member?.name || teamName;
     const isPlus = event.points > 0;
+    const creator = event.createdByName ? ` · Người ghi: ${escapeHtml(event.createdByName)}` : "";
+    const dateLabel = new Date(event.createdAt).toLocaleDateString("vi-VN");
     return `
       <article class="rounded-xl border ${isPlus ? "border-secondary/20 bg-secondary/5" : "border-error/20 bg-error/5"} p-2.5">
         <div class="flex items-start justify-between gap-2">
@@ -1541,16 +1616,22 @@ function renderScoreDeleteEvents() {
             <span class="material-symbols-outlined ${isPlus ? "text-secondary" : "text-error"} text-[17px] mt-0.5">${isPlus ? "add_circle" : "warning"}</span>
             <div class="min-w-0">
               <p class="text-xs font-bold text-on-surface break-words">${escapeHtml(title)} · ${escapeHtml(event.label)}</p>
-              <p class="text-[10px] text-on-surface-variant mt-0.5">${escapeHtml(teamName)} · Tuần ${weekNumber(event.weekId)} · ${formatRelativeTime(event.createdAt)}</p>
+              <p class="text-[10px] text-on-surface-variant mt-0.5">${escapeHtml(teamName)} · Tuần ${weekNumber(event.weekId)} · ${dateLabel}${creator}</p>
               ${event.note ? `<p class="text-[10px] text-outline mt-0.5 break-words">${escapeHtml(event.note)}</p>` : ""}
             </div>
           </div>
           <span class="font-heading font-bold text-xs ${isPlus ? "text-secondary" : "text-error"} tabular-nums shrink-0">${formatPoints(event.points)}đ</span>
         </div>
-        <button type="button" class="btn-score-delete-event mt-2 w-full min-h-9 rounded-lg bg-error-container/70 hover:bg-error hover:text-on-error text-error text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors" data-del-id="${escapeHtml(event.id)}">
-          <span class="material-symbols-outlined text-[15px]">delete</span>
-          Xóa lượt ghi này
-        </button>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          ${event.ruleId === TEAM_ADJUSTMENT_RULE_ID ? `
+            <button type="button" class="btn-score-edit-event min-h-9 rounded-lg bg-primary-container/70 hover:bg-primary hover:text-on-primary text-primary text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors" data-edit-id="${escapeHtml(event.id)}">
+              <span class="material-symbols-outlined text-[15px]">edit</span>Sửa
+            </button>
+          ` : '<span></span>'}
+          <button type="button" class="btn-score-delete-event min-h-9 rounded-lg bg-error-container/70 hover:bg-error hover:text-on-error text-error text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors" data-del-id="${escapeHtml(event.id)}">
+            <span class="material-symbols-outlined text-[15px]">delete</span>Xóa
+          </button>
+        </div>
       </article>
     `;
   }).join("");
@@ -1561,6 +1642,34 @@ function renderScoreDeleteEvents() {
       `<p class="text-[10px] text-outline text-center py-1">Đang hiển thị 100 lượt gần nhất trong tổng số ${deletableEvents.length} lượt. Hãy lọc theo tuần để tìm lượt cũ hơn.</p>`
     );
   }
+
+  $$(".btn-score-edit-event", list).forEach((button) => {
+    button.onclick = async () => {
+      const event = deletableEvents.find((item) => item.id === button.dataset.editId);
+      if (!event) return;
+      const rawPoints = prompt("Nhập số điểm mới (số dương để cộng, số âm để trừ):", String(event.points));
+      if (rawPoints === null) return;
+      const points = Math.round((Number(rawPoints) + Number.EPSILON) * 100) / 100;
+      if (!Number.isFinite(points) || points === 0) {
+        alert("Số điểm không hợp lệ.");
+        return;
+      }
+      const reason = prompt("Nhập lý do:", event.note || "");
+      if (reason === null) return;
+      if (!reason.trim()) {
+        alert("Vui lòng nhập lý do.");
+        return;
+      }
+      button.disabled = true;
+      try {
+        await store.updateTeamAdjustment(event.id, { points, note: reason });
+        renderScoreDeleteEvents();
+      } catch (error) {
+        alert(error.message || "Không thể sửa lượt ghi.");
+        button.disabled = false;
+      }
+    };
+  });
 
   $$(".btn-score-delete-event", list).forEach((button) => {
     button.onclick = async () => {

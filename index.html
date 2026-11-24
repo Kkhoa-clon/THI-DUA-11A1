@@ -342,7 +342,7 @@
       </div>
 
       <!-- Workspace khi ĐÃ ĐĂNG NHẬP -->
-      <div id="scoring-workspace" class="hidden flex-col w-full gap-4">
+      <div id="scoring-workspace" class="hidden flex-col w-full gap-5">
 
         <!-- Header Tổ Trưởng / Admin -->
         <div class="bg-surface-container-lowest rounded-2xl p-3.5 shadow-xs flex items-center justify-between border border-outline-variant/20">
@@ -365,14 +365,55 @@
           </button>
         </div>
 
-        <div class="rounded-2xl bg-surface-container-lowest p-3.5 shadow-xs border border-secondary/20">
+        <div class="scoring-form-card rounded-2xl bg-surface-container-lowest p-5 shadow-xs border border-secondary/20">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center">
+              <span class="material-symbols-outlined text-on-primary-container text-[17px]">groups</span>
+            </div>
+            <div>
+              <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Điểm phong trào</p>
+              <h3 class="font-heading font-bold text-sm text-on-surface">Theo tổ</h3>
+            </div>
+          </div>
+          <p id="team-movement-permission-hint" class="text-[11px] text-on-surface-variant mb-3"></p>
+          <div class="flex flex-col gap-2.5">
+            <div class="grid grid-cols-2 gap-2">
+              <div class="relative">
+                <select id="team-movement-team" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-8 rounded-xl text-xs font-semibold border border-outline-variant/30">
+                  <option value="">Chọn tổ</option>
+                </select>
+                <span class="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">expand_more</span>
+              </div>
+              <div class="relative">
+                <select id="team-movement-direction" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-8 rounded-xl text-xs font-semibold border border-outline-variant/30">
+                  <option value="plus">Cộng điểm</option>
+                  <option value="minus">Trừ điểm</option>
+                </select>
+              </div>
+            </div>
+            <label class="flex flex-col gap-1 text-[10px] text-on-surface-variant font-semibold">
+              Số điểm
+              <input id="team-movement-points" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ví dụ: 5 hoặc 2.5" class="w-full bg-surface-container-low text-on-surface px-3 py-2.5 rounded-xl text-xs font-semibold border border-outline-variant/30 outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-on-surface-variant/50" />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-on-surface-variant font-semibold">
+              Chú thích lý do
+              <textarea id="team-movement-reason" rows="2" maxlength="200" placeholder="Ví dụ: Phong trào của tổ..." class="w-full resize-y bg-surface-container-low text-on-surface px-3 py-2.5 rounded-xl text-xs font-medium border border-outline-variant/30 outline-none"></textarea>
+            </label>
+            <button type="button" id="btn-team-movement" class="w-full py-2.5 rounded-xl bg-primary hover:opacity-90 active:scale-[0.98] text-on-primary text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs">
+              <span class="material-symbols-outlined text-[16px]">save</span>
+              Ghi điểm cho tổ trong tuần này
+            </button>
+          </div>
+        </div>
+
+        <div class="scoring-form-card rounded-2xl bg-surface-container-lowest p-5 shadow-xs border border-secondary/20">
           <div class="flex items-center gap-2 mb-2">
             <div class="w-8 h-8 rounded-lg bg-secondary-container flex items-center justify-center">
               <span class="material-symbols-outlined text-on-secondary-container text-[17px]">campaign</span>
             </div>
             <div>
               <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Điểm phong trào</p>
-              <h3 class="font-heading font-bold text-sm text-on-surface">Theo thống nhất lớp</h3>
+              <h3 class="font-heading font-bold text-sm text-on-surface">Cá nhân</h3>
             </div>
           </div>
           <p id="team-adjustment-permission-hint" class="text-[11px] text-on-surface-variant mb-3"></p>
@@ -380,11 +421,7 @@
             <div class="grid grid-cols-2 gap-2">
               <div class="relative">
                 <select id="team-adjustment-team" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-8 rounded-xl text-xs font-semibold border border-outline-variant/30">
-                  <option value="">Chọn tổ</option>
-                  <option value="to1">Tổ 1</option>
-                  <option value="to2">Tổ 2</option>
-                  <option value="to3">Tổ 3</option>
-                  <option value="to4">Tổ 4</option>
+                  <option value="">Chọn thành viên</option>
                 </select>
                 <span class="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">expand_more</span>
               </div>
@@ -398,7 +435,7 @@
             </div>
             <label class="flex flex-col gap-1 text-[10px] text-on-surface-variant font-semibold">
               Số điểm
-              <input id="team-adjustment-points" type="number" min="1" max="2147483647" step="1" inputmode="numeric" placeholder="Nhập số điểm" class="w-full bg-surface-container-low text-on-surface px-3 py-2.5 rounded-xl text-xs font-semibold border border-outline-variant/30 outline-none focus:ring-2 focus:ring-secondary/30 placeholder:text-on-surface-variant/50" />
+              <input id="team-adjustment-points" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ví dụ: 2.5" class="w-full bg-surface-container-low text-on-surface px-3 py-2.5 rounded-xl text-xs font-semibold border border-outline-variant/30 outline-none focus:ring-2 focus:ring-secondary/30 placeholder:text-on-surface-variant/50" />
             </label>
             <label class="flex flex-col gap-1 text-[10px] text-on-surface-variant font-semibold">
               Chú thích lý do
@@ -406,12 +443,12 @@
             </label>
             <button type="button" id="btn-team-adjustment" class="w-full py-2.5 rounded-xl bg-secondary hover:opacity-90 active:scale-[0.98] text-on-secondary text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs">
               <span class="material-symbols-outlined text-[16px]">save</span>
-              Ghi điểm cho tổ trong tuần này
+              Ghi điểm cho cá nhân trong tuần này
             </button>
           </div>
         </div>
 
-        <div class="rounded-2xl bg-surface-container-lowest p-3.5 shadow-xs border border-error/20">
+        <div class="scoring-form-card rounded-2xl bg-surface-container-lowest p-5 shadow-xs border border-error/20">
           <div class="flex items-start justify-between gap-3 mb-3">
             <div class="flex items-start gap-2.5 min-w-0">
               <div class="w-9 h-9 rounded-xl bg-error-container/60 text-error flex items-center justify-center shrink-0">

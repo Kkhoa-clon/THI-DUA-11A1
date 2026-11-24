@@ -624,6 +624,67 @@
   box-shadow: 0 0 0 3px rgb(var(--a1-primary) / 0.12);
 }
 
+/* Khoảng cách thoáng trong màn hình nhập điểm */
+#scoring-workspace {
+  row-gap: 1.5rem !important;
+  gap: 1.5rem !important;
+}
+
+#scoring-workspace .scoring-form-card {
+  padding: 1.35rem !important;
+  margin: 0 0.125rem 1.25rem !important;
+  border-width: 1px;
+}
+
+#scoring-workspace #team-movement-team,
+#scoring-workspace #team-adjustment-team,
+#scoring-workspace #team-movement-direction,
+#scoring-workspace #team-adjustment-direction {
+  margin-bottom: 0;
+}
+
+#scoring-workspace .scoring-form-card > div,
+#scoring-workspace .scoring-form-card > p,
+#scoring-workspace .scoring-form-card > label,
+#scoring-workspace .scoring-form-card > button {
+  margin-bottom: 0.35rem;
+}
+
+#scoring-workspace .scoring-form-card > :last-child {
+  margin-bottom: 0;
+}
+
+#scoring-workspace .scoring-form-card .grid {
+  gap: 0.75rem;
+}
+
+#scoring-workspace .scoring-form-card select,
+#scoring-workspace .scoring-form-card input {
+  min-height: 44px;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
+#scoring-workspace .scoring-form-card textarea {
+  min-height: 84px;
+  padding: 0.75rem;
+}
+
+#scoring-workspace .scoring-form-card button[type="button"] {
+  min-height: 44px;
+}
+
+#scoring-workspace #student-select-grid,
+#scoring-workspace #quick-rewards-grid,
+#scoring-workspace #quick-punishments-grid {
+  gap: 0.625rem;
+}
+
+#scoring-workspace .student-select-item {
+  min-height: 58px;
+  padding: 0.75rem;
+}
+
 .quick-choice-btn {
   border: 1px solid rgba(148, 163, 184, 0.2);
   background: rgb(var(--a1-surface-container-low));

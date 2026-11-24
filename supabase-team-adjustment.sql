@@ -1,8 +1,11 @@
--- Chạy một lần trong Supabase SQL Editor để cho phép Admin và tổ trưởng ghi điểm
--- phong trào theo tổ. Ứng dụng giới hạn tổ trưởng vào tổ được gán theo PIN.
--- Các lượt ghi điểm cá nhân vẫn giới hạn ±50.
+-- Chạy một lần trong Supabase SQL Editor để bật điểm phong trào cá nhân.
+-- Cho phép số thập phân và lưu người thực hiện từng lượt.
+
+alter table public.events alter column points type numeric(20,2) using points::numeric(20,2);
+alter table public.events add column if not exists created_by_name text not null default '';
 
 drop policy if exists "events_insert_valid" on public.events;
+drop policy if exists "events_update_all" on public.events;
 
 create policy "events_insert_valid"
   on public.events for insert
@@ -14,6 +17,7 @@ create policy "events_insert_valid"
         rule_id = 'team-adjustment'
         and by_role in ('admin', 'leader')
         and by_team_id = team_id
+        and points <> 0
       )
       or (
         rule_id <> 'team-adjustment'
@@ -22,3 +26,8 @@ create policy "events_insert_valid"
       )
     )
   );
+
+create policy "events_update_all"
+  on public.events for update
+  using (true)
+  with check (true);

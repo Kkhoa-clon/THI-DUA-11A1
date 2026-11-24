@@ -67,6 +67,7 @@ const safeSession = {
  *   note: string,
  *   byTeamId: string,
  *   createdByRole: "admin" | "leader",
+ *   createdByName: string,
  *   createdAt: number,
  *   syncError?: string
  * }} ScoreEvent
@@ -216,6 +217,7 @@ function rowToEvent(row) {
     note: String(row.note || ""),
     byTeamId: String(row.by_team_id || ""),
     createdByRole: row.by_role === "admin" ? "admin" : "leader",
+    createdByName: String(row.created_by_name || ""),
     createdAt: Number(row.created_at) || Date.now(),
     syncError: null,
   };
@@ -1251,6 +1253,7 @@ export class ScoreStore {
       note: String(note || "").slice(0, 200),
       byTeamId,
       createdByRole: this.isAdmin() ? "admin" : "leader",
+      createdByName: this.getLeaderName(),
       createdAt,
       syncError: null,
     };
@@ -1280,6 +1283,7 @@ export class ScoreStore {
             note: event.note,
             by_team_id: event.byTeamId,
             by_role: event.createdByRole,
+            created_by_name: event.createdByName,
             created_at: event.createdAt,
           }),
         });
@@ -1337,12 +1341,15 @@ export class ScoreStore {
     return results;
   }
 
-  async addTeamAdjustment({ teamId, points, note }) {
+  async addTeamAdjustment({ teamId: requestedTeamId, memberId, points, note }) {
     if (!this.isLoggedIn()) throw new Error("Vui lòng đăng nhập để ghi điểm phong trào.");
-    if (!TEAM_BY_ID[teamId]) throw new Error("Vui lòng chọn một tổ hợp lệ.");
+    const member = memberId ? MEMBER_BY_ID[memberId] : null;
+    if (memberId && !member) throw new Error("Vui lòng chọn một học sinh hợp lệ.");
+    if (!memberId && !TEAM_BY_ID[requestedTeamId]) throw new Error("Vui lòng chọn một tổ hợp lệ.");
+    const teamId = member ? member.teamId : requestedTeamId;
     if (this.isLeader()) {
       if (this.getLeaderTeamId() !== teamId) {
-        throw new Error("Tổ trưởng chỉ được ghi điểm phong trào cho tổ của mình.");
+        throw new Error("Tổ trưởng chỉ được ghi điểm phong trào cho thành viên của tổ mình.");
       }
       const blockReason = this.leaderBlockReason(this.weekId);
       if (blockReason) throw new Error(blockReason);
@@ -1350,13 +1357,12 @@ export class ScoreStore {
       throw new Error("Bạn không có quyền ghi điểm phong trào.");
     }
 
-    const adjustment = Number(points);
-    if (
-      !Number.isSafeInteger(adjustment) ||
-      adjustment === 0 ||
-      Math.abs(adjustment) > 2147483647
-    ) {
-      throw new Error("Số điểm phải là số nguyên khác 0, không vượt quá 2.147.483.647.");
+    const adjustment = Math.round((Number(points) + Number.EPSILON) * 100) / 100;
+    if (!Number.isFinite(adjustment) || adjustment === 0) {
+      throw new Error("Số điểm phải là số thập phân khác 0.");
+    }
+    if (Math.abs(adjustment) > Number.MAX_SAFE_INTEGER) {
+      throw new Error("Số điểm vượt quá giới hạn cho phép.");
     }
 
     const reason = String(note || "").trim();
@@ -1367,13 +1373,16 @@ export class ScoreStore {
       id: uid(),
       weekId: this.weekId,
       teamId,
-      memberId: "",
+      memberId: member ? member.id : "",
       ruleId: TEAM_ADJUSTMENT_RULE_ID,
       points: adjustment,
-      label: TEAM_ADJUSTMENT_LABEL,
+      label: member
+        ? (adjustment > 0 ? "Điểm phong trào cá nhân — cộng" : "Điểm phong trào cá nhân — trừ")
+        : TEAM_ADJUSTMENT_LABEL,
       note: reason,
       byTeamId: teamId,
       createdByRole: this.isAdmin() ? "admin" : "leader",
+      createdByName: this.getLeaderName(),
       createdAt: Date.now(),
       syncError: null,
     };
@@ -1396,6 +1405,7 @@ export class ScoreStore {
           note: event.note,
           by_team_id: event.byTeamId,
           by_role: event.createdByRole,
+          created_by_name: event.createdByName,
           created_at: event.createdAt,
         }),
       });
@@ -1414,6 +1424,7 @@ export class ScoreStore {
         (item) =>
           item.ruleId === TEAM_ADJUSTMENT_RULE_ID &&
           item.teamId === event.teamId &&
+          item.memberId === event.memberId &&
           item.weekId === event.weekId &&
           item.createdAt === event.createdAt
       );
@@ -1426,14 +1437,76 @@ export class ScoreStore {
     return event;
   }
 
-  // —— Xóa bản ghi theo phạm vi quyền của từng vai trò ——
-  canDeleteEvent(event) {
+  // —— Sửa/xóa bản ghi theo phạm vi quyền của từng vai trò ——
+  canEditEvent(event) {
     if (!event) return false;
     if (this.isAdmin()) return true;
-    if (event.ruleId === TEAM_ADJUSTMENT_RULE_ID) return false;
     const leaderTeam = this.getLeaderTeamId();
     if (!leaderTeam || event.teamId !== leaderTeam) return false;
+    if (event.ruleId === TEAM_ADJUSTMENT_RULE_ID) {
+      return event.weekId === defaultWeekId() && this.canEditWeek(event.weekId);
+    }
     return event.weekId === defaultWeekId() && this.canEditWeek(event.weekId);
+  }
+
+  canDeleteEvent(event) {
+    return this.canEditEvent(event);
+  }
+
+  async updateTeamAdjustment(eventId, { points, note }) {
+    if (!this.isLoggedIn()) throw new Error("Chưa đăng nhập.");
+    const event = this.allEvents.find((e) => String(e.id) === String(eventId));
+    if (!event || event.ruleId !== TEAM_ADJUSTMENT_RULE_ID) {
+      throw new Error("Không tìm thấy lượt cộng điểm phong trào cá nhân.");
+    }
+    if (!this.canEditEvent(event)) {
+      throw new Error("Bạn không có quyền sửa lượt cộng điểm này.");
+    }
+
+    const adjustment = Math.round((Number(points) + Number.EPSILON) * 100) / 100;
+    if (!Number.isFinite(adjustment) || adjustment === 0) {
+      throw new Error("Số điểm phải là số thập phân khác 0.");
+    }
+    if (Math.abs(adjustment) > Number.MAX_SAFE_INTEGER) {
+      throw new Error("Số điểm vượt quá giới hạn cho phép.");
+    }
+    const reason = String(note || "").trim();
+    if (!reason) throw new Error("Vui lòng nhập lý do.");
+    if (reason.length > 200) throw new Error("Lý do không được vượt quá 200 ký tự.");
+
+    const original = { ...event };
+    event.points = adjustment;
+    event.label = adjustment > 0 ? "Điểm phong trào cá nhân — cộng" : "Điểm phong trào cá nhân — trừ";
+    event.note = reason;
+    this._saveToLocal();
+    this._emit();
+
+    if (this.mode === "live" && !event.syncError) {
+      try {
+        const res = await fetchWithTimeout(
+          `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(eventId)}`,
+          {
+            method: "PATCH",
+            headers: supabaseHeaders({
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Prefer: "return=representation",
+            }),
+            body: JSON.stringify({ points: adjustment, label: event.label, note: reason }),
+          }
+        );
+        if (!res.ok) {
+          const detail = (await res.text().catch(() => "")).slice(0, 160);
+          throw new Error(`Supabase không sửa được điểm phong trào (HTTP ${res.status})${detail ? `: ${detail}` : ""}`);
+        }
+      } catch (err) {
+        Object.assign(event, original);
+        this._saveToLocal();
+        this._emit();
+        throw err instanceof Error ? err : new Error("Không xác định được lỗi khi sửa điểm phong trào.");
+      }
+    }
+    return event;
   }
 
   async deleteEvent(eventId) {

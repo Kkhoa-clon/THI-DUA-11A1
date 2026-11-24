@@ -11,13 +11,18 @@ create table if not exists public.events (
   team_id text not null,
   member_id text not null,
   rule_id text not null,
-  points integer not null,
+  points numeric(20,2) not null,
   label text not null,
   note text not null default '',
   by_team_id text not null,
   by_role text not null default 'leader' check (by_role in ('admin', 'leader')),
   created_at bigint not null
 );
+
+alter table public.events
+  alter column points type numeric(20,2) using points::numeric(20,2);
+alter table public.events
+  add column if not exists created_by_name text not null default '';
 
 alter table public.events
   add column if not exists by_role text not null default 'leader'
@@ -31,6 +36,7 @@ alter table public.events enable row level security;
 drop policy if exists "events_select_all" on public.events;
 drop policy if exists "events_insert_valid" on public.events;
 drop policy if exists "events_delete_all" on public.events;
+drop policy if exists "events_update_all" on public.events;
 
 create policy "events_select_all"
   on public.events for select
@@ -45,6 +51,7 @@ create policy "events_insert_valid"
         rule_id = 'team-adjustment'
         and by_role in ('admin', 'leader')
         and by_team_id = team_id
+        and points <> 0
       )
       or (
         rule_id <> 'team-adjustment'
@@ -57,6 +64,11 @@ create policy "events_insert_valid"
 create policy "events_delete_all"
   on public.events for delete
   using (true);
+
+create policy "events_update_all"
+  on public.events for update
+  using (true)
+  with check (true);
 
 -- 2. BẢNG APP_SETTINGS (CẤU HÌNH KHÓA TUẦN & TẠM DỪNG TỔ TRƯỞNG)
 create table if not exists public.app_settings (
