@@ -125,6 +125,62 @@
   min-width: 0;
 }
 
+.classroom-collapse-toggle {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  border: 2px solid rgb(var(--a1-primary));
+  border-radius: 10px;
+  background: rgb(var(--a1-primary));
+  color: rgb(var(--a1-on-primary));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgb(var(--a1-primary) / 0.32);
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.classroom-collapse-toggle:hover {
+  background: rgb(var(--a1-primary-container));
+  color: rgb(var(--a1-on-primary-container));
+  border-color: rgb(var(--a1-primary-container));
+}
+
+.classroom-collapse-toggle:active {
+  transform: scale(0.94);
+}
+
+.classroom-collapse-toggle .material-symbols-outlined {
+  font-size: 18px;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.classroom-collapse-toggle[aria-expanded="false"] .material-symbols-outlined {
+  transform: rotate(180deg);
+}
+
+.classroom-board-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  max-height: 1100px;
+  opacity: 1;
+  overflow: hidden;
+  transform: translateY(0);
+  transition:
+    max-height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease,
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.classroom-board-body.is-collapsed {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
 .classroom-board-badge {
   width: 2.1rem;
   height: 2.1rem;
@@ -658,6 +714,71 @@
   gap: 0.75rem;
 }
 
+.scoring-collapse-toggle {
+  width: 38px;
+  height: 38px;
+  min-height: 38px !important;
+  flex: 0 0 38px;
+  border: 2px solid rgb(var(--a1-primary));
+  border-radius: 12px;
+  background: rgb(var(--a1-primary));
+  color: rgb(var(--a1-on-primary));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgb(var(--a1-primary) / 0.32);
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.scoring-collapse-toggle:hover {
+  background: rgb(var(--a1-primary-container));
+  color: rgb(var(--a1-on-primary-container));
+  border-color: rgb(var(--a1-primary-container));
+}
+
+.scoring-collapse-toggle[data-collapse-target="team-adjustment-body"] {
+  border-color: #059669;
+  background: #059669;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgb(5 150 105 / 0.32);
+}
+
+.scoring-collapse-toggle[data-collapse-target="team-adjustment-body"]:hover {
+  border-color: #047857;
+  background: #047857;
+  color: #ffffff;
+}
+
+.scoring-collapse-toggle:active {
+  transform: scale(0.94);
+}
+
+.scoring-collapse-toggle .material-symbols-outlined {
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scoring-collapse-toggle[aria-expanded="false"] .material-symbols-outlined {
+  transform: rotate(180deg);
+}
+
+.scoring-collapse-body {
+  max-height: 620px;
+  opacity: 1;
+  overflow: hidden;
+  transform: translateY(0);
+  transition:
+    max-height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease,
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scoring-collapse-body.is-collapsed {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
 #scoring-workspace .scoring-form-card select,
 #scoring-workspace .scoring-form-card input {
   min-height: 44px;
@@ -1056,7 +1177,7 @@ html.dark .admin-dashboard-banner {
 }
 
 html.dark .lookup-banner {
-  background: linear-gradient(135deg, #073b4c 0%, #0b2738 55%, #101827 100%);
+  background: linear-gradient(135deg, #047857 0%, #059669 55%, #065f46 100%);
 }
 
 html.dark .snapshot-card :is(p, h2, span),

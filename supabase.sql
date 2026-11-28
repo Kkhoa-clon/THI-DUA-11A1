@@ -15,6 +15,7 @@ create table if not exists public.events (
   created_at bigint not null
 );
 
+drop policy if exists "events_insert_valid" on public.events;
 alter table public.events
   alter column points type numeric(20,2) using points::numeric(20,2);
 alter table public.events

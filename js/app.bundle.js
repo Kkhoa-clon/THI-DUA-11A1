@@ -4615,8 +4615,12 @@ function renderClassroomBoardView() {
             <div class="classroom-score-badge ${teamScoreTone}">
               ${scoreInfo.total > baseTeamScore ? "+" : ""}${scoreInfo.total}
             </div>
+            <button type="button" class="classroom-collapse-toggle" data-collapse-target="classroom-board-body-${team.id}" aria-expanded="true" aria-controls="classroom-board-body-${team.id}" title="Thu gọn">
+              <span class="material-symbols-outlined" aria-hidden="true">expand_less</span>
+            </button>
           </div>
 
+          <div id="classroom-board-body-${team.id}" class="classroom-board-body">
           <div class="classroom-board-stats">
             <div class="classroom-stat">
               <span class="label">Điểm</span>
@@ -4715,6 +4719,7 @@ function renderClassroomBoardView() {
             `).join("") : `<div class="classroom-empty">Chưa có dữ liệu.</div>`}
             </div>
           </details>
+          </div>
         </article>
       `;
     })
@@ -5740,6 +5745,32 @@ function openRulesCatalogModal() {
 }
 
 function setupEventListeners() {
+  document.addEventListener("click", (event) => {
+    const toggle = event.target.closest(".classroom-collapse-toggle");
+    if (!toggle) return;
+
+    const bodyId = toggle.dataset.collapseTarget;
+    const body = bodyId ? document.getElementById(bodyId) : null;
+    if (!body) return;
+
+    const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!isExpanded));
+    toggle.title = isExpanded ? "Mở rộng" : "Thu gọn";
+    body.classList.toggle("is-collapsed", isExpanded);
+  });
+
+  $$(".scoring-collapse-toggle").forEach((toggle) => {
+    toggle.onclick = () => {
+      const body = document.getElementById(toggle.dataset.collapseTarget);
+      if (!body) return;
+
+      const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", String(!isExpanded));
+      toggle.title = isExpanded ? "Mở rộng" : "Thu gọn";
+      body.classList.toggle("is-collapsed", isExpanded);
+    };
+  });
+
   // 1. Bottom Nav Switching
   $$("#bottom-nav .nav-item").forEach((btn) => {
     btn.onclick = () => switchView(btn.dataset.view);

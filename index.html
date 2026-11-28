@@ -365,18 +365,24 @@
           </button>
         </div>
 
-        <div class="scoring-form-card rounded-2xl bg-surface-container-lowest p-5 shadow-xs border border-secondary/20">
-          <div class="flex items-center gap-2 mb-2">
-            <div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center">
-              <span class="material-symbols-outlined text-on-primary-container text-[17px]">groups</span>
+        <div id="team-movement-card" class="scoring-form-card rounded-2xl bg-surface-container-lowest p-5 shadow-xs border border-secondary/20">
+          <div class="flex items-center justify-between gap-3 mb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center">
+                <span class="material-symbols-outlined text-on-primary-container text-[17px]">groups</span>
+              </div>
+              <div>
+                <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Điểm phong trào</p>
+                <h3 class="font-heading font-bold text-sm text-on-surface">Theo tổ</h3>
+              </div>
             </div>
-            <div>
-              <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Điểm phong trào</p>
-              <h3 class="font-heading font-bold text-sm text-on-surface">Theo tổ</h3>
-            </div>
+            <button type="button" class="scoring-collapse-toggle" data-collapse-target="team-movement-body" aria-expanded="true" aria-controls="team-movement-body" title="Thu gọn">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
           </div>
-          <p id="team-movement-permission-hint" class="text-[11px] text-on-surface-variant mb-3"></p>
-          <div class="flex flex-col gap-2.5">
+          <div id="team-movement-body" class="scoring-collapse-body">
+            <p id="team-movement-permission-hint" class="text-[11px] text-on-surface-variant mb-3"></p>
+            <div class="flex flex-col gap-2.5">
             <div class="grid grid-cols-2 gap-2">
               <div class="relative">
                 <select id="team-movement-team" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-8 rounded-xl text-xs font-semibold border border-outline-variant/30">
@@ -403,21 +409,28 @@
               <span class="material-symbols-outlined text-[16px]">save</span>
               Ghi điểm cho tổ trong tuần này
             </button>
+            </div>
           </div>
         </div>
 
-        <div class="scoring-form-card rounded-2xl bg-surface-container-lowest p-5 shadow-xs border border-secondary/20">
-          <div class="flex items-center gap-2 mb-2">
-            <div class="w-8 h-8 rounded-lg bg-secondary-container flex items-center justify-center">
-              <span class="material-symbols-outlined text-on-secondary-container text-[17px]">campaign</span>
+        <div id="team-adjustment-card" class="scoring-form-card rounded-2xl bg-surface-container-lowest p-5 shadow-xs border border-secondary/20">
+          <div class="flex items-center justify-between gap-3 mb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-secondary-container flex items-center justify-center">
+                <span class="material-symbols-outlined text-on-secondary-container text-[17px]">campaign</span>
+              </div>
+              <div>
+                <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Điểm phong trào</p>
+                <h3 class="font-heading font-bold text-sm text-on-surface">Cá nhân</h3>
+              </div>
             </div>
-            <div>
-              <p class="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">Điểm phong trào</p>
-              <h3 class="font-heading font-bold text-sm text-on-surface">Cá nhân</h3>
-            </div>
+            <button type="button" class="scoring-collapse-toggle" data-collapse-target="team-adjustment-body" aria-expanded="true" aria-controls="team-adjustment-body" title="Thu gọn">
+              <span class="material-symbols-outlined">expand_less</span>
+            </button>
           </div>
-          <p id="team-adjustment-permission-hint" class="text-[11px] text-on-surface-variant mb-3"></p>
-          <div class="flex flex-col gap-2.5">
+          <div id="team-adjustment-body" class="scoring-collapse-body">
+            <p id="team-adjustment-permission-hint" class="text-[11px] text-on-surface-variant mb-3"></p>
+            <div class="flex flex-col gap-2.5">
             <div class="grid grid-cols-2 gap-2">
               <div class="relative">
                 <select id="team-adjustment-team" class="dropdown-select w-full appearance-none bg-surface-container-low text-on-surface px-3 py-2.5 pr-8 rounded-xl text-xs font-semibold border border-outline-variant/30">
@@ -445,6 +458,7 @@
               <span class="material-symbols-outlined text-[16px]">save</span>
               Ghi điểm cho cá nhân trong tuần này
             </button>
+            </div>
           </div>
         </div>
 
@@ -773,16 +787,16 @@
     <section id="view-lookup" class="app-view flex-col w-full gap-3 pb-8">
 
       <!-- Header banner -->
-      <div class="lookup-banner relative overflow-hidden rounded-2xl bg-gradient-to-br from-secondary via-secondary-container to-secondary p-4 shadow-md">
+      <div class="lookup-banner relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-green-500 to-emerald-700 p-4 shadow-md">
         <div class="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
         <div class="relative z-10 flex items-center justify-between">
           <div>
-            <p class="text-[10px] text-on-secondary/70 uppercase tracking-widest font-heading font-bold">Tra cứu điểm</p>
-            <h2 class="font-heading font-bold text-xl text-on-secondary leading-tight mt-0.5">Điểm cá nhân</h2>
-            <p class="text-xs text-on-secondary/80 mt-1">Chọn tên → chọn tuần → xem chi tiết</p>
+            <p class="text-[10px] text-white/80 uppercase tracking-widest font-heading font-bold">Tra cứu điểm</p>
+            <h2 class="font-heading font-bold text-xl text-white leading-tight mt-0.5">Điểm cá nhân</h2>
+            <p class="text-xs text-white/90 mt-1">Chọn tên → chọn tuần → xem chi tiết</p>
           </div>
           <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center">
-            <span class="material-symbols-outlined text-on-secondary text-[28px]">manage_search</span>
+            <span class="material-symbols-outlined text-white text-[28px]">manage_search</span>
           </div>
         </div>
       </div>
